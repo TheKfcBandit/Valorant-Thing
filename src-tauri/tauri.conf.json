@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": "default-src 'self' ipc: http://ipc.localhost asset: https://asset.localhost; img-src 'self' data: blob: asset: https://asset.localhost https://media.valorant-api.com; media-src 'self' blob: asset: https://asset.localhost; font-src 'self' data: https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' ipc: http://ipc.localhost https://valorant-api.com https://api.splooshima.com ws: wss:; object-src 'none'",
       "assetProtocol": {
         "enable": true,
         "scope": ["**"]

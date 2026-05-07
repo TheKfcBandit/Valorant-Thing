@@ -3,6 +3,7 @@ dist/
 target/
 .windsurf/
 .agents/
+.claude/
 # val.md
 changelog.md
 *.js.map

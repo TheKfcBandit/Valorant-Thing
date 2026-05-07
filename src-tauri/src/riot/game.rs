@@ -356,7 +356,7 @@ pub fn set_party_accessibility(state: &Mutex<ConnectionState>, open: bool) -> Re
     let party_id = player_json["CurrentPartyID"].as_str().filter(|s| !s.is_empty())
         .ok_or("No party ID")?;
     let path = format!("/parties/v1/parties/{}/accessibility", party_id);
-    let body = format!(r#"{{"accessibility":"{}"}}"#, if open { "OPEN" } else { "CLOSED" });
+    let body = serde_json::json!({"accessibility": if open { "OPEN" } else { "CLOSED" }}).to_string();
     glz_post_body(&region, &shard, &path, &body, &access_token, &entitlements, &client_version)
 }
 
@@ -467,7 +467,7 @@ pub fn request_to_join_party(state: &Mutex<ConnectionState>, target_puuid: &str)
 
     let target_party = target_party.ok_or("Player has no party (not found in presence data)")?;
     let path = format!("/parties/v1/parties/{}/request", target_party);
-    let body = format!(r#"{{"Subjects":["{}"]}}"#, puuid);
+    let body = serde_json::json!({"Subjects": [puuid]}).to_string();
     log_info(&format!("[Party] Requesting to join party {} (player {})", target_party, target_puuid));
     glz_post_body(&region, &shard, &path, &body, &access_token, &entitlements, &client_version)
 }
@@ -601,7 +601,7 @@ pub fn change_queue(state: &Mutex<ConnectionState>, queue_id: &str) -> Result<St
     let party_id = player_json["CurrentPartyID"].as_str().filter(|s| !s.is_empty())
         .ok_or("No party ID")?;
     let path = format!("/parties/v1/parties/{}/queue", party_id);
-    let body = format!("{{\"queueID\": \"{}\"}}", queue_id);
+    let body = serde_json::json!({"queueID": queue_id}).to_string();
     log_info(&format!("[Party] Changing queue to {}", queue_id));
     glz_post_body(&region, &shard, &path, &body, &access_token, &entitlements, &client_version)
 }

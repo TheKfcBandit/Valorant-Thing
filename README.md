@@ -141,7 +141,7 @@ All API calls happen in the **Rust backend** — the React frontend never touche
 ### Setup
 
 ```bash
-git clone https://github.com/AjaxFNC-YT/Valorant-Thing.git
+git clone https://github.com/TheKfcBandit/Valorant-Thing.git
 cd Valorant-Thing
 npm install
 ```

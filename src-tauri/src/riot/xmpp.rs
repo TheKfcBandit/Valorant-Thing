@@ -518,7 +518,10 @@ pub fn xmpp_send_fake_presence(state: &Mutex<XmppState>, riot_state: &Mutex<supe
     let params: serde_json::Value = serde_json::from_str(presence_json)
         .map_err(|e| format!("parse presence params: {}", e))?;
 
-    let show = params["show"].as_str().unwrap_or("chat");
+    let show = match params["show"].as_str() {
+        Some(s @ ("chat" | "away" | "dnd" | "xa")) => s,
+        _ => "chat",
+    };
     let timestamp = now_ms();
 
     let mut valorant_data = match &s.real_valorant_data {

@@ -36,8 +36,8 @@ pub fn start_rpc(state: &Mutex<DiscordState>) -> Result<(), String> {
                 .small_text("Valorant Thing"),
         )
         .buttons(vec![
-            activity::Button::new("Download Valorant Thing", "https://github.com/AjaxFNC-YT/Valorant-Thing/releases"),
-            activity::Button::new("GitHub", "https://github.com/AjaxFNC-YT/Valorant-Thing"),
+            activity::Button::new("Download Valorant Thing", "https://github.com/TheKfcBandit/Valorant-Thing/releases"),
+            activity::Button::new("GitHub", "https://github.com/TheKfcBandit/Valorant-Thing"),
         ]);
     match client.set_activity(payload) {
         Ok(_) => eprintln!("[discord] Activity set successfully"),

@@ -559,7 +559,7 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[tauri::command]
 async fn check_for_update() -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(|| {
-        let script = r#"const https=require('https');const o={hostname:'api.github.com',path:'/repos/AjaxFNC-YT/Valorant-Thing/releases?per_page=20',headers:{'User-Agent':'ValorantThing'}};https.get(o,res=>{let d='';res.on('data',c=>d+=c);res.on('end',()=>process.stdout.write(d))}).on('error',e=>{process.stderr.write(e.message);process.exit(1)})"#;
+        let script = r#"const https=require('https');const o={hostname:'api.github.com',path:'/repos/TheKfcBandit/Valorant-Thing/releases?per_page=20',headers:{'User-Agent':'ValorantThing'}};https.get(o,res=>{let d='';res.on('data',c=>d+=c);res.on('end',()=>process.stdout.write(d))}).on('error',e=>{process.stderr.write(e.message);process.exit(1)})"#;
         let mut cmd = std::process::Command::new("node");
         cmd.args(["-e", script]);
         #[cfg(target_os = "windows")]
@@ -630,6 +630,14 @@ async fn check_for_update() -> Result<String, String> {
 #[tauri::command]
 async fn download_and_install_update(app: tauri::AppHandle, url: String, filename: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
+        if !url.starts_with("https://github.com/") && !url.starts_with("https://objects.githubusercontent.com/") {
+            return Err("Update URL must point to a GitHub release asset".to_string());
+        }
+        let filename = std::path::Path::new(&filename).file_name()
+            .and_then(|n| n.to_str())
+            .filter(|n| n.ends_with(".exe"))
+            .ok_or_else(|| "Invalid installer filename".to_string())?
+            .to_string();
         let temp = std::env::temp_dir();
         let installer_path = temp.join(&filename);
         let bat_path = temp.join("valthing_update.bat");
@@ -666,7 +674,7 @@ async fn download_and_install_update(app: tauri::AppHandle, url: String, filenam
         Ok(())
     })
     .await
-    .map_err(|e| format!("Task failed: {}", e))?;
+    .map_err(|e| format!("Task failed: {}", e))??;
 
     app.exit(0);
     #[allow(unreachable_code)]
