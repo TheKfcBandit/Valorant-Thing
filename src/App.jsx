@@ -246,6 +246,10 @@ export default function App() {
     const saved = localStorage.getItem("instalock_lock_delay");
     return saved ? parseInt(saved, 10) : 500;
   });
+  const [lockMode, setLockMode] = useState(() => {
+    const saved = localStorage.getItem("instalock_lock_mode");
+    return saved && ["instant", "last-second", "select-only"].includes(saved) ? saved : "instant";
+  });
   // const [overlayEnabled, setOverlayEnabled] = useState(() => localStorage.getItem("overlay_enabled") !== "false");
   // const [overlayLinger, setOverlayLinger] = useState(() => {
   //   const saved = localStorage.getItem("overlay_linger");
@@ -261,6 +265,8 @@ export default function App() {
   const lockedAgentNameRef = useRef(null);
   const selectDelayRef = useRef(selectDelay);
   const lockDelayRef = useRef(lockDelay);
+  const lockModeRef = useRef(lockMode);
+  const pendingLockRef = useRef(new Map());
   const lastLogKeyRef = useRef(null);
   const mapDodgeRef = useRef((() => {
     try {
@@ -450,6 +456,7 @@ export default function App() {
 
   useEffect(() => { selectDelayRef.current = selectDelay; localStorage.setItem("instalock_select_delay", selectDelay); }, [selectDelay]);
   useEffect(() => { lockDelayRef.current = lockDelay; localStorage.setItem("instalock_lock_delay", lockDelay); }, [lockDelay]);
+  useEffect(() => { lockModeRef.current = lockMode; localStorage.setItem("instalock_lock_mode", lockMode); }, [lockMode]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("no-animations", disableAnimations);
@@ -733,6 +740,30 @@ const raw = localStorage.getItem("menu_video_config");
             }
           }
 
+          // Late-lock watcher: if we previously selected (last-second mode), check countdown.
+          if (pendingLockRef.current.has(matchId)) {
+            if (match.PregameState !== "character_select_active") {
+              // Phase ended (locked-in, dodged, or transitioned to ingame) — drop the entry.
+              pendingLockRef.current.delete(matchId);
+            } else {
+              const pending = pendingLockRef.current.get(matchId);
+              const remainingSec = (Number(match.PhaseTimeRemainingNS) || 0) / 1e9;
+              if (remainingSec > 0 && remainingSec < 2.5) {
+                pendingLockRef.current.delete(matchId);
+                try {
+                  await invoke("lock_agent", { matchId, agentId: pending.agentId });
+                  lockedAgentNameRef.current = pending.agentName;
+                  addLog("match", `Late-locked ${pending.agentName} at ${remainingSec.toFixed(2)}s remaining!`);
+                  if (localStorage.getItem("notifications_enabled") !== "false") {
+                    pushNotification({ id: `lock-${matchId}`, type: "locked", agentName: pending.agentName });
+                  }
+                } catch (e) {
+                  addLog("error", `Late-lock failed: ${e}`);
+                }
+              }
+            }
+          }
+
           if (instalockActive && lockedMatchRef.current !== matchId && match.PregameState === "character_select_active") {
             const cfg = instalockConfigRef.current;
             const mapEntry = cfg.maps.find((m) => m.mapUrl === match.MapID);
@@ -745,24 +776,35 @@ const raw = localStorage.getItem("menu_video_config");
               logOnce(`none:${matchId}`, "info", "Instalock disabled for this map (None selected)");
             } else if (agent) {
               lockedMatchRef.current = matchId;
+              const mode = lockModeRef.current;
               const sd = selectDelayRef.current;
               const ld = lockDelayRef.current;
-              const totalMs = sd + ld;
-              if (localStorage.getItem("notifications_enabled") !== "false") {
+              const totalMs = mode === "instant" ? sd + ld : sd;
+              if (localStorage.getItem("notifications_enabled") !== "false" && mode === "instant") {
                 pushNotification({ id: `lock-${matchId}`, type: "locking", agentName: agent.displayName, totalMs, startTime: Date.now() });
               }
-              addLog("info", `Selecting ${agent.displayName} in ${sd}ms`);
+              addLog("info", `Selecting ${agent.displayName} in ${sd}ms (mode: ${mode})`);
               await new Promise((r) => setTimeout(r, sd));
               if (cancelled) return;
               await invoke("select_agent", { matchId, agentId: agent.uuid });
-              addLog("info", `Selected — locking in ${ld}ms`);
-              await new Promise((r) => setTimeout(r, ld));
-              if (cancelled) return;
-              await invoke("lock_agent", { matchId, agentId: agent.uuid });
-              lockedAgentNameRef.current = agent.displayName;
-              addLog("match", `Locked ${agent.displayName}!`);
-              if (localStorage.getItem("notifications_enabled") !== "false") {
-                pushNotification({ id: `lock-${matchId}`, type: "locked", agentName: agent.displayName });
+
+              if (mode === "instant") {
+                addLog("info", `Selected — locking in ${ld}ms`);
+                await new Promise((r) => setTimeout(r, ld));
+                if (cancelled) return;
+                await invoke("lock_agent", { matchId, agentId: agent.uuid });
+                lockedAgentNameRef.current = agent.displayName;
+                addLog("match", `Locked ${agent.displayName}!`);
+                if (localStorage.getItem("notifications_enabled") !== "false") {
+                  pushNotification({ id: `lock-${matchId}`, type: "locked", agentName: agent.displayName });
+                }
+              } else if (mode === "last-second") {
+                pendingLockRef.current.set(matchId, { agentId: agent.uuid, agentName: agent.displayName });
+                lockedAgentNameRef.current = agent.displayName;
+                addLog("info", `Selected ${agent.displayName} — will lock at countdown end (~2s remaining)`);
+              } else { // select-only
+                lockedAgentNameRef.current = agent.displayName;
+                addLog("info", `Selected ${agent.displayName} — auto-lock disabled, lock manually`);
               }
             } else {
               logOnce(`noagent:${matchId}`, "info", "No agent configured for this map");
@@ -826,6 +868,7 @@ const raw = localStorage.getItem("menu_video_config");
           rpcMatchInfoRef.current = null;
           dodgedMatchRef.current = null;
           notifiedMatchRef.current = null;
+          if (pendingLockRef.current.size > 0) pendingLockRef.current.clear();
         }
       }
       if (!cancelled) setTimeout(poll, MATCH_POLL_INTERVAL);
@@ -1332,6 +1375,8 @@ const raw = localStorage.getItem("menu_video_config");
               onSelectDelayChange={setSelectDelay}
               lockDelay={lockDelay}
               onLockDelayChange={setLockDelay}
+              lockMode={lockMode}
+              onLockModeChange={setLockMode}
               splooshimaApiKey={splooshimaApiKey}
               onSplooshimaApiKeyChange={(v) => { setSplooshimaApiKey(v); localStorage.setItem("splooshima_api_key", v); }}
               theme={theme}

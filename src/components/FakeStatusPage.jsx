@@ -65,6 +65,7 @@ const STATUS_MODES = [
   { id: "online", name: "Online" },
   { id: "away", name: "Away" },
   { id: "hidden", name: "Hidden" },
+  { id: "invisible", name: "Invisible" },
 ];
 
 const SESSION_STATES = [
@@ -441,7 +442,8 @@ export default function FakeStatusPage({ connected, showLogsSetting, onUnsavedCh
   const sendPresence = async (override) => {
     const src = override || savedPresenceRef.current;
     const mode = src.statusMode || "online";
-    const data = { ...src, show: mode === "away" ? "away" : "chat" };
+    const show = mode === "invisible" ? "unavailable" : mode === "away" ? "away" : "chat";
+    const data = { ...src, show };
     if (mode === "hidden") data.rosterType = "ESPORTS";
     await invoke("xmpp_send_fake_presence", { presenceJson: JSON.stringify(data) });
   };
@@ -635,6 +637,11 @@ export default function FakeStatusPage({ connected, showLogsSetting, onUnsavedCh
                   {m.name}
                   {m.id === "hidden" && (
                     <Tooltip text="Hides you from the friends list entirely">
+                      <span className="flex items-center justify-center w-3.5 h-3.5 rounded-full bg-base-500/50 text-[8px] font-bold text-text-muted/70 cursor-help leading-none ml-0.5">?</span>
+                    </Tooltip>
+                  )}
+                  {m.id === "invisible" && (
+                    <Tooltip text="Appear offline to friends while staying connected to chat (XMPP unavailable)">
                       <span className="flex items-center justify-center w-3.5 h-3.5 rounded-full bg-base-500/50 text-[8px] font-bold text-text-muted/70 cursor-help leading-none ml-0.5">?</span>
                     </Tooltip>
                   )}
