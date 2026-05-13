@@ -9,6 +9,7 @@ mod riot;
 mod discord;
 mod cloud;
 mod store;
+mod match_cache;
 
 type SharedState = Arc<Mutex<riot::ConnectionState>>;
 type DiscordShared = Arc<Mutex<discord::DiscordState>>;
@@ -746,6 +747,7 @@ pub fn run() {
         .manage(Arc::new(Mutex::new(discord::DiscordState::default())))
         .manage(Arc::new(Mutex::new(riot::xmpp::XmppState::default())))
         .manage::<store::WishlistShared>(Arc::new(Mutex::new(Vec::new())))
+        .manage(Mutex::new(match_cache::MatchCacheState::default()))
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -879,6 +881,10 @@ pub fn run() {
             store::get_storefront,
             store::set_wishlist,
             store::force_refresh_storefront,
+            match_cache::match_history_put,
+            match_cache::match_history_put_many,
+            match_cache::match_history_list,
+            match_cache::match_history_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -736,6 +736,8 @@ pub fn get_match_page(state: &Mutex<ConnectionState>, page: u64, page_size: u64)
             if detail.is_null() { continue; }
 
             let map_name = extract_map_name(detail["matchInfo"]["mapId"].as_str().unwrap_or(""));
+            let match_id = detail["matchInfo"]["matchId"].as_str().unwrap_or("").to_string();
+            let game_start_ms = detail["matchInfo"]["gameStartMillis"].as_i64().unwrap_or(0);
 
             let player_data = detail["players"].as_array().and_then(|players| {
                 players.iter().find(|p| p["subject"].as_str() == Some(puuid.as_str()))
@@ -771,7 +773,24 @@ pub fn get_match_page(state: &Mutex<ConnectionState>, page: u64, page_size: u64)
 
             let queue_id = detail["matchInfo"]["queueID"].as_str().unwrap_or("").to_string();
 
+            let mut teammates: Vec<serde_json::Value> = Vec::new();
+            let mut enemies: Vec<serde_json::Value> = Vec::new();
+            if let Some(players) = detail["players"].as_array() {
+                for p in players {
+                    let p_puuid = p["subject"].as_str().unwrap_or("");
+                    if p_puuid.is_empty() || p_puuid == puuid { continue; }
+                    let p_team = p["teamId"].as_str().unwrap_or("");
+                    let entry = serde_json::json!({
+                        "puuid": p_puuid,
+                        "agentId": p["characterId"].as_str().unwrap_or(""),
+                    });
+                    if p_team == team_id { teammates.push(entry); } else { enemies.push(entry); }
+                }
+            }
+
             matches.push(serde_json::json!({
+                "matchId": match_id,
+                "dateMs": game_start_ms,
                 "map": map_name,
                 "won": won,
                 "roundsWon": rounds_won,
@@ -781,6 +800,8 @@ pub fn get_match_page(state: &Mutex<ConnectionState>, page: u64, page_size: u64)
                 "assists": assists,
                 "agent": agent,
                 "queueId": queue_id,
+                "teammates": teammates,
+                "enemies": enemies,
             }));
         }
     }

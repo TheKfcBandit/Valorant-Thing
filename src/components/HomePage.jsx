@@ -102,6 +102,15 @@ export default function HomePage({ connected, player, refreshKey, onRefresh }) {
         return;
       }
       setMatches(list);
+      // Ingest into persistent history cache (only entries with a matchId survive).
+      const withIds = list.filter(m => m && m.matchId);
+      if (withIds.length > 0) {
+        try {
+          await invoke("match_history_put_many", { entries: withIds });
+        } catch (e) {
+          console.warn("[History] cache put failed:", e);
+        }
+      }
     } catch (e) {
       if (!retry) {
         setTimeout(() => fetchMatches(true), 3000);
