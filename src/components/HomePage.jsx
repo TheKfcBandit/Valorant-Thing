@@ -62,6 +62,7 @@ export default function HomePage({ connected, player, refreshKey, onRefresh }) {
   const [matches, setMatches] = useState(null);
   const [matchLoading, setMatchLoading] = useState(false);
   const [penalties, setPenalties] = useState([]);
+  const [spend, setSpend] = useState(null);
   const lastFetchRef = useRef(0);
   const lastAutoRefresh = useRef(0);
 
@@ -133,11 +134,22 @@ export default function HomePage({ connected, player, refreshKey, onRefresh }) {
     }
   }, [connected]);
 
+  const fetchSpend = useCallback(async () => {
+    if (!connected) return;
+    try {
+      const summary = await invoke("get_spend_summary");
+      setSpend(summary);
+    } catch (e) {
+      console.warn("[Spend] summary failed:", e);
+    }
+  }, [connected]);
+
   useEffect(() => {
     if (connected) {
       fetchStats();
       fetchMatches();
       fetchPenalties();
+      fetchSpend();
     }
   }, [connected, refreshKey]);
 
@@ -281,6 +293,32 @@ export default function HomePage({ connected, player, refreshKey, onRefresh }) {
               <p className="text-xl font-display font-bold text-text-primary">{totalGames}</p>
               <p className="text-xs font-body text-text-muted">Competitive</p>
             </StatCard>
+          </motion.div>
+        )}
+
+        {spend && (spend.thisMonthVp > 0 || spend.vpSpent > 0) && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.2 }}
+            className="rounded-xl border border-border bg-base-700/60 p-3"
+            title={spend.trackingSinceMs ? `Tracking since ${new Date(spend.trackingSinceMs).toLocaleDateString()}` : ""}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">Spent (last 30 days)</p>
+                <p className="text-base font-display font-bold text-text-primary tabular-nums mt-0.5">
+                  {Number(spend.thisMonthVp || 0).toLocaleString()} <span className="text-xs text-text-muted">VP</span>
+                  {spend.thisMonthRp > 0 && (
+                    <span className="ml-2">{Number(spend.thisMonthRp).toLocaleString()} <span className="text-xs text-text-muted">RP</span></span>
+                  )}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-display text-text-muted uppercase tracking-wider">All-time</p>
+                <p className="text-xs font-mono text-text-secondary tabular-nums mt-0.5">
+                  {Number(spend.vpSpent || 0).toLocaleString()} VP
+                </p>
+              </div>
+            </div>
           </motion.div>
         )}
 
