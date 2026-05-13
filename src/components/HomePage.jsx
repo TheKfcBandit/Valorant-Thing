@@ -61,6 +61,7 @@ export default function HomePage({ connected, player, refreshKey, onRefresh }) {
   const [maps, setMaps] = useState({});
   const [matches, setMatches] = useState(null);
   const [matchLoading, setMatchLoading] = useState(false);
+  const [penalties, setPenalties] = useState([]);
   const lastFetchRef = useRef(0);
   const lastAutoRefresh = useRef(0);
 
@@ -110,10 +111,24 @@ export default function HomePage({ connected, player, refreshKey, onRefresh }) {
     setMatchLoading(false);
   }, [connected]);
 
+  const fetchPenalties = useCallback(async () => {
+    if (!connected) return;
+    try {
+      const raw = await invoke("get_penalties");
+      const json = JSON.parse(raw);
+      const list = Array.isArray(json?.Penalties) ? json.Penalties : [];
+      setPenalties(list);
+    } catch {
+      // Endpoint may 404 on accounts with no record; treat as empty.
+      setPenalties([]);
+    }
+  }, [connected]);
+
   useEffect(() => {
     if (connected) {
       fetchStats();
       fetchMatches();
+      fetchPenalties();
     }
   }, [connected, refreshKey]);
 
@@ -257,6 +272,43 @@ export default function HomePage({ connected, player, refreshKey, onRefresh }) {
               <p className="text-xl font-display font-bold text-text-primary">{totalGames}</p>
               <p className="text-xs font-body text-text-muted">Competitive</p>
             </StatCard>
+          </motion.div>
+        )}
+
+        {penalties.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.2 }}
+            className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-3 space-y-2"
+          >
+            <div className="flex items-center gap-2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-yellow-400">
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <p className="text-xs font-display font-bold text-yellow-400 uppercase tracking-wider">Account Status</p>
+            </div>
+            <div className="space-y-1">
+              {penalties.map((p, idx) => {
+                const expiresMs = p.Expiry ? new Date(p.Expiry).getTime() : null;
+                const remaining = expiresMs ? expiresMs - Date.now() : null;
+                let remainingText = "";
+                if (remaining != null && remaining > 0) {
+                  const mins = Math.floor(remaining / 60000);
+                  if (mins >= 60 * 24) remainingText = `${Math.floor(mins / (60 * 24))}d`;
+                  else if (mins >= 60) remainingText = `${Math.floor(mins / 60)}h`;
+                  else remainingText = `${mins}m`;
+                } else if (remaining != null) {
+                  remainingText = "expiring";
+                }
+                const type = String(p.Type || "RESTRICTION").replace(/_/g, " ");
+                return (
+                  <div key={idx} className="flex items-center justify-between text-[11px] font-body">
+                    <span className="text-text-primary">{type}</span>
+                    {remainingText && <span className="text-yellow-400 tabular-nums">{remainingText}</span>}
+                  </div>
+                );
+              })}
+            </div>
           </motion.div>
         )}
 

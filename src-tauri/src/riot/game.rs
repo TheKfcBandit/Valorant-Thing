@@ -349,6 +349,12 @@ pub fn get_player_mmr(state: &Mutex<ConnectionState>, target_puuid: &str) -> Res
     Ok(result.to_string())
 }
 
+pub fn get_penalties(state: &Mutex<ConnectionState>) -> Result<String, String> {
+    let (access_token, entitlements, _, _, shard, client_version) = get_glz_creds(state)?;
+    let path = "/restrictions/v3/penalties";
+    pd_get(&shard, path, &access_token, &entitlements, &client_version)
+}
+
 pub fn set_party_accessibility(state: &Mutex<ConnectionState>, open: bool) -> Result<String, String> {
     let (access_token, entitlements, puuid, region, shard, client_version) = get_glz_creds(state)?;
     let player_path = format!("/parties/v1/players/{}", puuid);

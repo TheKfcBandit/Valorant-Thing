@@ -309,6 +309,14 @@ async fn get_friends(state: tauri::State<'_, SharedState>) -> Result<String, Str
 }
 
 #[tauri::command]
+async fn get_penalties(state: tauri::State<'_, SharedState>) -> Result<String, String> {
+    let state = Arc::clone(&state);
+    tauri::async_runtime::spawn_blocking(move || riot::get_penalties(&state))
+        .await
+        .map_err(|e| format!("Task failed: {}", e))?
+}
+
+#[tauri::command]
 async fn set_party_accessibility(state: tauri::State<'_, SharedState>, open: bool) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::set_party_accessibility(&state, open))
@@ -833,6 +841,7 @@ pub fn run() {
             splooshima_lookup,
             get_party,
             get_friends,
+            get_penalties,
             set_party_accessibility,
             disable_party_code,
             kick_from_party,
