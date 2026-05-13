@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
+import { computeHighlights } from "../matchHighlights";
 
 const TIER_UUID = "03621f52-342b-cf4e-4f86-9350a49c6d04";
 const CUSTOM_AGENT_ICONS = {
@@ -348,6 +349,18 @@ export default function HomePage({ connected, player, refreshKey, onRefresh }) {
                   <div className="w-20 shrink-0">
                     <p className="text-xs font-display font-medium text-text-primary">{mapName}</p>
                     <p className="text-[9px] font-body text-text-muted/60">{modeName}</p>
+                  </div>
+
+                  <div className="flex items-center gap-1 flex-wrap min-w-0">
+                    {computeHighlights(m).map(b => (
+                      <span
+                        key={b.id}
+                        title={b.hint}
+                        className={`px-1.5 py-0.5 rounded-full text-[9px] font-display font-bold uppercase tracking-wider border border-current/30 bg-base-700/40 ${b.color}`}
+                      >
+                        {b.label}
+                      </span>
+                    ))}
                   </div>
 
                   <div className="flex items-center gap-3 ml-auto">
