@@ -17,7 +17,9 @@ import MiscPage from "./components/MiscPage";
 import FakeStatusPage from "./components/FakeStatusPage";
 import ChatPage from "./components/ChatPage";
 import LoadoutPage from "./components/LoadoutPage";
+import StorePage from "./components/StorePage";
 import DevPage from "./components/DevPage";
+import { getLevelLookup } from "./valApiSkins";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { emitTo } from "@tauri-apps/api/event";
 import { register, unregister, isRegistered } from "@tauri-apps/plugin-global-shortcut";
@@ -983,6 +985,65 @@ const raw = localStorage.getItem("menu_video_config");
     })();
   }, [addLog]);
 
+  const pushWishlistToBackend = useCallback(() => {
+    try {
+      const raw = localStorage.getItem("wishlist_skins");
+      const parsed = raw ? JSON.parse(raw) : [];
+      const arr = Array.isArray(parsed)
+        ? parsed.filter(s => s != null).map(s => String(s))
+        : [];
+      invoke("set_wishlist", { items: arr })
+        .catch(e => console.warn("[Wishlist] set_wishlist failed:", e));
+    } catch (e) {
+      console.warn("[Wishlist] hydrate parse failed:", e);
+    }
+  }, []);
+
+  // Hydrate the backend's wishlist mirror on app start.
+  useEffect(() => {
+    pushWishlistToBackend();
+  }, [pushWishlistToBackend]);
+
+  // Re-hydrate whenever we (re)connect — guards against the poller running
+  // its first tick before the initial hydration landed.
+  useEffect(() => {
+    if (status === "connected") pushWishlistToBackend();
+  }, [status, pushWishlistToBackend]);
+
+  useEffect(() => {
+    const unsub = listen("wishlist-hit", async (event) => {
+      const payload = event.payload || {};
+      if (localStorage.getItem("notifications_enabled") === "false") return;
+      const offerId = (payload.offer_id || "").toLowerCase();
+      const kind = payload.kind || "daily";
+      let skinName = null;
+      try {
+        const lookup = await getLevelLookup();
+        skinName = lookup[offerId]?.name || null;
+      } catch (e) {
+        console.warn("[Wishlist] lookup failed:", e);
+      }
+      pushNotification({
+        id: `wishlist-${kind}-${offerId || Date.now()}`,
+        type: "wishlist-hit",
+        offerId,
+        kind,
+        skinName,
+      });
+      try {
+        const { sendNotification } = await import("@tauri-apps/plugin-notification");
+        const where = kind === "night-market" ? "Night Market" : "daily store";
+        const body = skinName
+          ? `${skinName} is in your ${where}.`
+          : `A wishlisted skin is in your ${where}.`;
+        sendNotification({ title: "Valorant Thing", body });
+      } catch (e) {
+        console.warn("[Wishlist] OS notification failed:", e);
+      }
+    });
+    return () => { unsub.then(fn => fn()); };
+  }, [pushNotification]);
+
   useEffect(() => {
     if (status !== "connected") return;
     let cancelled = false;
@@ -1316,6 +1377,11 @@ const raw = localStorage.getItem("menu_video_config");
           {activeTab === "loadout" && devTab && (
             <motion.div key="loadout" className="flex-1 flex min-h-0" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15, ease: "easeOut" }}>
             <LoadoutPage connected={status === "connected"} />
+            </motion.div>
+          )}
+          {activeTab === "store" && (
+            <motion.div key="store" className="flex-1 flex min-h-0" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15, ease: "easeOut" }}>
+            <StorePage connected={status === "connected"} />
             </motion.div>
           )}
           {activeTab === "party" && (

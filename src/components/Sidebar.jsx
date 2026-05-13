@@ -33,6 +33,9 @@ export default function Sidebar({ status, player, onReconnect, activeTab, onTabC
         <NavButton id="instalock" label="Instalock" activeTab={activeTab} onTabChange={onTabChange}
           icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>}
         />
+        <NavButton id="store" label="Store" activeTab={activeTab} onTabChange={onTabChange}
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 01-8 0" /></svg>}
+        />
         <NavButton id="mapdodge" label="Map Dodge" activeTab={activeTab} onTabChange={onTabChange}
           icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3V7z" /><path d="M9 4v13M15 7v13" /></svg>}
         />

@@ -314,6 +314,26 @@ export default function SettingsPage({
     }
   };
 
+  const shareWishlistCode = async () => {
+    let arr = [];
+    try {
+      const raw = localStorage.getItem("wishlist_skins");
+      const parsed = raw ? JSON.parse(raw) : [];
+      arr = Array.isArray(parsed) ? parsed.map(s => String(s)) : [];
+    } catch {}
+    setShareLoading(true);
+    setShareModal(null);
+    try {
+      const code = await invoke("cloud_save", { saveType: "wishlist", data: arr });
+      navigator.clipboard.writeText(code);
+      setShareModal({ code, copied: true });
+    } catch (e) {
+      setShareModal({ error: e.message });
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
   const exportConfigFile = () => {
     const config = {};
     for (const key of CONFIG_KEYS) {
@@ -356,6 +376,12 @@ export default function SettingsPage({
           if (key in result.data) localStorage.setItem(key, result.data[key]);
         }
         window.location.reload();
+      } else if (result.type === "wishlist") {
+        const arr = Array.isArray(result.data) ? result.data.map(s => String(s)) : [];
+        localStorage.setItem("wishlist_skins", JSON.stringify(arr));
+        try { await invoke("set_wishlist", { items: arr }); } catch {}
+        setImportCodeModal(null);
+        setImportCodeValue("");
       } else {
         setImportCodeError(`Unexpected type: ${result.type}`);
       }
@@ -847,6 +873,16 @@ export default function SettingsPage({
             Import .vt
           </button>
           <input ref={configVtRef} type="file" accept=".vt,.valthing" onChange={importConfigVt} className="hidden" />
+          </div>
+          <div className="pt-2 mt-1 border-t border-border/40">
+            <p className="text-xs font-body text-text-muted mb-2">Share your store wishlist (skins you'd like notified about).</p>
+            <button
+              onClick={shareWishlistCode}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" /></svg>
+              Share Wishlist
+            </button>
           </div>
         </div>
       </motion.div>

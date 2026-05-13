@@ -8,6 +8,7 @@ use tauri::{
 mod riot;
 mod discord;
 mod cloud;
+mod store;
 
 type SharedState = Arc<Mutex<riot::ConnectionState>>;
 type DiscordShared = Arc<Mutex<discord::DiscordState>>;
@@ -736,6 +737,7 @@ pub fn run() {
         .manage(Arc::new(Mutex::new(riot::ConnectionState::default())))
         .manage(Arc::new(Mutex::new(discord::DiscordState::default())))
         .manage(Arc::new(Mutex::new(riot::xmpp::XmppState::default())))
+        .manage::<store::WishlistShared>(Arc::new(Mutex::new(Vec::new())))
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -747,6 +749,11 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             riot::logging::init(app.handle().clone());
+            {
+                let conn = Arc::clone(&app.state::<SharedState>());
+                let wl = Arc::clone(&app.state::<store::WishlistShared>());
+                store::spawn_storefront_poller(app.handle().clone(), conn, wl);
+            }
             let show_item = MenuItemBuilder::with_id("show", "Show").build(app)?;
             let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
             let menu = MenuBuilder::new(app)
@@ -860,6 +867,9 @@ pub fn run() {
             read_game_log,
             cloud::cloud_save,
             cloud::cloud_load,
+            store::get_storefront,
+            store::set_wishlist,
+            store::force_refresh_storefront,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

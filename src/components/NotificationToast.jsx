@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 
-const DISMISS_MS = { "match-found": 8000, "locked": 4000, "dodged": 4000, "queue": 4000 };
+const DISMISS_MS = { "match-found": 8000, "locked": 4000, "dodged": 4000, "queue": 4000, "wishlist-hit": 8000 };
 
 export default function NotificationToast({ notification, onDismiss }) {
   const [remaining, setRemaining] = useState(0);
@@ -41,6 +41,7 @@ export default function NotificationToast({ notification, onDismiss }) {
   if (type === "match-found") return <MatchFoundCard n={notification} />;
   if (type === "dodged") return <DodgedCard n={notification} />;
   if (type === "queue") return <QueueCard n={notification} />;
+  if (type === "wishlist-hit") return <WishlistHitCard n={notification} />;
 
   const stripBg = type === "locked"
     ? "linear-gradient(180deg, rgb(var(--status-green)), rgb(var(--status-green) / 0.4))"
@@ -179,6 +180,30 @@ function QueueCard({ n }) {
   const strip = isRequeue
     ? "linear-gradient(180deg, rgb(var(--accent-blue)), rgb(var(--accent-blue) / 0.3))"
     : "linear-gradient(180deg, rgb(var(--val-red)), rgb(var(--val-red) / 0.3))";
+  return (
+    <CardShell stripBg={strip}>
+      <div className="flex-1 px-3.5 py-3 flex flex-col gap-2 min-w-0">
+        <VTHeader />
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-body font-semibold" style={{ color }}>{title}</span>
+          <span className="text-xs font-body text-text-muted">{desc}</span>
+        </div>
+      </div>
+    </CardShell>
+  );
+}
+
+function WishlistHitCard({ n }) {
+  const isNm = n.kind === "night-market";
+  const title = isNm ? "Night Market Hit" : "Wishlist Hit";
+  const where = isNm ? "Night Market" : "daily store";
+  const desc = n.skinName
+    ? `${n.skinName} is in your ${where}`
+    : `A wishlisted skin is in your ${where}`;
+  const color = isNm ? "rgb(var(--val-red))" : "rgb(var(--accent-blue))";
+  const strip = isNm
+    ? "linear-gradient(180deg, rgb(var(--val-red)), rgb(var(--val-red) / 0.3))"
+    : "linear-gradient(180deg, rgb(var(--accent-blue)), rgb(var(--accent-blue) / 0.3))";
   return (
     <CardShell stripBg={strip}>
       <div className="flex-1 px-3.5 py-3 flex flex-col gap-2 min-w-0">
