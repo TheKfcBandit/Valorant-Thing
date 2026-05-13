@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion, AnimatePresence } from "framer-motion";
+import { computeFitness } from "../squadAnalytics";
 
 const noAnim = () => localStorage.getItem("disable_animations") === "true";
 const T0 = { duration: 0 };
@@ -61,6 +62,7 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
   const [showInvite, setShowInvite] = useState(false);
   const [friends, setFriends] = useState([]);
   const [friendsLoading, setFriendsLoading] = useState(false);
+  const [fitness, setFitness] = useState({});
   const [invitingPuuid, setInvitingPuuid] = useState(null);
   const [invitedPuuids, setInvitedPuuids] = useState(new Set());
   const [friendSearch, setFriendSearch] = useState("");
@@ -170,6 +172,16 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
       online.slice(0, 10).forEach(f => {
         addLog?.("info", `[Friends] ${f.game_name}#${f.game_tag} status=${f.status} lv=${f.account_level} card=${!!f.player_card_url} product=${f.product}`);
       });
+      // Compute fitness from local match cache.
+      try {
+        const history = await invoke("match_history_list", { limit: 200 });
+        const matches = history?.matches || [];
+        const puuids = (data || []).map(f => f.puuid).filter(Boolean);
+        setFitness(computeFitness(matches, puuids));
+      } catch (e) {
+        // Cache may not have any entries yet — that's fine.
+        setFitness({});
+      }
     } catch (e) {
       addLog?.("error", `[Party] Failed to fetch friends: ${e}`);
       setFriends([]);
@@ -774,10 +786,17 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
                     const q = friendSearch.toLowerCase();
                     return f.game_name?.toLowerCase().includes(q) || f.game_tag?.toLowerCase().includes(q);
                   })
+                  .slice()
+                  .sort((a, b) => {
+                    const fa = fitness[(a.puuid || "").toLowerCase()]?.fitness ?? -1;
+                    const fb = fitness[(b.puuid || "").toLowerCase()]?.fitness ?? -1;
+                    return fb - fa;
+                  })
                   .map((friend, i) => (
                     <FriendInviteCard
                       key={friend.puuid}
                       friend={friend}
+                      fitness={fitness[(friend.puuid || "").toLowerCase()]}
                       onInvite={() => handleInvite(friend)}
                       inviting={invitingPuuid === friend.puuid}
                       invited={invitedPuuids.has(friend.puuid)}
@@ -795,7 +814,12 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
   );
 }
 
-function FriendInviteCard({ friend, onInvite, inviting, invited, index, actionLabel = "Invite", doneLabel = "Sent" }) {
+function FriendInviteCard({ friend, fitness, onInvite, inviting, invited, index, actionLabel = "Invite", doneLabel = "Sent" }) {
+  const showFitness = fitness && fitness.games >= 2;
+  const fitColor = !showFitness ? "text-text-muted/40"
+    : fitness.fitness >= 60 ? "text-green-400"
+    : fitness.fitness <= 40 ? "text-red-400"
+    : "text-text-muted";
   return (
     <motion.div
       initial={{ opacity: 0, x: -4 }}
@@ -811,6 +835,14 @@ function FriendInviteCard({ friend, onInvite, inviting, invited, index, actionLa
       <p className="text-[11px] font-display font-medium text-text-primary truncate flex-1 min-w-0">
         {friend.game_name}<span className="text-text-muted font-body font-normal ml-0.5">#{friend.game_tag}</span>
       </p>
+      {showFitness && (
+        <span
+          className={`shrink-0 text-[9px] font-mono ${fitColor}`}
+          title={`Fitness: ${fitness.fitness}/100 · ${fitness.wins}-${fitness.games - fitness.wins} together · ${fitness.soloDelta > 0 ? "+" : ""}${fitness.soloDelta}pp vs solo`}
+        >
+          {fitness.fitness}
+        </span>
+      )}
       <button
         onClick={onInvite}
         disabled={inviting || invited}
