@@ -11,6 +11,7 @@ mod cloud;
 mod store;
 mod match_cache;
 mod spend_tracker;
+mod coach;
 
 type SharedState = Arc<Mutex<riot::ConnectionState>>;
 type DiscordShared = Arc<Mutex<discord::DiscordState>>;
@@ -888,6 +889,7 @@ pub fn run() {
             match_cache::match_history_list,
             match_cache::match_history_stats,
             spend_tracker::get_spend_summary,
+            coach::coach_analyze,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

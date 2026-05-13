@@ -19,6 +19,7 @@ import ChatPage from "./components/ChatPage";
 import LoadoutPage from "./components/LoadoutPage";
 import StorePage from "./components/StorePage";
 import WrappedPage from "./components/WrappedPage";
+import CoachPage from "./components/CoachPage";
 import DevPage from "./components/DevPage";
 import { getLevelLookup } from "./valApiSkins";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -1433,6 +1434,11 @@ const raw = localStorage.getItem("menu_video_config");
           {activeTab === "wrapped" && (
             <motion.div key="wrapped" className="flex-1 flex min-h-0" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15, ease: "easeOut" }}>
             <WrappedPage connected={status === "connected"} />
+            </motion.div>
+          )}
+          {activeTab === "coach" && (
+            <motion.div key="coach" className="flex-1 flex min-h-0" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15, ease: "easeOut" }}>
+            <CoachPage connected={status === "connected"} />
             </motion.div>
           )}
           {activeTab === "party" && (

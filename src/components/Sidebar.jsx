@@ -56,6 +56,9 @@ export default function Sidebar({ status, player, onReconnect, activeTab, onTabC
         <NavButton id="wrapped" label="Wrapped" activeTab={activeTab} onTabChange={onTabChange}
           icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
         />
+        <NavButton id="coach" label="AI Coach" activeTab={activeTab} onTabChange={onTabChange}
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 2a3 3 0 00-3 3v7a3 3 0 006 0V5a3 3 0 00-3-3z" /><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v3M8 22h8" /></svg>}
+        />
         <NavButton id="misc" label="Misc" activeTab={activeTab} onTabChange={onTabChange}
           icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>}
         />
