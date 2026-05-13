@@ -94,6 +94,18 @@ export default function LoadoutPage({ connected }) {
   const [owned, setOwned] = useState({ levels: new Set(), chromas: new Set(), buddies: new Set(), sprays: new Set(), cards: new Set(), titles: new Set() });
   const [picker, setPicker] = useState(null);
   const [search, setSearch] = useState("");
+  const [favoriteSkins, setFavoriteSkins] = useState(() => {
+    try {
+      const arr = JSON.parse(localStorage.getItem("favorite_skins") || "[]");
+      return new Set((Array.isArray(arr) ? arr : []).filter(s => s != null).map(s => String(s).toLowerCase()));
+    } catch { return new Set(); }
+  });
+  const [favoriteLevels, setFavoriteLevels] = useState(() => {
+    try {
+      const arr = JSON.parse(localStorage.getItem("favorite_levels") || "[]");
+      return new Set((Array.isArray(arr) ? arr : []).filter(s => s != null).map(s => String(s).toLowerCase()));
+    } catch { return new Set(); }
+  });
 
   const hasChanges = useMemo(() => {
     if (!loadout || !pending) return false;
@@ -261,6 +273,54 @@ export default function LoadoutPage({ connected }) {
     setPicker(null);
   }, [loadout]);
 
+  const toggleFavoriteSkin = useCallback((skinUuid) => {
+    setFavoriteSkins(prev => {
+      const next = new Set(prev);
+      const k = skinUuid.toLowerCase();
+      if (next.has(k)) next.delete(k); else next.add(k);
+      try { localStorage.setItem("favorite_skins", JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }, []);
+
+  const toggleFavoriteLevel = useCallback((levelUuid) => {
+    setFavoriteLevels(prev => {
+      const next = new Set(prev);
+      const k = levelUuid.toLowerCase();
+      if (next.has(k)) next.delete(k); else next.add(k);
+      try { localStorage.setItem("favorite_levels", JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }, []);
+
+  const randomizeWeapon = useCallback((weapon) => {
+    if (!weapon?.skins) return;
+    const candidates = [];
+    for (const skin of weapon.skins) {
+      for (const lvl of skin.levels || []) {
+        if (favoriteLevels.has(lvl.uuid.toLowerCase())) {
+          candidates.push({ skin, level: lvl });
+        }
+      }
+    }
+    if (candidates.length === 0) {
+      for (const skin of weapon.skins) {
+        if (favoriteSkins.has(skin.uuid.toLowerCase())) {
+          const lvl = skin.levels?.[skin.levels.length - 1] || skin.levels?.[0];
+          if (lvl) candidates.push({ skin, level: lvl });
+        }
+      }
+    }
+    if (candidates.length === 0) return;
+    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+    const chroma = pick.skin.chromas?.[0] || null;
+    equipSkin(weapon.uuid, pick.skin, chroma, pick.level);
+  }, [favoriteSkins, favoriteLevels, equipSkin]);
+
+  const randomizeAll = useCallback(() => {
+    for (const w of weapons) randomizeWeapon(w);
+  }, [weapons, randomizeWeapon]);
+
   const closePicker = () => { setPicker(null); setSearch(""); };
 
   if (!connected) {
@@ -389,10 +449,17 @@ export default function LoadoutPage({ connected }) {
           <button onClick={closePicker} className="text-text-muted hover:text-text-primary transition-colors">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
           </button>
-          <div>
+          <div className="flex-1">
             <div className="text-sm font-display font-bold text-text-primary uppercase tracking-wide">{weapon.displayName}</div>
             <div className="text-[10px] text-text-muted">{filtered.length} skins</div>
           </div>
+          <button
+            onClick={() => randomizeWeapon(weapon)}
+            className="px-2 py-1 rounded text-[10px] font-display font-semibold bg-base-600 hover:bg-base-500 border border-border text-text-secondary transition-colors"
+            title="Random from your favorites for this weapon"
+          >
+            Random Favorite
+          </button>
         </div>
         <div className="px-4 py-2">
           <input
@@ -410,28 +477,41 @@ export default function LoadoutPage({ connected }) {
             const rarity = skin.contentTierUuid;
             const rarityColor = rarity ? RARITY_COLORS[rarity] : null;
 
+            const skinFav = favoriteSkins.has(skin.uuid.toLowerCase());
+
             return (
               <div key={skin.uuid} className={`rounded-lg border overflow-hidden transition-colors ${isEquipped ? "border-val-red/60 bg-val-red/5" : "border-border/50 bg-base-700/40 hover:bg-base-600/60"}`}>
-                <button
-                  onClick={() => equipSkin(weapon.uuid, skin, ownedChroms[0], topLevel)}
-                  className="w-full p-3 flex items-center gap-4"
-                >
-                  <div className="w-28 h-14 flex-shrink-0 flex items-center justify-center">
-                    <Img src={getSkinImg(skin, null)} className="max-w-full max-h-full object-contain" />
-                  </div>
-                  <div className="text-left min-w-0 flex-1">
-                    <div className="text-xs font-display font-semibold text-text-primary">{skin.displayName}</div>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      {rarityColor && <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: rarityColor }} />}
-                      <span className="text-[10px] text-text-muted">
-                        {ownedLvls.length} level{ownedLvls.length !== 1 ? "s" : ""} · {ownedChroms.length} variant{ownedChroms.length !== 1 ? "s" : ""}
-                      </span>
+                <div className="w-full p-3 flex items-center gap-4">
+                  <button
+                    onClick={() => equipSkin(weapon.uuid, skin, ownedChroms[0], topLevel)}
+                    className="flex items-center gap-4 flex-1 min-w-0"
+                  >
+                    <div className="w-28 h-14 flex-shrink-0 flex items-center justify-center">
+                      <Img src={getSkinImg(skin, null)} className="max-w-full max-h-full object-contain" />
                     </div>
-                  </div>
+                    <div className="text-left min-w-0 flex-1">
+                      <div className="text-xs font-display font-semibold text-text-primary">{skin.displayName}</div>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {rarityColor && <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: rarityColor }} />}
+                        <span className="text-[10px] text-text-muted">
+                          {ownedLvls.length} level{ownedLvls.length !== 1 ? "s" : ""} · {ownedChroms.length} variant{ownedChroms.length !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleFavoriteSkin(skin.uuid); }}
+                    className="p-1.5 rounded hover:bg-base-500/40 transition-colors flex-shrink-0"
+                    title={skinFav ? "Unfavorite" : "Favorite"}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill={skinFav ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" style={{ color: skinFav ? "rgb(var(--val-red))" : "rgb(var(--text-muted))" }}>
+                      <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
+                    </svg>
+                  </button>
                   {isEquipped && (
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="text-val-red flex-shrink-0"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
                   )}
-                </button>
+                </div>
                 {isEquipped && ownedChroms.length > 1 && (
                   <div className="px-3 pb-2.5 pt-0.5 flex gap-1.5 flex-wrap border-t border-border/30">
                     <span className="text-[9px] text-text-muted mr-1 self-center">Variants:</span>
@@ -452,11 +532,22 @@ export default function LoadoutPage({ connected }) {
                     <span className="text-[9px] text-text-muted mr-1 self-center">Level:</span>
                     {ownedLvls.map((lvl, idx) => {
                       const isCur = eq?.SkinLevelID?.toLowerCase() === lvl.uuid.toLowerCase();
+                      const lvlFav = favoriteLevels.has(lvl.uuid.toLowerCase());
                       return (
-                        <button key={lvl.uuid} onClick={() => equipSkin(weapon.uuid, skin, findChroma(skin, eq.ChromaID), lvl)}
-                          className={`px-2 py-0.5 rounded text-[10px] border transition-colors ${isCur ? "border-val-red text-val-red bg-val-red/10" : "border-border/50 text-text-muted hover:border-text-muted/40"}`}>
-                          {idx + 1}
-                        </button>
+                        <div key={lvl.uuid} className="flex items-center">
+                          <button onClick={() => equipSkin(weapon.uuid, skin, findChroma(skin, eq.ChromaID), lvl)}
+                            className={`px-2 py-0.5 rounded text-[10px] border transition-colors ${isCur ? "border-val-red text-val-red bg-val-red/10" : "border-border/50 text-text-muted hover:border-text-muted/40"}`}>
+                            {idx + 1}
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); toggleFavoriteLevel(lvl.uuid); }}
+                            className="ml-0.5 p-0.5 rounded hover:bg-base-500/40 transition-colors"
+                            title={lvlFav ? "Unfavorite this level" : "Favorite this level"}
+                          >
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill={lvlFav ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2.5" style={{ color: lvlFav ? "rgb(var(--val-red))" : "rgb(var(--text-muted))" }}>
+                              <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
+                            </svg>
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -554,6 +645,13 @@ export default function LoadoutPage({ connected }) {
             )}
           </AnimatePresence>
           {error && <span className="text-[10px] text-red-400 truncate max-w-[180px]">{error}</span>}
+          {(favoriteSkins.size > 0 || favoriteLevels.size > 0) && (
+            <button onClick={randomizeAll}
+              className="px-2 py-1 rounded text-[10px] font-display bg-base-600 hover:bg-base-500 text-text-secondary border border-border transition-colors"
+              title="Roll a random favorite for every weapon">
+              🎲 Random All
+            </button>
+          )}
           {hasChanges && (
             <>
               <button onClick={resetLoadout} className="px-2 py-1 rounded text-[10px] font-display bg-base-600 hover:bg-base-500 text-text-secondary border border-border transition-colors">
@@ -596,7 +694,7 @@ export default function LoadoutPage({ connected }) {
               {weaponsByCategory.map(([cat, weaps]) => (
                 <div key={cat} className="space-y-2">
                   <div className="text-[10px] font-display font-bold text-text-muted uppercase tracking-widest">{CATEGORY_LABELS[cat] || cat}</div>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {weaps.map(w => renderWeaponCard(w))}
                   </div>
                 </div>
