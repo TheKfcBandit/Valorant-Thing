@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
 
+const noAnim = () => localStorage.getItem("disable_animations") === "true";
+const T0 = { duration: 0 };
+
 const AGENTS_URL = "https://valorant-api.com/v1/agents?isPlayableCharacter=true";
 const MAPS_URL = "https://valorant-api.com/v1/maps";
 
@@ -123,40 +126,62 @@ export default function WrappedPage({ connected }) {
 
   if (!connected) {
     return (
-      <div className="flex-1 flex items-center justify-center text-text-muted">
-        Connect to Valorant to view your stats.
+      <div className="flex-1 flex items-center justify-center p-5">
+        <div className="text-center space-y-2">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-muted mx-auto">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+          </svg>
+          <p className="text-sm font-display text-text-muted">Waiting for Valorant</p>
+          <p className="text-[11px] font-body text-text-muted/60">Open Valorant to see your wrapped stats</p>
+        </div>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center text-text-muted text-sm">
-        Loading your story...
+      <div className="flex-1 flex items-center justify-center p-5">
+        <div className="text-center space-y-2">
+          <svg className="animate-spin h-8 w-8 mx-auto text-text-muted" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+          </svg>
+          <p className="text-sm font-display text-text-muted">Loading your story</p>
+          <p className="text-[11px] font-body text-text-muted/60">Reading cached match history</p>
+        </div>
       </div>
     );
   }
 
   if (summary.totalMatches === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center p-6 text-center">
-        <div>
-          <p className="text-text-primary font-display text-lg">No matches yet</p>
-          <p className="text-text-muted text-sm mt-2">Play a few games — your Wrapped will fill in as we cache match data.</p>
+      <div className="flex-1 flex items-center justify-center p-5">
+        <div className="text-center space-y-2">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-muted mx-auto">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <line x1="9" y1="9" x2="15" y2="15" />
+            <line x1="15" y1="9" x2="9" y2="15" />
+          </svg>
+          <p className="text-sm font-display text-text-muted">No matches yet</p>
+          <p className="text-[11px] font-body text-text-muted/60">Play a few games — your Wrapped will fill in as the cache grows</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-6 gap-4">
+    <motion.div
+      initial="hidden" animate="show"
+      variants={{ hidden: {}, show: { transition: { staggerChildren: noAnim() ? 0 : 0.04 } } }}
+      className="flex-1 flex flex-col min-h-0 overflow-y-auto p-4 gap-3"
+    >
       <header>
         <h1 className="text-2xl font-display font-bold text-text-primary">Your Wrapped</h1>
         <p className="text-xs text-text-muted">Computed from {summary.totalMatches} cached matches</p>
       </header>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-        <Card label="Most-played agent" delay={0}>
+        <Card label="Most-played agent">
           {topAgent && (
             <div className="flex items-center gap-3">
               {topAgent.displayIcon && <img src={topAgent.displayIcon} className="w-12 h-12 rounded-full border border-border" />}
@@ -168,54 +193,55 @@ export default function WrappedPage({ connected }) {
           )}
         </Card>
 
-        <Card label="Best map" delay={0.05}>
+        <Card label="Best map">
           <p className="text-lg font-display font-bold text-green-400">{bestMap?.displayName || summary.bestMapId || "—"}</p>
           <p className="text-xs text-text-muted">{summary.bestMapWR}% winrate</p>
         </Card>
 
-        <Card label="Worst map" delay={0.1}>
+        <Card label="Worst map">
           <p className="text-lg font-display font-bold text-red-400">{worstMap?.displayName || summary.worstMapId || "—"}</p>
           <p className="text-xs text-text-muted">{summary.worstMapWR}% winrate</p>
         </Card>
 
-        <Card label="Total kills" delay={0.15}>
+        <Card label="Total kills">
           <p className="text-2xl font-display font-bold text-text-primary tabular-nums">{summary.totalKills.toLocaleString()}</p>
           <p className="text-xs text-text-muted">{summary.totalAssists.toLocaleString()} assists · {summary.totalDeaths.toLocaleString()} deaths</p>
         </Card>
 
-        <Card label="Hours played" delay={0.2}>
+        <Card label="Hours played">
           <p className="text-2xl font-display font-bold text-text-primary tabular-nums">{summary.totalHours}</p>
           <p className="text-xs text-text-muted">approx — based on round counts</p>
         </Card>
 
-        <Card label="Agent diversity" delay={0.25}>
+        <Card label="Agent diversity">
           <p className="text-2xl font-display font-bold text-text-primary tabular-nums">{summary.agentDiversity}</p>
           <p className="text-xs text-text-muted">distinct agents played</p>
         </Card>
 
-        <Card label="Win streak" delay={0.3}>
+        <Card label="Win streak">
           <p className="text-2xl font-display font-bold text-green-400 tabular-nums">{summary.longestWinStreak}</p>
           <p className="text-xs text-text-muted">longest comp streak</p>
         </Card>
 
-        <Card label="Loss streak" delay={0.35}>
+        <Card label="Loss streak">
           <p className="text-2xl font-display font-bold text-red-400 tabular-nums">{summary.longestLossStreak}</p>
           <p className="text-xs text-text-muted">longest tilt run</p>
         </Card>
 
-        <Card label="Carry games" delay={0.4}>
+        <Card label="Carry games">
           <p className="text-2xl font-display font-bold text-yellow-400 tabular-nums">{summary.mvpCount}</p>
           <p className="text-xs text-text-muted">kills ≥ 1.5× round wins</p>
         </Card>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
-function Card({ label, children, delay }) {
+function Card({ label, children }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay }}
+      variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
+      transition={noAnim() ? T0 : { duration: 0.2 }}
       className="rounded-xl border border-border bg-base-700/60 p-4"
     >
       <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider mb-2">{label}</p>

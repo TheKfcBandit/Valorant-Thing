@@ -524,8 +524,12 @@ pub fn xmpp_send_fake_presence(state: &Mutex<XmppState>, riot_state: &Mutex<supe
     };
     let timestamp = now_ms();
 
-    // Invisible mode: send a bare unavailable presence and skip the games payload entirely.
-    // This is the proper XMPP way to appear offline while remaining connected to chat.
+    // Invisible mode short-circuit. We intentionally skip the entire valorant
+    // payload injection that follows (~150 LOC of presence-mutation): when the
+    // user wants to appear offline, the proper XMPP idiom is a bare
+    // <presence type="unavailable"/> stanza, NOT a normal stanza with an
+    // "unavailable" show value. Sending the games payload while also claiming
+    // unavailable would be inconsistent and may be rejected by the server.
     if show == "unavailable" {
         let xml = "<presence type=\"unavailable\"/>".to_string();
         let stream = s.stream.as_mut().ok_or("No stream")?;

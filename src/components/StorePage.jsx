@@ -4,6 +4,9 @@ import { listen } from "@tauri-apps/api/event";
 import { motion, AnimatePresence } from "framer-motion";
 import { getLevelLookup } from "../valApiSkins";
 
+const noAnim = () => localStorage.getItem("disable_animations") === "true";
+const T0 = { duration: 0 };
+
 const COST_VP = "85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741";
 const COST_RP = "e59aa87c-4cbf-517a-5983-6e81511be9b7";
 const COST_KC = "85ca954a-41f2-ce94-9b45-8ca3dd39a00d";
@@ -95,7 +98,9 @@ export default function StorePage({ connected }) {
           setStoreRaw(JSON.parse(raw));
           fetchedAtRef.current = Date.now();
         }
-      } catch {}
+      } catch (e) {
+        console.warn("[Store] store-update payload parse failed:", e);
+      }
     });
     return () => { unsub.then(fn => fn()); };
   }, []);
@@ -201,14 +206,22 @@ export default function StorePage({ connected }) {
 
   if (!connected) {
     return (
-      <div className="flex-1 flex items-center justify-center text-text-muted">
-        Connect to Valorant to view your store.
+      <div className="flex-1 flex items-center justify-center p-5">
+        <div className="text-center space-y-2">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-muted mx-auto">
+            <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <path d="M16 10a4 4 0 01-8 0" />
+          </svg>
+          <p className="text-sm font-display text-text-muted">Waiting for Valorant</p>
+          <p className="text-[11px] font-body text-text-muted/60">Open Valorant to see your daily store</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-6 gap-6">
+    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-4 gap-3">
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-display font-bold text-text-primary">Store</h1>
@@ -316,13 +329,21 @@ export default function StorePage({ connected }) {
 
 function Section({ title, subtitle, accentColor, children }) {
   return (
-    <section>
-      <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-lg font-display font-semibold tracking-wide" style={accentColor ? { color: accentColor } : undefined}>{title}</h2>
-        {subtitle && <span className="text-xs text-text-muted tabular-nums">{subtitle}</span>}
+    <motion.section
+      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      transition={noAnim() ? T0 : { duration: 0.2 }}
+    >
+      <div className="flex items-baseline justify-between mb-2">
+        <h2
+          className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider"
+          style={accentColor ? { color: accentColor } : undefined}
+        >
+          {title}
+        </h2>
+        {subtitle && <span className="text-[10px] text-text-muted tabular-nums">{subtitle}</span>}
       </div>
       {children}
-    </section>
+    </motion.section>
   );
 }
 
@@ -334,6 +355,7 @@ function SkinCard({ offer, meta, wishlisted, onToggleWishlist, nightMarket }) {
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
+      transition={noAnim() ? T0 : { duration: 0.2 }}
       className="relative rounded-lg border border-border bg-base-700/50 overflow-hidden flex flex-col"
     >
       <div className="absolute top-2 right-2 z-10">

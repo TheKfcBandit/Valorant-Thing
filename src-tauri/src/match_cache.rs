@@ -37,10 +37,26 @@ fn ensure_loaded(app: &AppHandle, state: &Mutex<MatchCacheState>) -> Result<(), 
     let path = cache_path(app)?;
     let map = if path.exists() {
         match std::fs::read_to_string(&path) {
-            Ok(s) => serde_json::from_str::<HashMap<String, Value>>(&s).unwrap_or_else(|e| {
-                log_error(&format!("[MatchCache] parse failed, starting empty: {}", e));
-                HashMap::new()
-            }),
+            Ok(s) => match serde_json::from_str::<HashMap<String, Value>>(&s) {
+                Ok(m) => m,
+                Err(e) => {
+                    // Preserve the corrupt file for diagnosis instead of silently dropping it.
+                    let ts = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    let corrupt = path.with_extension(format!("json.corrupt-{}", ts));
+                    let backup_note = match std::fs::rename(&path, &corrupt) {
+                        Ok(_) => format!("backed up to {}", corrupt.display()),
+                        Err(re) => format!("backup also failed: {}", re),
+                    };
+                    log_error(&format!(
+                        "[MatchCache] parse failed ({}); starting empty; {}",
+                        e, backup_note
+                    ));
+                    HashMap::new()
+                }
+            },
             Err(e) => {
                 log_error(&format!("[MatchCache] read failed: {}", e));
                 HashMap::new()
@@ -55,6 +71,12 @@ fn ensure_loaded(app: &AppHandle, state: &Mutex<MatchCacheState>) -> Result<(), 
     Ok(())
 }
 
+// Persist re-acquires the state lock and serializes the *full current* map
+// inside the locked scope. Two concurrent put_many callers therefore each
+// produce a complete snapshot containing both callers' modifications — the
+// tail write may overwrite the head write with the same superset of data,
+// but no data is lost. Do not refactor to take a snapshot before locking
+// without preserving this invariant.
 fn persist(app: &AppHandle, state: &Mutex<MatchCacheState>) -> Result<(), String> {
     let path = cache_path(app)?;
     let snapshot = {
@@ -62,6 +84,10 @@ fn persist(app: &AppHandle, state: &Mutex<MatchCacheState>) -> Result<(), String
         serde_json::to_string(&s.by_id).map_err(|e| format!("serialize: {}", e))?
     };
     let tmp = path.with_extension("json.tmp");
+    // Best-effort cleanup of any leftover .tmp from a prior crashed write.
+    // Ignored error: if it doesn't exist, that's fine; if removal fails, the
+    // upcoming write will fail with a clearer error.
+    let _ = std::fs::remove_file(&tmp);
     std::fs::write(&tmp, snapshot).map_err(|e| format!("write tmp: {}", e))?;
     std::fs::rename(&tmp, &path).map_err(|e| format!("rename: {}", e))?;
     Ok(())
@@ -117,7 +143,11 @@ pub async fn match_history_list(
 ) -> Result<Value, String> {
     ensure_loaded(&app, &state)?;
     let s = state.lock().map_err(|e| e.to_string())?;
-    let mut items: Vec<&Value> = s.by_id.values().collect();
+    // Skip entries with missing/non-numeric dateMs rather than mixing them
+    // into the head of the sort (where 0 would land them).
+    let mut items: Vec<&Value> = s.by_id.values()
+        .filter(|v| v.get("dateMs").and_then(|d| d.as_i64()).is_some())
+        .collect();
     items.sort_by(|a, b| {
         let da = a["dateMs"].as_i64().unwrap_or(0);
         let db = b["dateMs"].as_i64().unwrap_or(0);

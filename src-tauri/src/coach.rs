@@ -22,14 +22,29 @@ pub struct CoachResponse {
     pub raw: Option<Value>,
 }
 
-fn build_user_prompt(matches: &[Value]) -> String {
+fn is_valid_match(m: &Value) -> bool {
+    // Require at least the K/D/A trio so the prompt isn't padded with all-zeros
+    // rows from malformed cache entries (which would silently degrade tips).
+    m.get("kills").and_then(|v| v.as_u64()).is_some()
+        && m.get("deaths").and_then(|v| v.as_u64()).is_some()
+        && m.get("assists").and_then(|v| v.as_u64()).is_some()
+}
+
+fn build_user_prompt(matches: &[Value]) -> (String, usize) {
     let mut s = String::new();
+    let mut skipped = 0usize;
     s.push_str("You are an experienced Valorant coach. Analyze the player's recent matches and provide 3-5 short, specific, actionable tips. Focus on concrete patterns visible in the data (agent choices, win rates, KDA trends, map performance). Be direct, no fluff. Format as a numbered list.\n\n");
     s.push_str("Recent matches (most recent first):\n");
-    for (i, m) in matches.iter().take(10).enumerate() {
+    let mut idx = 0;
+    for m in matches.iter().take(10) {
+        if !is_valid_match(m) {
+            skipped += 1;
+            continue;
+        }
+        idx += 1;
         s.push_str(&format!(
             "{}. Map={}  Agent={}  Queue={}  K/D/A={}/{}/{}  Rounds={}-{}  Result={}\n",
-            i + 1,
+            idx,
             m["map"].as_str().unwrap_or("?"),
             m["agent"].as_str().unwrap_or("?"),
             m["queueId"].as_str().unwrap_or("?"),
@@ -41,7 +56,7 @@ fn build_user_prompt(matches: &[Value]) -> String {
             if m["won"].as_bool().unwrap_or(false) { "WIN" } else { "LOSS" },
         ));
     }
-    s
+    (s, skipped)
 }
 
 async fn call_anthropic(api_key: &str, model: &str, prompt: &str) -> Result<(String, Value), String> {
@@ -97,7 +112,13 @@ pub async fn coach_analyze(req: CoachRequest) -> Result<CoachResponse, String> {
     if req.recent_matches.is_empty() {
         return Err("No recent matches to analyze. Play a few games and try again.".to_string());
     }
-    let prompt = build_user_prompt(&req.recent_matches);
+    let (prompt, skipped) = build_user_prompt(&req.recent_matches);
+    if skipped > 0 {
+        eprintln!("[Coach] Skipped {} malformed match entries (missing K/D/A)", skipped);
+    }
+    if !prompt.contains("1. Map=") {
+        return Err("All recent matches were malformed (missing K/D/A). Try again later.".to_string());
+    }
     let (tips, raw) = match req.provider.as_str() {
         "anthropic" => call_anthropic(&req.api_key, &req.model, &prompt).await?,
         "openai" => call_openai_like(&req.api_key, &req.model, "https://api.openai.com", &prompt).await?,

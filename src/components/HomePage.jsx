@@ -128,8 +128,10 @@ export default function HomePage({ connected, player, refreshKey, onRefresh }) {
       const json = JSON.parse(raw);
       const list = Array.isArray(json?.Penalties) ? json.Penalties : [];
       setPenalties(list);
-    } catch {
-      // Endpoint may 404 on accounts with no record; treat as empty.
+    } catch (e) {
+      // Endpoint may 404 on accounts with no record; treat as empty but log so
+      // a stale-token failure isn't completely invisible.
+      console.warn("[Penalties] fetch failed (treating as no penalties):", e);
       setPenalties([]);
     }
   }, [connected]);
