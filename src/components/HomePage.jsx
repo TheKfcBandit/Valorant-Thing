@@ -53,7 +53,7 @@ async function getMapData() {
   return mapCache;
 }
 
-export default function HomePage({ connected, player, refreshKey, onRefresh }) {
+export default function HomePage({ connected, player, playerIsStale, refreshKey, onRefresh }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -170,7 +170,10 @@ export default function HomePage({ connected, player, refreshKey, onRefresh }) {
     return () => clearInterval(id);
   }, [connected, fetchStats]);
 
-  if (!connected) {
+  // Phase A of #18: when not connected but we have cached identity, render the
+  // page anyway with a stale "Offline" badge. The Waiting splash only shows
+  // for users who have NEVER connected (no cached identity).
+  if (!connected && !player) {
     return (
       <div className="flex-1 flex items-center justify-center p-5">
         <div className="text-center space-y-2">
@@ -189,6 +192,7 @@ export default function HomePage({ connected, player, refreshKey, onRefresh }) {
       </div>
     );
   }
+  const showOfflineBadge = !connected && !!player;
 
   const cardSmall = stats?.cardId ? `https://media.valorant-api.com/playercards/${stats.cardId}/smallart.png` : player?.player_card_url;
   const cardWide = stats?.cardId ? `https://media.valorant-api.com/playercards/${stats.cardId}/wideart.png` : null;
@@ -214,6 +218,12 @@ export default function HomePage({ connected, player, refreshKey, onRefresh }) {
         <div className="absolute inset-0 bg-gradient-to-t from-base-900/95 via-base-900/60 to-base-900/30" />
 
         <div className="absolute top-3 right-3 flex items-center gap-2">
+          {showOfflineBadge && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-yellow-500/20 backdrop-blur-sm border border-yellow-500/40" title={`Last seen on ${new Date().toLocaleString()} (cached)`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
+              <span className="text-[10px] font-display font-semibold text-yellow-400 uppercase tracking-wider">Offline</span>
+            </div>
+          )}
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-black/40 backdrop-blur-sm">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-text-muted">
               <circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" />

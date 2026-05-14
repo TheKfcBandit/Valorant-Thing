@@ -69,23 +69,27 @@ export default function StorePage({ connected }) {
       .catch(e => console.warn("[Store] Skin lookup load failed:", e));
   }, []);
 
+  const [staleSinceMs, setStaleSinceMs] = useState(null);
+
   const fetchStore = useCallback(async () => {
-    if (!connected) return;
     setLoading(true);
     setError(null);
     try {
-      const raw = await invoke("get_storefront");
-      setStoreRaw(JSON.parse(raw));
-      fetchedAtRef.current = Date.now();
+      // Phase A of #18: get_storefront returns { raw, fetched_at_ms, stale_since_ms }.
+      // stale_since_ms is non-null when the live fetch failed and we're serving
+      // the on-disk cached snapshot from a prior session.
+      const res = await invoke("get_storefront");
+      setStoreRaw(JSON.parse(res.raw));
+      fetchedAtRef.current = res.fetched_at_ms || Date.now();
+      setStaleSinceMs(res.stale_since_ms || null);
     } catch (e) {
       setError(typeof e === "string" ? e : e?.message || "Failed to load");
     } finally {
       setLoading(false);
     }
-  }, [connected]);
+  }, []);
 
   useEffect(() => {
-    if (!connected) return;
     if (!storeRaw) fetchStore();
   }, [connected, storeRaw, fetchStore]);
 
@@ -204,7 +208,11 @@ export default function StorePage({ connected }) {
     return Math.max(0, accessoryResetSecs - elapsed);
   }, [accessoryResetSecs, now]);
 
-  if (!connected) {
+  // Phase A of #18: we render even when not connected — the backend falls back
+  // to the on-disk cached storefront and tells us via `staleSinceMs`. The only
+  // not-rendering case is "no cache + no connection", which falls through the
+  // error banner below.
+  if (!connected && !storeRaw && !loading) {
     return (
       <div className="flex-1 flex items-center justify-center p-5">
         <div className="text-center space-y-2">
@@ -213,12 +221,30 @@ export default function StorePage({ connected }) {
             <line x1="3" y1="6" x2="21" y2="6" />
             <path d="M16 10a4 4 0 01-8 0" />
           </svg>
-          <p className="text-sm font-display text-text-muted">Waiting for Valorant</p>
-          <p className="text-[11px] font-body text-text-muted/60">Open Valorant to see your daily store</p>
+          <p className="text-sm font-display text-text-muted">No store data yet</p>
+          <p className="text-[11px] font-body text-text-muted/60">Open Valorant once and reopen this page</p>
         </div>
       </div>
     );
   }
+
+  // Stale derivation. crossesMidnight is true when the cached snapshot was
+  // taken before the most recent UTC midnight — i.e. it's last reset's data
+  // and the offers shown are NOT today's. That's a strong wording change.
+  const staleAgeMs = staleSinceMs ? Date.now() - staleSinceMs : 0;
+  const lastUtcMidnight = (() => {
+    const d = new Date();
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  })();
+  const crossesMidnight = staleSinceMs != null && staleSinceMs < lastUtcMidnight;
+  const staleAgeText = (() => {
+    if (!staleSinceMs) return null;
+    const m = Math.max(0, Math.floor(staleAgeMs / 60000));
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  })();
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-4 gap-3">
@@ -243,6 +269,14 @@ export default function StorePage({ connected }) {
       {error && (
         <div className="px-3 py-2 rounded-md border border-val-red/40 bg-val-red/10 text-sm text-val-red">
           {error}
+        </div>
+      )}
+
+      {staleSinceMs && (
+        <div className={`px-3 py-2 rounded-md border text-xs font-body ${crossesMidnight ? "border-val-red/40 bg-val-red/10 text-val-red" : "border-yellow-500/40 bg-yellow-500/10 text-yellow-400"}`}>
+          {crossesMidnight
+            ? <>⚠️ Showing yesterday's reset (last updated {staleAgeText}). Today's offers are different — open Valorant to refresh.</>
+            : <>Last updated {staleAgeText} · cached (Valorant not running)</>}
         </div>
       )}
 

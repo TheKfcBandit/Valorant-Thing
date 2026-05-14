@@ -12,17 +12,30 @@ mod store;
 mod match_cache;
 mod spend_tracker;
 mod coach;
+mod identity_cache;
 
 type SharedState = Arc<Mutex<riot::ConnectionState>>;
 type DiscordShared = Arc<Mutex<discord::DiscordState>>;
 type XmppShared = Arc<Mutex<riot::xmpp::XmppState>>;
 
 #[tauri::command]
-async fn connect(state: tauri::State<'_, SharedState>) -> Result<riot::PlayerInfo, String> {
-    let state = Arc::clone(&state);
-    tauri::async_runtime::spawn_blocking(move || riot::connect_and_store(&state))
+async fn connect(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SharedState>,
+    identity: tauri::State<'_, Mutex<identity_cache::IdentityCacheState>>,
+) -> Result<riot::PlayerInfo, String> {
+    let state_clone = Arc::clone(&state);
+    let info = tauri::async_runtime::spawn_blocking(move || riot::connect_and_store(&state_clone))
         .await
-        .map_err(|e| format!("Task failed: {}", e))?
+        .map_err(|e| format!("Task failed: {}", e))??;
+    // Phase A of #18: persist a snapshot of the identity so HomePage etc.
+    // can render last-seen data when Valorant is closed. Best-effort —
+    // a failed write must NOT break the connect. The identity file is
+    // tiny (~200 bytes); writing it on the async runtime is acceptable.
+    if let Err(e) = identity_cache::save(&app, &identity, &info) {
+        riot::logging::log_error(&format!("[IdentityCache] save failed: {}", e));
+    }
+    Ok(info)
 }
 
 #[tauri::command]
@@ -751,6 +764,7 @@ pub fn run() {
         .manage::<store::WishlistShared>(Arc::new(Mutex::new(Vec::new())))
         .manage(Mutex::new(match_cache::MatchCacheState::default()))
         .manage(Mutex::new(spend_tracker::SpendState::default()))
+        .manage(Mutex::new(identity_cache::IdentityCacheState::default()))
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -890,6 +904,7 @@ pub fn run() {
             match_cache::match_history_stats,
             spend_tracker::get_spend_summary,
             coach::coach_analyze,
+            identity_cache::get_cached_identity,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

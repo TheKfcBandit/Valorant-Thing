@@ -1,14 +1,67 @@
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::riot::{self, ConnectionState};
 
 pub type WishlistShared = Arc<Mutex<Vec<String>>>;
+
+// --- Phase A of #18: storefront stale-cache ---
+
+#[derive(Serialize, Deserialize, Clone)]
+struct StorefrontCacheFile {
+    raw: String,
+    fetched_at_ms: i64,
+}
+
+fn store_cache_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app.path().app_data_dir().map_err(|e| format!("app_data_dir: {}", e))?;
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir: {}", e))?;
+    }
+    Ok(dir.join("store-cache.json"))
+}
+
+fn save_storefront_to_disk(app: &AppHandle, raw: &str) {
+    // Best-effort. A failed write should never break a successful fetch.
+    let path = match store_cache_path(app) { Ok(p) => p, Err(e) => {
+        riot::logging::log_error(&format!("[StoreCache] path: {}", e)); return;
+    }};
+    let entry = StorefrontCacheFile { raw: raw.to_string(), fetched_at_ms: now_ms() };
+    let serialized = match serde_json::to_string(&entry) { Ok(s) => s, Err(e) => {
+        riot::logging::log_error(&format!("[StoreCache] serialize: {}", e)); return;
+    }};
+    let tmp = path.with_extension("json.tmp");
+    let _ = std::fs::remove_file(&tmp);
+    if let Err(e) = std::fs::write(&tmp, serialized) {
+        riot::logging::log_error(&format!("[StoreCache] write tmp: {}", e)); return;
+    }
+    if let Err(e) = std::fs::rename(&tmp, &path) {
+        riot::logging::log_error(&format!("[StoreCache] rename: {}", e));
+    }
+}
+
+fn load_storefront_from_disk(app: &AppHandle) -> Option<StorefrontCacheFile> {
+    let path = store_cache_path(app).ok()?;
+    if !path.exists() { return None; }
+    let s = std::fs::read_to_string(&path).ok()?;
+    serde_json::from_str(&s).ok()
+}
+
+#[derive(Serialize)]
+pub struct StorefrontResult {
+    pub raw: String,
+    pub fetched_at_ms: i64,
+    /// None ⇒ this is a fresh fetch. Some ⇒ this is the cached snapshot,
+    /// returned because the live fetch failed (no Riot Client / network /
+    /// stale token). Frontend uses this to show the "stale" banner.
+    pub stale_since_ms: Option<i64>,
+}
 
 #[derive(Clone, Serialize)]
 struct WishlistHit {
@@ -197,6 +250,7 @@ pub fn spawn_storefront_poller(
                             }
                         }
                         emit_and_notify(&app2, &raw, &fresh);
+                        save_storefront_to_disk(&app2, &raw);
                         riot::logging::log_info(&format!(
                             "[Store] Fetched storefront for {} ({} fresh hits)",
                             day_key, fresh.len()
@@ -218,12 +272,33 @@ pub fn spawn_storefront_poller(
 
 #[tauri::command]
 pub async fn get_storefront(
+    app: AppHandle,
     state: tauri::State<'_, Arc<Mutex<ConnectionState>>>,
-) -> Result<String, String> {
-    let state = Arc::clone(&state);
-    tauri::async_runtime::spawn_blocking(move || fetch_storefront_inner(&state))
+) -> Result<StorefrontResult, String> {
+    let state_clone = Arc::clone(&state);
+    let app_for_save = app.clone();
+    let fresh = tauri::async_runtime::spawn_blocking(move || fetch_storefront_inner(&state_clone))
         .await
-        .map_err(|e| format!("Task failed: {}", e))?
+        .map_err(|e| format!("Task failed: {}", e))?;
+    match fresh {
+        Ok(raw) => {
+            save_storefront_to_disk(&app_for_save, &raw);
+            Ok(StorefrontResult { raw, fetched_at_ms: now_ms(), stale_since_ms: None })
+        }
+        Err(live_err) => {
+            // Phase A of #18: fall back to the on-disk cache so the user sees
+            // *something* when Valorant isn't running. The frontend shows a
+            // stale banner based on the stale_since_ms field.
+            match load_storefront_from_disk(&app) {
+                Some(c) => Ok(StorefrontResult {
+                    raw: c.raw,
+                    fetched_at_ms: c.fetched_at_ms,
+                    stale_since_ms: Some(c.fetched_at_ms),
+                }),
+                None => Err(live_err),
+            }
+        }
+    }
 }
 
 #[tauri::command]
@@ -254,6 +329,7 @@ pub async fn force_refresh_storefront(
     .map_err(|e| format!("Task failed: {}", e))??;
     let (raw, hits) = raw;
     emit_and_notify(&app, &raw, &hits);
+    save_storefront_to_disk(&app, &raw);
     Ok(raw)
 }
 

@@ -190,6 +190,10 @@ const MATCH_POLL_INTERVAL = 1500;
 export default function App() {
   const [status, setStatus] = useState("waiting");
   const [player, setPlayer] = useState(null);
+  // Phase A of #18: when true, `player` is a snapshot from a prior session
+  // (Riot Client not running right now). UI surfaces an "Offline" pill so
+  // the user knows the data isn't live.
+  const [playerIsStale, setPlayerIsStale] = useState(false);
   const [activeTab, setActiveTab] = useState("home");
   const [showLogs, setShowLogs] = useState(() => localStorage.getItem("show_logs") === "true");
   const [devTab, setDevTab] = useState(() => localStorage.getItem("dev_tab_enabled") === "true");
@@ -310,6 +314,31 @@ export default function App() {
       instalockConfigRef.current = { maps, selectedAgent: cfg.defaultAgent || null, perMapSelections: perMap };
     }).catch(() => {});
   }, []);
+
+  // Phase A of #18: hydrate `player` from the on-disk identity cache so the
+  // home page + dependent UI render last-seen state before (and instead of)
+  // a live connect. We only set the cached player if we haven't already
+  // gotten a fresh one; the live connect will overwrite this with playerIsStale=false.
+  // Re-runs when status drops to disconnected/waiting AND player is null
+  // (i.e. health_check just blanked us) so the cached identity reappears.
+  useEffect(() => {
+    if (player) return;
+    invoke("get_cached_identity")
+      .then(snap => {
+        if (!snap) return;
+        setPlayer({
+          puuid: snap.puuid,
+          game_name: snap.game_name,
+          game_tag: snap.game_tag,
+          region: snap.region,
+          shard: snap.shard,
+          client_version: snap.client_version,
+          player_card_url: snap.player_card_url,
+        });
+        setPlayerIsStale(true);
+      })
+      .catch(e => console.warn("[IdentityCache] hydrate failed:", e));
+  }, [player, status]);
 
   useEffect(() => {
     if (startMinimized) {
@@ -516,6 +545,7 @@ export default function App() {
       }
       const info = await invoke("connect");
       setPlayer(info);
+      setPlayerIsStale(false);
       setStatus("connected");
       setRefreshKey(k => k + 1);
       addLog("info", `[Connect] Connected as ${info.game_name}#${info.game_tag} (${info.puuid?.slice(0,8)}...)`);
@@ -1342,7 +1372,7 @@ const raw = localStorage.getItem("menu_video_config");
           <AnimatePresence mode="wait">
           {activeTab === "home" && (
             <motion.div key="home" className="flex-1 flex min-h-0" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15, ease: "easeOut" }}>
-            <HomePage connected={status === "connected"} player={player} refreshKey={refreshKey} onRefresh={confirmRefresh} />
+            <HomePage connected={status === "connected"} player={player} playerIsStale={playerIsStale} refreshKey={refreshKey} onRefresh={confirmRefresh} />
             </motion.div>
           )}
           {activeTab === "instalock" && (
