@@ -45,7 +45,10 @@ fn fetch_storefront_inner(state: &Mutex<ConnectionState>) -> Result<String, Stri
         )
     };
     let path = format!("/store/v3/storefront/{}", puuid);
-    riot::pd_get(&shard, &path, &access_token, &entitlements, &client_version)
+    // /store/v3/storefront/{puuid} requires POST with an empty JSON body. The
+    // older v2 endpoint was GET, but v2 is deprecated. Using GET on v3 returns
+    // 405 Method Not Allowed, which silently breaks the entire Store page.
+    riot::pd_post(&shard, &path, "{}", &access_token, &entitlements, &client_version)
 }
 
 fn extract_offer_ids(raw: &str) -> (Vec<String>, Vec<String>) {

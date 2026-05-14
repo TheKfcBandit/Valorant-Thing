@@ -59,21 +59,6 @@ export default function CoachPage({ connected }) {
     }
   };
 
-  if (!connected) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-5">
-        <div className="text-center space-y-2">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-muted mx-auto">
-            <path d="M12 2a3 3 0 00-3 3v7a3 3 0 006 0V5a3 3 0 00-3-3z" />
-            <path d="M19 10v2a7 7 0 01-14 0v-2M12 19v3M8 22h8" />
-          </svg>
-          <p className="text-sm font-display text-text-muted">Waiting for Valorant</p>
-          <p className="text-[11px] font-body text-text-muted/60">Open Valorant to coach your recent matches</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <motion.div
       initial="hidden" animate="show"
