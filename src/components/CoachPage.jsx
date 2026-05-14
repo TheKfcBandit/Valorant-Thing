@@ -24,7 +24,7 @@ export default function CoachPage({ connected }) {
   useEffect(() => {
     invoke("match_history_stats")
       .then(s => setMatchCount(s?.total || 0))
-      .catch(() => {});
+      .catch(e => console.warn("[Coach] match_history_stats failed:", e));
   }, []);
 
   const providerCfg = PROVIDERS.find(p => p.id === provider) || PROVIDERS[0];

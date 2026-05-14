@@ -39,15 +39,10 @@ struct OfferCost {
     kc: u64,
 }
 
+#[derive(Default)]
 pub struct SpendState {
     data: SpendData,
     loaded: bool,
-}
-
-impl Default for SpendState {
-    fn default() -> Self {
-        Self { data: SpendData::default(), loaded: false }
-    }
 }
 
 fn now_ms() -> i64 {

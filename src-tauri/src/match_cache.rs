@@ -7,15 +7,10 @@ use tauri::{AppHandle, Manager};
 
 use crate::riot::logging::log_error;
 
+#[derive(Default)]
 pub struct MatchCacheState {
     by_id: HashMap<String, Value>,
     loaded: bool,
-}
-
-impl Default for MatchCacheState {
-    fn default() -> Self {
-        Self { by_id: HashMap::new(), loaded: false }
-    }
 }
 
 fn cache_path(app: &AppHandle) -> Result<PathBuf, String> {
