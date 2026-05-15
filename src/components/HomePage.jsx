@@ -35,6 +35,24 @@ function formatTimer(ms) {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
+// Merge live and cached match arrays by matchId. `priority` entries win on
+// conflict; `fallback` fills in the tail. Entries without a matchId can't
+// be deduped, so we keep them all from `priority` (live placeholders for
+// in-progress matches show without a matchId yet).
+function mergeMatches(priority, fallback) {
+  const map = new Map();
+  for (const m of fallback || []) {
+    if (m?.matchId) map.set(m.matchId, m);
+  }
+  const noId = [];
+  for (const m of priority || []) {
+    if (m?.matchId) map.set(m.matchId, m);
+    else if (m) noId.push(m);
+  }
+  return [...noId, ...Array.from(map.values())]
+    .sort((a, b) => (b.dateMs || 0) - (a.dateMs || 0));
+}
+
 let mapCache = null;
 async function getMapData() {
   if (mapCache) return mapCache;
@@ -102,7 +120,9 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
         setTimeout(() => fetchMatches(true), 3000);
         return;
       }
-      setMatches(list);
+      // Merge live into the existing (cache-seeded) list. Live wins on
+      // matchId conflict so corrected/updated fields propagate.
+      setMatches(prev => mergeMatches(list, prev));
       // Ingest into persistent history cache (only entries with a matchId survive).
       const withIds = list.filter(m => m && m.matchId);
       if (withIds.length > 0) {
@@ -120,6 +140,25 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
     }
     setMatchLoading(false);
   }, [connected]);
+
+  // Seed match history from the file-backed cache so Home renders something
+  // even when Valorant isn't running. fetchMatches will merge live entries
+  // on top once a connection is established.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await invoke("match_history_list", { limit: 100 });
+        const cached = res?.matches || [];
+        if (!cancelled && cached.length > 0) {
+          setMatches(prev => mergeMatches(prev || [], cached));
+        }
+      } catch (e) {
+        console.warn("[History] cache load failed:", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const fetchPenalties = useCallback(async () => {
     if (!connected) return;

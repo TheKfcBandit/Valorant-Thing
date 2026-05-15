@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { getLevelLookup, getBundleLookup, getAccessoryLookup } from "../valApiSkins";
 
 const noAnim = () => localStorage.getItem("disable_animations") === "true";
@@ -323,19 +323,16 @@ export default function StorePage({ connected }) {
         title="Daily Offers"
         subtitle={dailyCountdown != null ? `Resets in ${fmtRemaining(dailyCountdown)}` : "Resets every 24 hours"}
       >
-        <div className="flex gap-3 overflow-x-auto pb-1">
-          <AnimatePresence>
-            {dailyOffers.map((offer) => (
-              <div key={offer.offerId} className="flex-1 min-w-[200px]">
-                <SkinCard
-                  offer={offer}
-                  meta={levelLookup[offer.offerId]}
-                  wishlisted={wishlist.has(offer.offerId)}
-                  onToggleWishlist={() => toggleWishlist(offer.offerId)}
-                />
-              </div>
-            ))}
-          </AnimatePresence>
+        <div className="grid grid-cols-4 gap-3">
+          {dailyOffers.map((offer) => (
+            <SkinCard
+              key={offer.offerId}
+              offer={offer}
+              meta={levelLookup[offer.offerId]}
+              wishlisted={wishlist.has(offer.offerId)}
+              onToggleWishlist={() => toggleWishlist(offer.offerId)}
+            />
+          ))}
         </div>
       </Section>
 
@@ -364,18 +361,17 @@ export default function StorePage({ connected }) {
           }
           accentColor="rgb(var(--val-red))"
         >
-          <div className="flex gap-3 overflow-x-auto pb-1">
+          <div className="grid grid-cols-6 gap-3">
             {nightMarket.offers.map((o) => (
-              <div key={o.offerId} className="flex-1 min-w-[160px] max-w-[220px]">
-                <SkinCard
-                  offer={{ offerId: o.offerId, cost: o.discountedCost, baseCost: o.baseCost, discountPct: o.discountPct }}
-                  meta={levelLookup[o.offerId]}
-                  wishlisted={wishlist.has(o.offerId)}
-                  onToggleWishlist={() => toggleWishlist(o.offerId)}
-                  nightMarket
-                  portrait
-                />
-              </div>
+              <SkinCard
+                key={o.offerId}
+                offer={{ offerId: o.offerId, cost: o.discountedCost, baseCost: o.baseCost, discountPct: o.discountPct }}
+                meta={levelLookup[o.offerId]}
+                wishlisted={wishlist.has(o.offerId)}
+                onToggleWishlist={() => toggleWishlist(o.offerId)}
+                nightMarket
+                portrait
+              />
             ))}
           </div>
         </Section>
@@ -454,10 +450,8 @@ function SkinCard({ offer, meta, wishlisted, onToggleWishlist, nightMarket, port
   const aspectClass = portrait ? "aspect-[3/4]" : "aspect-[2/1]";
   return (
     <motion.div
-      layout
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
       transition={noAnim() ? T0 : { duration: 0.2 }}
       className="relative rounded-lg border border-border bg-base-700/50 overflow-hidden flex flex-col h-full"
     >
@@ -506,7 +500,10 @@ function BundleCarousel({ bundles, index, onIndex, lookup }) {
   if (!bundle) return null;
   const meta = lookup[bundle.dataAssetId] || {};
   const hero = meta.verticalPromoImage || meta.displayIcon || null;
-  const displayName = meta.displayName || "Featured Bundle";
+  // When valorant-api hasn't catalogued the bundle yet (Riot just dropped it),
+  // we have neither name nor image — render a styled placeholder hero so the
+  // section still looks intentional, not broken.
+  const isPlaceholder = !hero && !meta.displayName;
   const hasMultiple = bundles.length > 1;
 
   return (
@@ -525,13 +522,32 @@ function BundleCarousel({ bundles, index, onIndex, lookup }) {
       <div className="relative rounded-lg border border-border bg-base-700/50 overflow-hidden">
         <div className="relative aspect-[16/6] w-full">
           {hero ? (
-            <img src={hero} alt={displayName} className="absolute inset-0 w-full h-full object-cover" loading="lazy" draggable={false} />
+            <img src={hero} alt={meta.displayName || "Featured bundle"} className="absolute inset-0 w-full h-full object-cover" loading="lazy" draggable={false} />
           ) : (
-            <div className="absolute inset-0 bg-base-700" />
+            <div
+              className="absolute inset-0"
+              style={{
+                background:
+                  "radial-gradient(120% 100% at 20% 0%, rgb(var(--val-red) / 0.55) 0%, transparent 55%), radial-gradient(80% 100% at 100% 100%, rgb(var(--val-red) / 0.25) 0%, transparent 60%), linear-gradient(135deg, rgb(var(--base-700)) 0%, rgb(var(--base-900)) 100%)",
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="absolute right-6 top-1/2 -translate-y-1/2 w-24 h-24 text-white/10">
+                <path d="M20 7h-3V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2H4a1 1 0 00-1 1v11a2 2 0 002 2h14a2 2 0 002-2V8a1 1 0 00-1-1zM9 5h6v2H9V5z" />
+              </svg>
+            </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-base-900/95 via-base-900/40 to-transparent" />
           <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between gap-3">
-            <p className="text-xl font-display font-bold text-white drop-shadow-md truncate">{displayName}</p>
+            <div className="min-w-0">
+              <p className="text-xl font-display font-bold text-white drop-shadow-md truncate">
+                {meta.displayName || "New Bundle"}
+              </p>
+              {isPlaceholder && (
+                <p className="text-[10px] font-body italic text-white/70 mt-0.5">
+                  Preview coming soon — Riot just released this
+                </p>
+              )}
+            </div>
             {bundle.cost && (
               <div className="text-right shrink-0">
                 <p className="text-[10px] uppercase tracking-wider text-white/70">Total</p>
