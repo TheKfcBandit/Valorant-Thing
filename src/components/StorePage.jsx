@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { motion, AnimatePresence } from "framer-motion";
-import { getLevelLookup } from "../valApiSkins";
+import { getLevelLookup, getBundleLookup, getAccessoryLookup } from "../valApiSkins";
 
 const noAnim = () => localStorage.getItem("disable_animations") === "true";
 const T0 = { duration: 0 };
@@ -49,6 +49,11 @@ export default function StorePage({ connected }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [levelLookup, setLevelLookup] = useState({});
+  const [bundleLookup, setBundleLookup] = useState({});
+  const [accessoryLookup, setAccessoryLookup] = useState({});
+  const [wishlistOpen, setWishlistOpen] = useState(false);
+  const [nmTotal, setNmTotal] = useState(null); // { vp, count, hasNonVp } once user clicks Calculate total
+  const [bundleIndex, setBundleIndex] = useState(0);
   const [wishlist, setWishlist] = useState(() => {
     try {
       const raw = localStorage.getItem("wishlist_skins");
@@ -67,6 +72,12 @@ export default function StorePage({ connected }) {
     getLevelLookup()
       .then(setLevelLookup)
       .catch(e => console.warn("[Store] Skin lookup load failed:", e));
+    getBundleLookup()
+      .then(setBundleLookup)
+      .catch(e => console.warn("[Store] Bundle lookup load failed:", e));
+    getAccessoryLookup()
+      .then(setAccessoryLookup)
+      .catch(e => console.warn("[Store] Accessory lookup load failed:", e));
   }, []);
 
   const [staleSinceMs, setStaleSinceMs] = useState(null);
@@ -116,6 +127,10 @@ export default function StorePage({ connected }) {
     return () => clearInterval(id);
   }, []);
 
+  // Reset NM total + bundle carousel index whenever the storefront changes
+  // so stale UI state can't bleed across days.
+  useEffect(() => { setNmTotal(null); setBundleIndex(0); }, [storeRaw]);
+
   const persistWishlist = useCallback((set) => {
     const arr = Array.from(set);
     localStorage.setItem("wishlist_skins", JSON.stringify(arr));
@@ -158,22 +173,28 @@ export default function StorePage({ connected }) {
       return {
         offerId: (offer.OfferID || "").toLowerCase(),
         cost: fmtCost(offer.Cost),
-        rewards: rewards.map(r => ({ itemTypeId: r.ItemTypeID, itemId: r.ItemID })),
+        rewards: rewards.map(r => ({
+          itemTypeId: r.ItemTypeID,
+          itemId: (r.ItemID || "").toLowerCase(),
+        })),
       };
     });
   }, [storeRaw]);
 
-  const featuredBundle = useMemo(() => {
-    if (!storeRaw) return null;
-    const fb = storeRaw.FeaturedBundle?.Bundle;
-    if (!fb) return null;
-    return {
-      id: fb.ID,
-      dataAssetId: fb.DataAssetID,
-      cost: fmtCost(fb.TotalDiscountedCost || fb.TotalBaseCost),
-      remaining: fb.DurationRemainingInSeconds,
-      items: (fb.Items || []).length,
-    };
+  // Riot returns the active bundle as `FeaturedBundle.Bundle` (singular) AND
+  // a `FeaturedBundle.Bundles` array. On multi-bundle weeks the array carries
+  // entries the singular field doesn't, so we union them and dedupe by ID.
+  const featuredBundles = useMemo(() => {
+    if (!storeRaw) return [];
+    const fb = storeRaw.FeaturedBundle || {};
+    const arr = Array.isArray(fb.Bundles) ? [...fb.Bundles] : [];
+    if (fb.Bundle && !arr.some(b => b.ID === fb.Bundle.ID)) arr.unshift(fb.Bundle);
+    return arr.map(b => ({
+      id: b.ID,
+      dataAssetId: (b.DataAssetID || "").toLowerCase(),
+      cost: fmtCost(b.TotalDiscountedCost || b.TotalBaseCost),
+      remaining: b.DurationRemainingInSeconds,
+    }));
   }, [storeRaw]);
 
   const nightMarket = useMemo(() => {
@@ -251,21 +272,28 @@ export default function StorePage({ connected }) {
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-4 gap-3">
       <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-display font-bold text-text-primary">Store</h1>
-          <p className="text-xs text-text-muted">
-            {dailyCountdown != null && <>Daily resets in <span className="tabular-nums">{fmtRemaining(dailyCountdown)}</span></>}
-            {accessoryCountdown != null && dailyCountdown != null && " · "}
-            {accessoryCountdown != null && <>Accessories reset in <span className="tabular-nums">{fmtRemaining(accessoryCountdown)}</span></>}
-          </p>
+        <h1 className="text-2xl font-display font-bold text-text-primary">Store</h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setWishlistOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-display font-semibold border border-border bg-base-700 hover:bg-base-600"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-val-red">
+              <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
+            </svg>
+            Wishlist
+            {wishlist.size > 0 && (
+              <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-val-red/20 text-val-red text-[10px] tabular-nums">{wishlist.size}</span>
+            )}
+          </button>
+          <button
+            onClick={fetchStore}
+            disabled={loading}
+            className="px-3 py-1.5 rounded-md text-xs font-display font-semibold border border-border bg-base-700 hover:bg-base-600 disabled:opacity-50"
+          >
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
         </div>
-        <button
-          onClick={fetchStore}
-          disabled={loading}
-          className="px-3 py-1.5 rounded-md text-xs font-display font-semibold border border-border bg-base-700 hover:bg-base-600 disabled:opacity-50"
-        >
-          {loading ? "Refreshing..." : "Refresh"}
-        </button>
       </header>
 
       {error && (
@@ -282,84 +310,122 @@ export default function StorePage({ connected }) {
         </div>
       )}
 
-      <Section title="Daily Offers" subtitle="Resets every 24 hours">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {featuredBundles.length > 0 && (
+        <BundleCarousel
+          bundles={featuredBundles}
+          index={bundleIndex}
+          onIndex={setBundleIndex}
+          lookup={bundleLookup}
+        />
+      )}
+
+      <Section
+        title="Daily Offers"
+        subtitle={dailyCountdown != null ? `Resets in ${fmtRemaining(dailyCountdown)}` : "Resets every 24 hours"}
+      >
+        <div className="flex gap-3 overflow-x-auto pb-1">
           <AnimatePresence>
             {dailyOffers.map((offer) => (
-              <SkinCard
-                key={offer.offerId}
-                offer={offer}
-                meta={levelLookup[offer.offerId]}
-                wishlisted={wishlist.has(offer.offerId)}
-                onToggleWishlist={() => toggleWishlist(offer.offerId)}
-              />
+              <div key={offer.offerId} className="flex-1 min-w-[200px]">
+                <SkinCard
+                  offer={offer}
+                  meta={levelLookup[offer.offerId]}
+                  wishlisted={wishlist.has(offer.offerId)}
+                  onToggleWishlist={() => toggleWishlist(offer.offerId)}
+                />
+              </div>
             ))}
           </AnimatePresence>
         </div>
       </Section>
 
+      {accessoryOffers.length > 0 && (
+        <Section
+          title="Accessory Store"
+          subtitle={accessoryCountdown != null ? `Resets in ${fmtRemaining(accessoryCountdown)}` : "Resets weekly"}
+        >
+          <div className="grid grid-cols-4 gap-3">
+            {accessoryOffers.map((a) => (
+              <AccessoryCard key={a.offerId} offer={a} lookup={accessoryLookup} />
+            ))}
+          </div>
+        </Section>
+      )}
+
       {nightMarket && nightMarket.offers.length > 0 && (
         <Section
           title="Night Market"
-          subtitle={nightMarket.remaining != null ? `Closes in ${fmtRemaining(nightMarket.remaining)}` : null}
+          subtitle={
+            <NightMarketSubtitle
+              remaining={nightMarket.remaining}
+              total={nmTotal}
+              onCalculate={() => setNmTotal(computeNmTotal(nightMarket.offers))}
+            />
+          }
           accentColor="rgb(var(--val-red))"
         >
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="flex gap-3 overflow-x-auto pb-1">
             {nightMarket.offers.map((o) => (
-              <SkinCard
-                key={o.offerId}
-                offer={{ offerId: o.offerId, cost: o.discountedCost, baseCost: o.baseCost, discountPct: o.discountPct }}
-                meta={levelLookup[o.offerId]}
-                wishlisted={wishlist.has(o.offerId)}
-                onToggleWishlist={() => toggleWishlist(o.offerId)}
-                nightMarket
-              />
-            ))}
-          </div>
-        </Section>
-      )}
-
-      {featuredBundle && (
-        <Section title="Featured Bundle" subtitle={featuredBundle.remaining != null ? `Closes in ${fmtRemaining(featuredBundle.remaining)}` : null}>
-          <div className="rounded-lg border border-border bg-base-700/50 p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-text-secondary">Bundle ID</p>
-              <p className="text-xs font-mono text-text-muted truncate max-w-[420px]">{featuredBundle.dataAssetId || featuredBundle.id}</p>
-              <p className="text-xs text-text-muted mt-1">{featuredBundle.items} items</p>
-            </div>
-            {featuredBundle.cost && (
-              <div className="text-right">
-                <p className="text-xs text-text-muted">Total</p>
-                <p className="text-lg font-display font-bold tabular-nums text-text-primary">
-                  {featuredBundle.cost.amount.toLocaleString()} <span className="text-xs text-text-muted">{featuredBundle.cost.currency}</span>
-                </p>
-              </div>
-            )}
-          </div>
-        </Section>
-      )}
-
-      {accessoryOffers.length > 0 && (
-        <Section title="Accessory Store" subtitle="Resets weekly">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {accessoryOffers.map((a) => (
-              <div key={a.offerId} className="rounded-lg border border-border bg-base-700/50 p-3">
-                <p className="text-xs text-text-muted">{a.rewards.length} reward{a.rewards.length === 1 ? "" : "s"}</p>
-                {a.cost && (
-                  <p className="text-sm font-display font-semibold text-text-primary mt-1 tabular-nums">
-                    {a.cost.amount.toLocaleString()} <span className="text-xs text-text-muted">{a.cost.currency}</span>
-                  </p>
-                )}
+              <div key={o.offerId} className="flex-1 min-w-[160px] max-w-[220px]">
+                <SkinCard
+                  offer={{ offerId: o.offerId, cost: o.discountedCost, baseCost: o.baseCost, discountPct: o.discountPct }}
+                  meta={levelLookup[o.offerId]}
+                  wishlisted={wishlist.has(o.offerId)}
+                  onToggleWishlist={() => toggleWishlist(o.offerId)}
+                  nightMarket
+                  portrait
+                />
               </div>
             ))}
           </div>
         </Section>
       )}
 
-      {storeRaw && dailyOffers.length === 0 && (
-        <p className="text-text-muted text-sm">No daily offers in response.</p>
-      )}
+      <WishlistModal
+        open={wishlistOpen}
+        wishlistedIds={Array.from(wishlist)}
+        levelLookup={levelLookup}
+        onClose={() => setWishlistOpen(false)}
+        onRemove={toggleWishlist}
+      />
     </div>
+  );
+}
+
+// Sums VP costs across all Night Market offers. Returns { vp, count, hasNonVp }.
+// VP-only because that's what NM uses 99% of the time; the hasNonVp flag lets
+// the caller note exclusions on the off chance Riot ever sells a NM skin for RP.
+function computeNmTotal(offers) {
+  let vp = 0;
+  let count = 0;
+  let hasNonVp = false;
+  for (const o of offers) {
+    const c = o.discountedCost;
+    if (!c) continue;
+    if (c.currency === "VP") { vp += c.amount; count += 1; }
+    else hasNonVp = true;
+  }
+  return { vp, count, hasNonVp };
+}
+
+function NightMarketSubtitle({ remaining, total, onCalculate }) {
+  const closes = remaining != null ? `Closes in ${fmtRemaining(remaining)}` : null;
+  return (
+    <span className="inline-flex items-center gap-3">
+      {closes && <span className="tabular-nums">{closes}</span>}
+      {total == null ? (
+        <button
+          onClick={onCalculate}
+          className="px-2 py-0.5 rounded text-[10px] font-display font-semibold border border-val-red/40 bg-val-red/10 text-val-red hover:bg-val-red/20"
+        >
+          Calculate total
+        </button>
+      ) : (
+        <span className="text-[10px] text-val-red tabular-nums">
+          Total: {total.vp.toLocaleString()} VP across {total.count} skins{total.hasNonVp ? " (VP only)" : ""}
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -383,8 +449,9 @@ function Section({ title, subtitle, accentColor, children }) {
   );
 }
 
-function SkinCard({ offer, meta, wishlisted, onToggleWishlist, nightMarket }) {
+function SkinCard({ offer, meta, wishlisted, onToggleWishlist, nightMarket, portrait }) {
   const tierColor = meta?.tier ? RARITY_COLORS[meta.tier] || "rgb(var(--text-muted))" : "rgb(var(--text-muted))";
+  const aspectClass = portrait ? "aspect-[3/4]" : "aspect-[2/1]";
   return (
     <motion.div
       layout
@@ -392,7 +459,7 @@ function SkinCard({ offer, meta, wishlisted, onToggleWishlist, nightMarket }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={noAnim() ? T0 : { duration: 0.2 }}
-      className="relative rounded-lg border border-border bg-base-700/50 overflow-hidden flex flex-col"
+      className="relative rounded-lg border border-border bg-base-700/50 overflow-hidden flex flex-col h-full"
     >
       <div className="absolute top-2 right-2 z-10">
         <button
@@ -405,7 +472,7 @@ function SkinCard({ offer, meta, wishlisted, onToggleWishlist, nightMarket }) {
           </svg>
         </button>
       </div>
-      <div className="aspect-[2/1] w-full flex items-center justify-center p-3" style={{ background: `linear-gradient(135deg, ${tierColor}22 0%, transparent 60%)` }}>
+      <div className={`${aspectClass} w-full flex items-center justify-center p-3`} style={{ background: `linear-gradient(135deg, ${tierColor}22 0%, transparent 60%)` }}>
         {meta?.icon ? (
           <img src={meta.icon} alt={meta.name} className="max-h-full max-w-full object-contain" loading="lazy" draggable={false} />
         ) : (
@@ -430,5 +497,173 @@ function SkinCard({ offer, meta, wishlisted, onToggleWishlist, nightMarket }) {
         )}
       </div>
     </motion.div>
+  );
+}
+
+function BundleCarousel({ bundles, index, onIndex, lookup }) {
+  const safeIndex = Math.min(Math.max(0, index), bundles.length - 1);
+  const bundle = bundles[safeIndex];
+  if (!bundle) return null;
+  const meta = lookup[bundle.dataAssetId] || {};
+  const hero = meta.verticalPromoImage || meta.displayIcon || null;
+  const displayName = meta.displayName || "Featured Bundle";
+  const hasMultiple = bundles.length > 1;
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      transition={noAnim() ? T0 : { duration: 0.2 }}
+    >
+      <div className="flex items-baseline justify-between mb-2">
+        <h2 className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
+          Featured Bundle{hasMultiple ? `s (${safeIndex + 1}/${bundles.length})` : ""}
+        </h2>
+        {bundle.remaining != null && (
+          <span className="text-[10px] text-text-muted tabular-nums">Closes in {fmtRemaining(bundle.remaining)}</span>
+        )}
+      </div>
+      <div className="relative rounded-lg border border-border bg-base-700/50 overflow-hidden">
+        <div className="relative aspect-[16/6] w-full">
+          {hero ? (
+            <img src={hero} alt={displayName} className="absolute inset-0 w-full h-full object-cover" loading="lazy" draggable={false} />
+          ) : (
+            <div className="absolute inset-0 bg-base-700" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-base-900/95 via-base-900/40 to-transparent" />
+          <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between gap-3">
+            <p className="text-xl font-display font-bold text-white drop-shadow-md truncate">{displayName}</p>
+            {bundle.cost && (
+              <div className="text-right shrink-0">
+                <p className="text-[10px] uppercase tracking-wider text-white/70">Total</p>
+                <p className="text-lg font-display font-bold tabular-nums text-white">
+                  {bundle.cost.amount.toLocaleString()} <span className="text-xs text-white/70">{bundle.cost.currency}</span>
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+        {hasMultiple && (
+          <>
+            <button
+              onClick={() => onIndex((safeIndex - 1 + bundles.length) % bundles.length)}
+              className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-base-900/70 hover:bg-base-900 text-white"
+              aria-label="Previous bundle"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
+            </button>
+            <button
+              onClick={() => onIndex((safeIndex + 1) % bundles.length)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-base-900/70 hover:bg-base-900 text-white"
+              aria-label="Next bundle"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
+            </button>
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+              {bundles.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => onIndex(i)}
+                  aria-label={`Bundle ${i + 1}`}
+                  className={`w-1.5 h-1.5 rounded-full transition-colors ${i === safeIndex ? "bg-white" : "bg-white/30 hover:bg-white/60"}`}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </motion.section>
+  );
+}
+
+function AccessoryCard({ offer, lookup }) {
+  // Use the first reward as the visual representative. Multi-reward offers
+  // get a "+N more" badge so the user knows to expect more than one item.
+  const primary = offer.rewards[0];
+  const meta = primary ? lookup[primary.itemId] : null;
+  const extra = Math.max(0, offer.rewards.length - 1);
+  return (
+    <div className="rounded-lg border border-border bg-base-700/50 overflow-hidden flex flex-col">
+      <div className="aspect-square w-full flex items-center justify-center p-3 bg-base-800/40 relative">
+        {meta?.image ? (
+          <img src={meta.image} alt={meta.name} className="max-h-full max-w-full object-contain" loading="lazy" draggable={false} />
+        ) : meta?.kind === "title" && meta?.name ? (
+          <p className="text-center text-sm font-display text-text-primary px-2">"{meta.name}"</p>
+        ) : (
+          <div className="text-text-muted text-xs">No preview</div>
+        )}
+        {extra > 0 && (
+          <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-base-900/80 text-[10px] font-mono text-text-secondary">+{extra}</span>
+        )}
+      </div>
+      <div className="p-2.5 border-t border-border space-y-0.5">
+        <p className="text-xs font-display font-semibold text-text-primary truncate">{meta?.name || "Unknown"}</p>
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] uppercase tracking-wider text-text-muted">{meta?.kind || ""}</span>
+          {offer.cost && (
+            <span className="text-xs font-display font-semibold tabular-nums text-text-primary">
+              {offer.cost.amount.toLocaleString()} <span className="text-[9px] text-text-muted">{offer.cost.currency}</span>
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WishlistModal({ open, wishlistedIds, levelLookup, onClose, onRemove }) {
+  if (!open) return null;
+  const rows = wishlistedIds
+    .map(id => ({ id: id.toLowerCase(), meta: levelLookup[id.toLowerCase()] }))
+    .sort((a, b) => (a.meta?.name || "").localeCompare(b.meta?.name || ""));
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-base-900/70 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+        transition={noAnim() ? T0 : { duration: 0.15 }}
+        className="w-[480px] max-w-[90vw] max-h-[80vh] rounded-xl border border-border bg-base-800 overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <h2 className="text-sm font-display font-bold text-text-primary">Wishlist ({rows.length})</h2>
+          <button onClick={onClose} className="text-text-muted hover:text-text-primary" aria-label="Close">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </button>
+        </header>
+        <div className="flex-1 overflow-y-auto p-2">
+          {rows.length === 0 ? (
+            <p className="text-center text-xs font-body text-text-muted py-8">
+              No wishlist yet — heart any skin in the Store to add it.
+            </p>
+          ) : (
+            <ul className="space-y-1">
+              {rows.map(({ id, meta }) => (
+                <li key={id} className="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-base-700">
+                  <div className="w-12 h-8 shrink-0 bg-base-900/50 rounded flex items-center justify-center">
+                    {meta?.icon ? (
+                      <img src={meta.icon} alt="" className="max-h-full max-w-full object-contain" loading="lazy" />
+                    ) : (
+                      <span className="text-[9px] text-text-muted">—</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-display font-semibold text-text-primary truncate">{meta?.name || "Unknown skin"}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-text-muted">{meta?.weapon || ""}</p>
+                  </div>
+                  <button
+                    onClick={() => onRemove(id)}
+                    className="px-2 py-1 rounded text-[10px] font-display font-semibold border border-border bg-base-700 hover:bg-base-600 text-text-secondary"
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </motion.div>
+    </div>
   );
 }
