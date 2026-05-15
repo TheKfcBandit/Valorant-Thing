@@ -28,6 +28,16 @@ const rankName = (tier) => RANKS.find(r => r.tier === tier)?.name || "Unranked";
 
 const REFRESH_INTERVAL = 5 * 60 * 1000;
 
+const MODE_NAMES = {
+  competitive: "Competitive", unrated: "Unrated", deathmatch: "Deathmatch",
+  spikerush: "Spike Rush", swiftplay: "Swiftplay", ggteam: "Escalation",
+  hurm: "Team Deathmatch", premier: "Premier", newmap: "New Map",
+  snowball: "Snowball Fight", onefa: "Replication", skirmish2v2: "Skirmish: 2v2",
+  skirmishascension1v1: "Skirmish: Ascension 1v1",
+  skirmishascension2v2: "Skirmish: Ascension 2v2",
+  valaram: "All Random One Site", dodgeball: "Knockout", custom: "Custom",
+};
+
 function formatTimer(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
   const m = Math.floor(s / 60);
@@ -485,7 +495,6 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
             const kdaText = kdaVal ? `${kdaVal} KDA` : "Perfect KDA";
 
             const q = m.queueId || "";
-            const MODE_NAMES = { competitive: "Competitive", unrated: "Unrated", deathmatch: "Deathmatch", spikerush: "Spike Rush", swiftplay: "Swiftplay", ggteam: "Escalation", hurm: "Team Deathmatch", premier: "Premier", newmap: "New Map", snowball: "Snowball Fight", onefa: "Replication", skirmish2v2: "Skirmish: 2v2", skirmishascension1v1: "Skirmish: Ascension 1v1", skirmishascension2v2: "Skirmish: Ascension 2v2", valaram: "All Random One Site", dodgeball: "Knockout", custom: "Custom" };
             const modeName = MODE_NAMES[q] || (q ? q.charAt(0).toUpperCase() + q.slice(1) : "Custom");
             const isDeathmatch = q === "deathmatch";
             const isEscalation = q === "ggteam" || q === "dodgeball";
@@ -639,34 +648,32 @@ function RRChart({ matches }) {
     >
       <div className="flex items-baseline justify-between mb-2">
         <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">RR Trend</p>
-        <p className="text-[10px] font-mono tabular-nums" style={{ color: totalDelta >= 0 ? "rgb(74, 222, 128)" : "rgb(248, 113, 113)" }}>
+        <p className={`text-[10px] font-mono tabular-nums ${totalDelta >= 0 ? "text-green-400" : "text-red-400"}`}>
           {totalDelta >= 0 ? "+" : ""}{totalDelta} RR over {points.length} matches
         </p>
       </div>
-      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-[140px]" preserveAspectRatio="none">
-        <path d={pathD} fill="none" stroke="rgb(var(--val-red))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        {coords.map((c, i) => (
-          <circle key={i} cx={c.x} cy={c.y} r={i === coords.length - 1 ? 4 : 2.5} fill="rgb(var(--val-red))" />
-        ))}
-        {/* min/max labels on the right edge */}
-        <text x={w - pad} y={pad + 4} textAnchor="end" fontSize="9" fill="rgb(var(--text-muted))">{maxY}</text>
-        <text x={w - pad} y={h - pad + 2} textAnchor="end" fontSize="9" fill="rgb(var(--text-muted))">{minY}</text>
-        {/* current RR value tagged to the last point */}
-        <text x={last.x - 6} y={last.y - 6} textAnchor="end" fontSize="9" fill="rgb(var(--text-primary))" fontFamily="monospace">{last.rr}</text>
-      </svg>
+      <div className="relative w-full h-[140px]">
+        <svg viewBox={`0 0 ${w} ${h}`} className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
+          <path d={pathD} fill="none" stroke="rgb(var(--val-red))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+          {coords.map((c, i) => (
+            <circle key={i} cx={c.x} cy={c.y} r={i === coords.length - 1 ? 4 : 2.5} fill="rgb(var(--val-red))" vectorEffect="non-scaling-stroke" />
+          ))}
+        </svg>
+        {/* Labels as HTML overlays so preserveAspectRatio="none" doesn't
+            horizontally smear the text along with the line. */}
+        <span className="absolute right-1.5 top-1 text-[9px] font-mono tabular-nums text-text-muted">{maxY}</span>
+        <span className="absolute right-1.5 bottom-1 text-[9px] font-mono tabular-nums text-text-muted">{minY}</span>
+        <span
+          className="absolute right-2 text-[10px] font-mono tabular-nums text-text-primary"
+          style={{ top: `${(last.y / h) * 100}%`, transform: "translateY(-130%)" }}
+        >
+          {last.rr}
+        </span>
+      </div>
     </motion.div>
   );
 }
 
-const DETAIL_MODE_NAMES = {
-  competitive: "Competitive", unrated: "Unrated", deathmatch: "Deathmatch",
-  spikerush: "Spike Rush", swiftplay: "Swiftplay", ggteam: "Escalation",
-  hurm: "Team Deathmatch", premier: "Premier", newmap: "New Map",
-  snowball: "Snowball Fight", onefa: "Replication", skirmish2v2: "Skirmish: 2v2",
-  skirmishascension1v1: "Skirmish: Ascension 1v1",
-  skirmishascension2v2: "Skirmish: Ascension 2v2",
-  valaram: "All Random One Site", dodgeball: "Knockout", custom: "Custom",
-};
 
 function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
   const [details, setDetails] = useState(null);
@@ -694,7 +701,7 @@ function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
 
   const mapData = maps[match.map];
   const mapName = mapData?.name || match.map || "Unknown map";
-  const modeName = DETAIL_MODE_NAMES[match.queueId] || (match.queueId ? match.queueId : "Custom");
+  const modeName = MODE_NAMES[match.queueId] || (match.queueId ? match.queueId : "Custom");
   const dateStr = match.dateMs ? new Date(match.dateMs).toLocaleString() : "";
 
   const roundsPlayed = Math.max(1, details?.matchInfo?.roundsPlayed || 0);
@@ -702,9 +709,11 @@ function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
   const teams = Array.isArray(details?.teams) ? details.teams : [];
 
   // Group by team. Deathmatch/escalation/etc. have no real team structure —
-  // detect that and fall back to one flat sorted list.
+  // detect that and fall back to one flat sorted list. Also fall back when
+  // we don't know who "self" is (offline-cached identity with no puuid):
+  // an empty "Your team" column would just be confusing.
   const teamIds = new Set(players.map(p => String(p.teamId || "").toLowerCase()));
-  const hasTeams = teams.length >= 2 && teamIds.size >= 2;
+  const hasTeams = !!selfPuuid && teams.length >= 2 && teamIds.size >= 2;
   const sortedFlat = [...players].sort((a, b) => (b.stats?.score || 0) - (a.stats?.score || 0));
 
   let leftTeam = [];

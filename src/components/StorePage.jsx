@@ -435,8 +435,9 @@ function formatSpendSummary(s) {
   if (s.vpSpent) parts.push(`${Number(s.vpSpent).toLocaleString()} VP`);
   if (s.rpSpent) parts.push(`${Number(s.rpSpent).toLocaleString()} RP`);
   if (s.kcSpent) parts.push(`${Number(s.kcSpent).toLocaleString()} KC`);
+  if (parts.length === 0) return "No purchases tracked yet";
   const count = Array.isArray(s.purchases) ? s.purchases.length : 0;
-  const totals = parts.length > 0 ? parts.join(" · ") : "0";
+  const totals = parts.join(" · ");
   return `Spent in store: ${totals}${count ? ` across ${count} skin${count === 1 ? "" : "s"}` : ""}`;
 }
 
@@ -515,10 +516,10 @@ function BundleCarousel({ bundles, index, onIndex, lookup }) {
   if (!bundle) return null;
   const meta = lookup[bundle.dataAssetId] || {};
   const hero = meta.verticalPromoImage || meta.displayIcon || null;
-  // When valorant-api hasn't catalogued the bundle yet, we render a compact
-  // info row instead of a full 16:6 hero — the missing data shouldn't
-  // dominate the viewport.
-  const isPlaceholder = !hero && !meta.displayName;
+  // No hero image → use the compact info row regardless of whether the name
+  // is known, so we never render <img src={null}>. The compact row still
+  // shows the real name if we have one.
+  const useCompactRow = !hero;
   const hasMultiple = bundles.length > 1;
 
   return (
@@ -534,11 +535,11 @@ function BundleCarousel({ bundles, index, onIndex, lookup }) {
           <span className="text-[10px] text-text-muted tabular-nums">Closes in {fmtRemaining(bundle.remaining)}</span>
         )}
       </div>
-      {isPlaceholder ? (
+      {useCompactRow ? (
         <div className="relative rounded-lg border border-border bg-base-700/50 p-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-display font-semibold text-text-primary">New bundle</p>
-            <p className="text-[11px] font-body italic text-text-muted mt-0.5">Image not yet available — Riot just released this</p>
+            <p className="text-sm font-display font-semibold text-text-primary">{meta.displayName || "New bundle"}</p>
+            <p className="text-[11px] font-body italic text-text-muted mt-0.5">Image not yet available</p>
           </div>
           {bundle.cost && (
             <div className="text-right shrink-0">
