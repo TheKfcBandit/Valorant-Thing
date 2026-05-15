@@ -660,6 +660,27 @@ fn extract_map_name(map_url: &str) -> String {
     map_url.rsplit('/').next().unwrap_or("Unknown").to_string()
 }
 
+// #22: actual in-act peak. `season.CompetitiveTier` is end-of-act, so a player
+// who hit P3 mid-act but finished at P2 has CompetitiveTier=16 forever. The
+// real peak is the highest tier in `WinsByTier` with a non-zero win count.
+// Fall back to CompetitiveTier if WinsByTier is missing (older acts, edge
+// cases) so we never regress below the previous behavior.
+fn act_peak_tier(season: &serde_json::Value) -> u64 {
+    let mut peak: u64 = 0;
+    if let Some(map) = season["WinsByTier"].as_object() {
+        for (tier_str, wins) in map {
+            if wins.as_u64().unwrap_or(0) == 0 { continue; }
+            if let Ok(t) = tier_str.parse::<u64>() {
+                if t > peak { peak = t; }
+            }
+        }
+    }
+    if peak == 0 {
+        peak = season["CompetitiveTier"].as_u64().unwrap_or(0);
+    }
+    peak
+}
+
 pub fn get_home_stats(state: &Mutex<ConnectionState>, queue_filter: &str) -> Result<String, String> {
     let (access_token, entitlements, puuid, _region, shard, client_version) = get_glz_creds(state)?;
 
@@ -675,8 +696,8 @@ pub fn get_home_stats(state: &Mutex<ConnectionState>, queue_filter: &str) -> Res
     let mut comp_games: u64 = 0;
     if let Some(seasons) = mmr["QueueSkills"]["competitive"]["SeasonalInfoBySeasonID"].as_object() {
         for (_id, season) in seasons {
-            let tier = season["CompetitiveTier"].as_u64().unwrap_or(0);
-            if tier > peak_tier { peak_tier = tier; }
+            let act_peak = act_peak_tier(season);
+            if act_peak > peak_tier { peak_tier = act_peak; }
             comp_wins += season["NumberOfWinsWithPlacements"].as_u64().unwrap_or(0);
             comp_games += season["NumberOfGames"].as_u64().unwrap_or(0);
         }
@@ -1035,4 +1056,56 @@ pub fn get_owned_items(state: &Mutex<ConnectionState>, item_type_id: &str) -> Re
     let (access_token, entitlements, puuid, _region, shard, client_version) = get_glz_creds(state)?;
     let path = format!("/store/v1/entitlements/{}/{}", puuid, item_type_id);
     pd_get(&shard, &path, &access_token, &entitlements, &client_version)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    // #22 case: P3 (tier 17) hit mid-act, finished at P2 (tier 16).
+    #[test]
+    fn act_peak_uses_wins_by_tier_over_end_of_act() {
+        let season = json!({
+            "CompetitiveTier": 16,
+            "WinsByTier": { "16": 5, "17": 2 },
+        });
+        assert_eq!(act_peak_tier(&season), 17);
+    }
+
+    #[test]
+    fn act_peak_ignores_zero_win_tiers() {
+        // Riot sometimes leaves placeholder entries with 0 wins.
+        let season = json!({
+            "CompetitiveTier": 14,
+            "WinsByTier": { "14": 10, "20": 0, "25": 0 },
+        });
+        assert_eq!(act_peak_tier(&season), 14);
+    }
+
+    #[test]
+    fn act_peak_falls_back_to_competitive_tier_when_wins_by_tier_missing() {
+        // Older acts may not include WinsByTier at all.
+        let season = json!({ "CompetitiveTier": 13 });
+        assert_eq!(act_peak_tier(&season), 13);
+    }
+
+    #[test]
+    fn act_peak_falls_back_when_wins_by_tier_all_zero() {
+        let season = json!({
+            "CompetitiveTier": 12,
+            "WinsByTier": { "12": 0, "13": 0 },
+        });
+        assert_eq!(act_peak_tier(&season), 12);
+    }
+
+    #[test]
+    fn act_peak_handles_unparseable_tier_keys() {
+        // Defensive: ignore malformed keys without crashing.
+        let season = json!({
+            "CompetitiveTier": 10,
+            "WinsByTier": { "garbage": 5, "11": 3 },
+        });
+        assert_eq!(act_peak_tier(&season), 11);
+    }
 }
