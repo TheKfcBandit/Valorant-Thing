@@ -349,6 +349,20 @@ pub fn get_player_mmr(state: &Mutex<ConnectionState>, target_puuid: &str) -> Res
     Ok(result.to_string())
 }
 
+// #24: per-match RR/tier history for the rolling line chart on HomePage.
+// Backed by /mmr/v1/players/{puuid}/competitiveupdates, which Riot returns
+// most-recent-first. We pass through the raw response so the frontend can
+// do its own filtering (placement-tier-zero, queue) without an extra round
+// trip when it wants a different slice.
+pub fn get_rr_history(state: &Mutex<ConnectionState>, start: u64, end: u64) -> Result<String, String> {
+    let (access_token, entitlements, puuid, _, shard, client_version) = get_glz_creds(state)?;
+    let path = format!(
+        "/mmr/v1/players/{}/competitiveupdates?startIndex={}&endIndex={}&queue=competitive",
+        puuid, start, end
+    );
+    pd_get(&shard, &path, &access_token, &entitlements, &client_version)
+}
+
 pub fn get_penalties(state: &Mutex<ConnectionState>) -> Result<String, String> {
     let (access_token, entitlements, _, _, shard, client_version) = get_glz_creds(state)?;
     let path = "/restrictions/v3/penalties";

@@ -81,6 +81,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
   const [matchLoading, setMatchLoading] = useState(false);
   const [penalties, setPenalties] = useState([]);
   const [spend, setSpend] = useState(null);
+  const [rrHistory, setRrHistory] = useState(null);
   const lastFetchRef = useRef(0);
   const lastAutoRefresh = useRef(0);
   const backfilledRef = useRef(false);
@@ -206,12 +207,28 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
     }
   }, [connected]);
 
+  const fetchRrHistory = useCallback(async () => {
+    if (!connected) return;
+    try {
+      const raw = await invoke("get_rr_history", { start: 0, end: 20 });
+      const json = JSON.parse(raw);
+      const matches = Array.isArray(json?.Matches) ? json.Matches : [];
+      // Filter out placement-tier-zero entries: they collapse the y-axis to 0.
+      const usable = matches.filter(m => (m?.TierAfterUpdate || 0) > 0);
+      setRrHistory(usable);
+    } catch (e) {
+      console.warn("[RR] history fetch failed:", e);
+      setRrHistory([]);
+    }
+  }, [connected]);
+
   useEffect(() => {
     if (connected) {
       fetchStats();
       fetchMatches();
       fetchPenalties();
       fetchSpend();
+      fetchRrHistory();
     }
   }, [connected, refreshKey]);
 
@@ -366,6 +383,10 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
               <p className="text-xs font-body text-text-muted">Competitive</p>
             </StatCard>
           </motion.div>
+        )}
+
+        {rrHistory && rrHistory.length >= 2 && (
+          <RRChart matches={rrHistory} />
         )}
 
         {spend && (spend.thisMonthVp > 0 || spend.vpSpent > 0) && (
@@ -561,6 +582,63 @@ function StatCard({ label, children, loading }) {
     <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }} transition={{ duration: 0.2 }} className={`p-3 rounded-xl bg-base-700 border border-border space-y-1.5 ${loading ? "opacity-60" : ""}`}>
       <p className="text-[10px] font-display font-medium text-text-muted uppercase tracking-wider">{label}</p>
       {children}
+    </motion.div>
+  );
+}
+
+// #24: hand-rolled SVG line chart for RR over the most recent ~20 ranked
+// matches. Riot returns matches most-recent-first; we reverse for
+// left-to-right time. Y axis uses tier*100 + rr to give a continuous signal
+// across tier promotion/demotion boundaries.
+function RRChart({ matches }) {
+  // Reverse so left = oldest, right = most recent.
+  const points = [...matches].reverse().map(m => {
+    const tier = m.TierAfterUpdate || 0;
+    const rr = m.RankedRatingAfterUpdate || 0;
+    return { y: tier * 100 + rr, rr, earned: m.RankedRatingEarned || 0 };
+  });
+  const ys = points.map(p => p.y);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const span = Math.max(1, maxY - minY);
+  // Padding around the polyline so the top/bottom dots don't clip.
+  const pad = 12;
+  const w = 600; // logical width; SVG scales to container
+  const h = 140;
+  const innerH = h - pad * 2;
+  const xStep = points.length > 1 ? (w - pad * 2) / (points.length - 1) : 0;
+  const coords = points.map((p, i) => {
+    const x = pad + i * xStep;
+    const yNorm = (p.y - minY) / span; // 0..1
+    const y = pad + (1 - yNorm) * innerH;
+    return { x, y, ...p };
+  });
+  const pathD = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x},${c.y}`).join(" ");
+  const last = coords[coords.length - 1];
+  const totalDelta = points.reduce((acc, p) => acc + p.earned, 0);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.2 }}
+      className="rounded-xl border border-border bg-base-700/60 p-3"
+    >
+      <div className="flex items-baseline justify-between mb-2">
+        <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">RR Trend</p>
+        <p className="text-[10px] font-mono tabular-nums" style={{ color: totalDelta >= 0 ? "rgb(74, 222, 128)" : "rgb(248, 113, 113)" }}>
+          {totalDelta >= 0 ? "+" : ""}{totalDelta} RR over {points.length} matches
+        </p>
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-[140px]" preserveAspectRatio="none">
+        <path d={pathD} fill="none" stroke="rgb(var(--val-red))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        {coords.map((c, i) => (
+          <circle key={i} cx={c.x} cy={c.y} r={i === coords.length - 1 ? 4 : 2.5} fill="rgb(var(--val-red))" />
+        ))}
+        {/* min/max labels on the right edge */}
+        <text x={w - pad} y={pad + 4} textAnchor="end" fontSize="9" fill="rgb(var(--text-muted))">{maxY}</text>
+        <text x={w - pad} y={h - pad + 2} textAnchor="end" fontSize="9" fill="rgb(var(--text-muted))">{minY}</text>
+        {/* current RR value tagged to the last point */}
+        <text x={last.x - 6} y={last.y - 6} textAnchor="end" fontSize="9" fill="rgb(var(--text-primary))" fontFamily="monospace">{last.rr}</text>
+      </svg>
     </motion.div>
   );
 }
