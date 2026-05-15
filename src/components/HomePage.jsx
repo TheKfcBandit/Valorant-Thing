@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
-import { computeHighlights } from "../matchHighlights";
+import { computeHighlights, computeScoreboardBadges } from "../matchHighlights";
 
 const TIER_UUID = "03621f52-342b-cf4e-4f86-9350a49c6d04";
 const CUSTOM_AGENT_ICONS = {
@@ -707,6 +707,7 @@ function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
   const roundsPlayed = Math.max(1, details?.matchInfo?.roundsPlayed || 0);
   const players = Array.isArray(details?.players) ? details.players : [];
   const teams = Array.isArray(details?.teams) ? details.teams : [];
+  const scoreboardBadges = useMemo(() => computeScoreboardBadges(details), [details]);
 
   // Group by team. Deathmatch/escalation/etc. have no real team structure —
   // detect that and fall back to one flat sorted list. Also fall back when
@@ -783,12 +784,12 @@ function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
           )}
           {details && hasTeams && (
             <div className="grid grid-cols-2 gap-4">
-              <ScoreboardColumn label={leftWon ? "Your team — won" : "Your team"} players={leftTeam} roundsPlayed={roundsPlayed} selfPuuid={selfPuuid} />
-              <ScoreboardColumn label={rightWon ? "Enemy team — won" : "Enemy team"} players={rightTeam} roundsPlayed={roundsPlayed} selfPuuid={selfPuuid} />
+              <ScoreboardColumn label={leftWon ? "Your team — won" : "Your team"} players={leftTeam} roundsPlayed={roundsPlayed} selfPuuid={selfPuuid} badges={scoreboardBadges} />
+              <ScoreboardColumn label={rightWon ? "Enemy team — won" : "Enemy team"} players={rightTeam} roundsPlayed={roundsPlayed} selfPuuid={selfPuuid} badges={scoreboardBadges} />
             </div>
           )}
           {details && !hasTeams && (
-            <ScoreboardColumn label={`${sortedFlat.length} players`} players={sortedFlat} roundsPlayed={roundsPlayed} selfPuuid={selfPuuid} />
+            <ScoreboardColumn label={`${sortedFlat.length} players`} players={sortedFlat} roundsPlayed={roundsPlayed} selfPuuid={selfPuuid} badges={scoreboardBadges} />
           )}
         </div>
       </motion.div>
@@ -796,7 +797,7 @@ function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
   );
 }
 
-function ScoreboardColumn({ label, players, roundsPlayed, selfPuuid }) {
+function ScoreboardColumn({ label, players, roundsPlayed, selfPuuid, badges }) {
   return (
     <div>
       <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider mb-2">{label}</p>
@@ -811,6 +812,7 @@ function ScoreboardColumn({ label, players, roundsPlayed, selfPuuid }) {
             ? `https://media.valorant-api.com/agents/${p.characterId}/displayicon.png`
             : null;
           const name = p.gameName ? `${p.gameName}#${p.tagLine || ""}` : (p.subject ? p.subject.slice(0, 8) : "Unknown");
+          const rowBadges = badges?.get?.(p.subject) || [];
           return (
             <li
               key={p.subject}
@@ -820,7 +822,18 @@ function ScoreboardColumn({ label, players, roundsPlayed, selfPuuid }) {
                 <img src={agentIcon} alt="" className="w-7 h-7 rounded-full border border-white/10 shrink-0" />
               )}
               <div className="flex-1 min-w-0">
-                <p className={`text-xs font-display ${isSelf ? "text-val-red font-semibold" : "text-text-primary"} truncate`}>{name}</p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className={`text-xs font-display ${isSelf ? "text-val-red font-semibold" : "text-text-primary"} truncate`}>{name}</p>
+                  {rowBadges.map((b) => (
+                    <span
+                      key={b.id}
+                      title={b.hint}
+                      className={`px-1.5 py-0.5 rounded text-[8px] font-display font-bold uppercase tracking-wider border border-current/30 bg-base-700/40 ${b.color}`}
+                    >
+                      {b.label}
+                    </span>
+                  ))}
+                </div>
                 <p className="text-[10px] font-mono text-text-muted tabular-nums">{acs} ACS</p>
               </div>
               <div className="text-right shrink-0 font-mono tabular-nums text-xs">

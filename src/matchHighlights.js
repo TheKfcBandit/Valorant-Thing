@@ -1,9 +1,9 @@
 // Compute lightweight per-match personal badges from the summary fields
 // returned by get_match_page / get_home_stats. Each badge is { id, label, color, hint }.
 //
-// Cross-player (MVP / Sharpshooter / Best Multi-Kill) badges require full
-// match details; those land once Phase E (persistent match cache w/ full
-// detail) is in place.
+// Cross-player badges (MVP / Sharpshooter / Best Multi-Kill) live in
+// computeScoreboardBadges below — they consume the full match-details
+// response and key results by player puuid.
 
 const ESCALATION_QUEUES = new Set(["ggteam", "dodgeball"]);
 const DEATHMATCH_QUEUES = new Set(["deathmatch"]);
@@ -72,4 +72,99 @@ export function computeHighlights(match) {
 
   // Cap at 2 to avoid clutter.
   return out.slice(0, 2);
+}
+
+// Cross-player badges for the scoreboard inside MatchDetailsModal. Returns
+// Map<puuid, Badge[]>. Single-winner only — no badge awarded on ties, to
+// avoid littering the board. Skips modes where the team / round structure
+// doesn't carry the data (deathmatch / escalation / TDM).
+//
+// MVP: highest stats.score across all players.
+// Sharpshooter: highest HS% among players with >= 40 hits (filters noise
+//   from a single lucky pistol-round headshot).
+// Best Multi-Kill: highest single-round kill count, must be >= 3 (a 3K).
+const MIN_SHOTS_FOR_HS = 40;
+const MIN_MULTIKILL = 3;
+
+export function computeScoreboardBadges(details) {
+  const out = new Map();
+  if (!details) return out;
+  const players = Array.isArray(details.players) ? details.players : [];
+  const teams = Array.isArray(details.teams) ? details.teams : [];
+  if (players.length === 0) return out;
+
+  // Skip team-less modes (deathmatch etc.) — same heuristic as the modal.
+  const teamIds = new Set(players.map(p => String(p.teamId || "").toLowerCase()));
+  if (teams.length < 2 || teamIds.size < 2) return out;
+
+  const add = (puuid, badge) => {
+    if (!puuid) return;
+    const cur = out.get(puuid) || [];
+    cur.push(badge);
+    out.set(puuid, cur);
+  };
+
+  // MVP — top score, no-tie rule.
+  let topScore = -1;
+  let topScoreCount = 0;
+  let topScorePuuid = null;
+  for (const p of players) {
+    const s = p.stats?.score || 0;
+    if (s > topScore) { topScore = s; topScoreCount = 1; topScorePuuid = p.subject; }
+    else if (s === topScore) { topScoreCount += 1; }
+  }
+  if (topScoreCount === 1 && topScorePuuid) {
+    add(topScorePuuid, { id: "mvp", label: "MVP", color: "text-yellow-400", hint: `${topScore} score` });
+  }
+
+  // Aggregate per-puuid stats from roundResults (Sharpshooter + Multi-Kill).
+  const agg = new Map(); // puuid -> { hs, body, leg, maxKills }
+  const rounds = Array.isArray(details.roundResults) ? details.roundResults : [];
+  for (const r of rounds) {
+    const ps = Array.isArray(r.playerStats) ? r.playerStats : [];
+    for (const stat of ps) {
+      const puuid = stat.subject;
+      if (!puuid) continue;
+      const entry = agg.get(puuid) || { hs: 0, body: 0, leg: 0, maxKills: 0 };
+      const dmg = Array.isArray(stat.damage) ? stat.damage : [];
+      for (const d of dmg) {
+        entry.hs += Number(d.headshots) || 0;
+        entry.body += Number(d.bodyshots) || 0;
+        entry.leg += Number(d.legshots) || 0;
+      }
+      const kCount = Array.isArray(stat.kills) ? stat.kills.length : 0;
+      if (kCount > entry.maxKills) entry.maxKills = kCount;
+      agg.set(puuid, entry);
+    }
+  }
+
+  // Sharpshooter — top HS% among eligible.
+  let topPct = -1;
+  let topPctCount = 0;
+  let topPctPuuid = null;
+  let topPctVal = 0;
+  for (const [puuid, e] of agg) {
+    const total = e.hs + e.body + e.leg;
+    if (total < MIN_SHOTS_FOR_HS) continue;
+    const pct = e.hs / total;
+    if (pct > topPct) { topPct = pct; topPctCount = 1; topPctPuuid = puuid; topPctVal = pct; }
+    else if (pct === topPct) { topPctCount += 1; }
+  }
+  if (topPctCount === 1 && topPctPuuid) {
+    add(topPctPuuid, { id: "sharp", label: "Sharpshooter", color: "text-accent-blue", hint: `${Math.round(topPctVal * 100)}% HS` });
+  }
+
+  // Best Multi-Kill — highest single-round kill count, must be >= MIN_MULTIKILL.
+  let topMulti = MIN_MULTIKILL - 1; // start below threshold so anything ≥3 wins
+  let topMultiCount = 0;
+  let topMultiPuuid = null;
+  for (const [puuid, e] of agg) {
+    if (e.maxKills > topMulti) { topMulti = e.maxKills; topMultiCount = 1; topMultiPuuid = puuid; }
+    else if (e.maxKills === topMulti && topMulti >= MIN_MULTIKILL) { topMultiCount += 1; }
+  }
+  if (topMultiCount === 1 && topMultiPuuid && topMulti >= MIN_MULTIKILL) {
+    add(topMultiPuuid, { id: "multi", label: "Best Multi-Kill", color: "text-green-400", hint: `${topMulti}K in one round` });
+  }
+
+  return out;
 }
