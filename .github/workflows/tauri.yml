@@ -44,12 +44,25 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
 
-      # 5. Install Frontend dependencies
-      # Use 'npm install', 'yarn install', or 'pnpm install'
-      - name: install frontend dependencies
-        run: npm install 
+      # 5. Cache Tauri's NSIS bundler download (Windows). Avoids re-downloading
+      # nsis-3.11.zip from tauri-apps/binary-releases on every run — that
+      # release-asset endpoint has hit transient 504s in CI.
+      - name: cache tauri NSIS bundler
+        if: matrix.platform == 'windows-latest'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\tauri\NSIS
+            ~\AppData\Roaming\tauri\NSIS
+          key: tauri-nsis-3.11-${{ runner.os }}
 
-      # 6. Build the app using the Tauri Action
+      # 6. Install Frontend dependencies — npm ci is deterministic from the
+      # lockfile and fails loudly on drift, unlike `npm install` which silently
+      # rewrites package-lock.json.
+      - name: install frontend dependencies
+        run: npm ci
+
+      # 7. Build the app using the Tauri Action
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
