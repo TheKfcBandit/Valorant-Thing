@@ -102,8 +102,11 @@ export async function getAccessoryLookup() {
     if (!s?.uuid) continue;
     out[s.uuid.toLowerCase()] = {
       kind: "spray",
+      // animationGif animates; displayIcon is the static single-frame.
+      // fullIcon is a multi-frame spritesheet — last resort so we don't
+      // render strips of frames as if they were a single image.
       name: s.displayName,
-      image: s.fullIcon || s.displayIcon || s.fullTransparentIcon || null,
+      image: s.animationGif || s.displayIcon || s.fullTransparentIcon || s.fullIcon || null,
     };
   }
   for (const c of cards?.data || []) {

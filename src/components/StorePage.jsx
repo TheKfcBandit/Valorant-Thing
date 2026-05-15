@@ -52,7 +52,8 @@ export default function StorePage({ connected }) {
   const [bundleLookup, setBundleLookup] = useState({});
   const [accessoryLookup, setAccessoryLookup] = useState({});
   const [wishlistOpen, setWishlistOpen] = useState(false);
-  const [nmTotal, setNmTotal] = useState(null); // { vp, count, hasNonVp } once user clicks Calculate total
+  const [spendSummary, setSpendSummary] = useState(null); // populated when user clicks "Show spend history"
+  const [spendLoading, setSpendLoading] = useState(false);
   const [bundleIndex, setBundleIndex] = useState(0);
   const [wishlist, setWishlist] = useState(() => {
     try {
@@ -129,7 +130,20 @@ export default function StorePage({ connected }) {
 
   // Reset NM total + bundle carousel index whenever the storefront changes
   // so stale UI state can't bleed across days.
-  useEffect(() => { setNmTotal(null); setBundleIndex(0); }, [storeRaw]);
+  useEffect(() => { setSpendSummary(null); setBundleIndex(0); }, [storeRaw]);
+
+  const loadSpendSummary = useCallback(async () => {
+    setSpendLoading(true);
+    try {
+      const summary = await invoke("get_spend_summary");
+      setSpendSummary(summary);
+    } catch (e) {
+      console.warn("[Store] spend summary failed:", e);
+      setSpendSummary({ error: typeof e === "string" ? e : e?.message || "Failed" });
+    } finally {
+      setSpendLoading(false);
+    }
+  }, []);
 
   const persistWishlist = useCallback((set) => {
     const arr = Array.from(set);
@@ -276,7 +290,7 @@ export default function StorePage({ connected }) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setWishlistOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-display font-semibold border border-border bg-base-700 hover:bg-base-600"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-display font-semibold border border-border bg-base-700 hover:bg-base-600 text-text-primary"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-val-red">
               <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
@@ -289,7 +303,7 @@ export default function StorePage({ connected }) {
           <button
             onClick={fetchStore}
             disabled={loading}
-            className="px-3 py-1.5 rounded-md text-xs font-display font-semibold border border-border bg-base-700 hover:bg-base-600 disabled:opacity-50"
+            className="px-3 py-1.5 rounded-md text-xs font-display font-semibold border border-border bg-base-700 hover:bg-base-600 disabled:opacity-50 text-text-primary"
           >
             {loading ? "Refreshing..." : "Refresh"}
           </button>
@@ -355,8 +369,9 @@ export default function StorePage({ connected }) {
           subtitle={
             <NightMarketSubtitle
               remaining={nightMarket.remaining}
-              total={nmTotal}
-              onCalculate={() => setNmTotal(computeNmTotal(nightMarket.offers))}
+              summary={spendSummary}
+              loading={spendLoading}
+              onShow={loadSpendSummary}
             />
           }
           accentColor="rgb(var(--val-red))"
@@ -391,41 +406,38 @@ export default function StorePage({ connected }) {
   );
 }
 
-// Sums VP costs across all Night Market offers. Returns { vp, count, hasNonVp }.
-// VP-only because that's what NM uses 99% of the time; the hasNonVp flag lets
-// the caller note exclusions on the off chance Riot ever sells a NM skin for RP.
-function computeNmTotal(offers) {
-  let vp = 0;
-  let count = 0;
-  let hasNonVp = false;
-  for (const o of offers) {
-    const c = o.discountedCost;
-    if (!c) continue;
-    if (c.currency === "VP") { vp += c.amount; count += 1; }
-    else hasNonVp = true;
-  }
-  return { vp, count, hasNonVp };
-}
-
-function NightMarketSubtitle({ remaining, total, onCalculate }) {
+function NightMarketSubtitle({ remaining, summary, loading, onShow }) {
   const closes = remaining != null ? `Closes in ${fmtRemaining(remaining)}` : null;
   return (
     <span className="inline-flex items-center gap-3">
       {closes && <span className="tabular-nums">{closes}</span>}
-      {total == null ? (
+      {summary == null ? (
         <button
-          onClick={onCalculate}
-          className="px-2 py-0.5 rounded text-[10px] font-display font-semibold border border-val-red/40 bg-val-red/10 text-val-red hover:bg-val-red/20"
+          onClick={onShow}
+          disabled={loading}
+          className="px-2 py-0.5 rounded text-[10px] font-display font-semibold border border-val-red/40 bg-val-red/10 text-val-red hover:bg-val-red/20 disabled:opacity-50"
         >
-          Calculate total
+          {loading ? "Loading..." : "Show spend history"}
         </button>
+      ) : summary.error ? (
+        <span className="text-[10px] text-val-red">Spend: {summary.error}</span>
       ) : (
         <span className="text-[10px] text-val-red tabular-nums">
-          Total: {total.vp.toLocaleString()} VP across {total.count} skins{total.hasNonVp ? " (VP only)" : ""}
+          {formatSpendSummary(summary)}
         </span>
       )}
     </span>
   );
+}
+
+function formatSpendSummary(s) {
+  const parts = [];
+  if (s.vpSpent) parts.push(`${Number(s.vpSpent).toLocaleString()} VP`);
+  if (s.rpSpent) parts.push(`${Number(s.rpSpent).toLocaleString()} RP`);
+  if (s.kcSpent) parts.push(`${Number(s.kcSpent).toLocaleString()} KC`);
+  const count = Array.isArray(s.purchases) ? s.purchases.length : 0;
+  const totals = parts.length > 0 ? parts.join(" · ") : "0";
+  return `Spent in store: ${totals}${count ? ` across ${count} skin${count === 1 ? "" : "s"}` : ""}`;
 }
 
 function Section({ title, subtitle, accentColor, children }) {
@@ -503,9 +515,9 @@ function BundleCarousel({ bundles, index, onIndex, lookup }) {
   if (!bundle) return null;
   const meta = lookup[bundle.dataAssetId] || {};
   const hero = meta.verticalPromoImage || meta.displayIcon || null;
-  // When valorant-api hasn't catalogued the bundle yet (Riot just dropped it),
-  // we have neither name nor image — render a styled placeholder hero so the
-  // section still looks intentional, not broken.
+  // When valorant-api hasn't catalogued the bundle yet, we render a compact
+  // info row instead of a full 16:6 hero — the missing data shouldn't
+  // dominate the viewport.
   const isPlaceholder = !hero && !meta.displayName;
   const hasMultiple = bundles.length > 1;
 
@@ -522,75 +534,87 @@ function BundleCarousel({ bundles, index, onIndex, lookup }) {
           <span className="text-[10px] text-text-muted tabular-nums">Closes in {fmtRemaining(bundle.remaining)}</span>
         )}
       </div>
-      <div className="relative rounded-lg border border-border bg-base-700/50 overflow-hidden">
-        <div className="relative aspect-[16/6] w-full">
-          {hero ? (
-            <img src={hero} alt={meta.displayName || "Featured bundle"} className="absolute inset-0 w-full h-full object-cover" loading="lazy" draggable={false} />
-          ) : (
-            <div
-              className="absolute inset-0"
-              style={{
-                background:
-                  "radial-gradient(120% 100% at 20% 0%, rgb(var(--val-red) / 0.55) 0%, transparent 55%), radial-gradient(80% 100% at 100% 100%, rgb(var(--val-red) / 0.25) 0%, transparent 60%), linear-gradient(135deg, rgb(var(--base-700)) 0%, rgb(var(--base-900)) 100%)",
-              }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="absolute right-6 top-1/2 -translate-y-1/2 w-24 h-24 text-white/10">
-                <path d="M20 7h-3V5a2 2 0 00-2-2H9a2 2 0 00-2 2v2H4a1 1 0 00-1 1v11a2 2 0 002 2h14a2 2 0 002-2V8a1 1 0 00-1-1zM9 5h6v2H9V5z" />
-              </svg>
+      {isPlaceholder ? (
+        <div className="relative rounded-lg border border-border bg-base-700/50 p-4 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-display font-semibold text-text-primary">New bundle</p>
+            <p className="text-[11px] font-body italic text-text-muted mt-0.5">Image not yet available — Riot just released this</p>
+          </div>
+          {bundle.cost && (
+            <div className="text-right shrink-0">
+              <p className="text-[10px] uppercase tracking-wider text-text-muted">Total</p>
+              <p className="text-base font-display font-bold tabular-nums text-text-primary">
+                {bundle.cost.amount.toLocaleString()} <span className="text-xs text-text-muted">{bundle.cost.currency}</span>
+              </p>
             </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-base-900/95 via-base-900/40 to-transparent" />
-          <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between gap-3">
-            <div className="min-w-0">
+          {hasMultiple && (
+            <BundleCarouselControls bundles={bundles} safeIndex={safeIndex} onIndex={onIndex} compact />
+          )}
+        </div>
+      ) : (
+        <div className="relative rounded-lg border border-border bg-base-700/50 overflow-hidden">
+          <div className="relative aspect-[16/6] w-full">
+            <img src={hero} alt={meta.displayName || "Featured bundle"} className="absolute inset-0 w-full h-full object-cover" loading="lazy" draggable={false} />
+            <div className="absolute inset-0 bg-gradient-to-t from-base-900/95 via-base-900/40 to-transparent" />
+            <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between gap-3">
               <p className="text-xl font-display font-bold text-white drop-shadow-md truncate">
-                {meta.displayName || "New Bundle"}
+                {meta.displayName || "Featured bundle"}
               </p>
-              {isPlaceholder && (
-                <p className="text-[10px] font-body italic text-white/70 mt-0.5">
-                  Preview coming soon — Riot just released this
-                </p>
+              {bundle.cost && (
+                <div className="text-right shrink-0">
+                  <p className="text-[10px] uppercase tracking-wider text-white/70">Total</p>
+                  <p className="text-lg font-display font-bold tabular-nums text-white">
+                    {bundle.cost.amount.toLocaleString()} <span className="text-xs text-white/70">{bundle.cost.currency}</span>
+                  </p>
+                </div>
               )}
             </div>
-            {bundle.cost && (
-              <div className="text-right shrink-0">
-                <p className="text-[10px] uppercase tracking-wider text-white/70">Total</p>
-                <p className="text-lg font-display font-bold tabular-nums text-white">
-                  {bundle.cost.amount.toLocaleString()} <span className="text-xs text-white/70">{bundle.cost.currency}</span>
-                </p>
-              </div>
-            )}
           </div>
+          {hasMultiple && (
+            <BundleCarouselControls bundles={bundles} safeIndex={safeIndex} onIndex={onIndex} />
+          )}
         </div>
-        {hasMultiple && (
-          <>
-            <button
-              onClick={() => onIndex((safeIndex - 1 + bundles.length) % bundles.length)}
-              className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-base-900/70 hover:bg-base-900 text-white"
-              aria-label="Previous bundle"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
-            </button>
-            <button
-              onClick={() => onIndex((safeIndex + 1) % bundles.length)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-base-900/70 hover:bg-base-900 text-white"
-              aria-label="Next bundle"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
-            </button>
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
-              {bundles.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => onIndex(i)}
-                  aria-label={`Bundle ${i + 1}`}
-                  className={`w-1.5 h-1.5 rounded-full transition-colors ${i === safeIndex ? "bg-white" : "bg-white/30 hover:bg-white/60"}`}
-                />
-              ))}
-            </div>
-          </>
-        )}
-      </div>
+      )}
     </motion.section>
+  );
+}
+
+function BundleCarouselControls({ bundles, safeIndex, onIndex, compact }) {
+  const arrowClass = compact
+    ? "absolute top-1/2 -translate-y-1/2 p-1 rounded-full bg-base-900/70 hover:bg-base-900 text-text-primary"
+    : "absolute top-1/2 -translate-y-1/2 p-2 rounded-full bg-base-900/70 hover:bg-base-900 text-white";
+  const dotClass = (active) =>
+    `w-1.5 h-1.5 rounded-full transition-colors ${active ? (compact ? "bg-text-primary" : "bg-white") : "bg-white/30 hover:bg-white/60"}`;
+  return (
+    <>
+      <button
+        onClick={() => onIndex((safeIndex - 1 + bundles.length) % bundles.length)}
+        className={`${arrowClass} ${compact ? "left-1" : "left-2"}`}
+        aria-label="Previous bundle"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
+      </button>
+      <button
+        onClick={() => onIndex((safeIndex + 1) % bundles.length)}
+        className={`${arrowClass} ${compact ? "right-1" : "right-2"}`}
+        aria-label="Next bundle"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
+      </button>
+      {!compact && (
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+          {bundles.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => onIndex(i)}
+              aria-label={`Bundle ${i + 1}`}
+              className={dotClass(i === safeIndex)}
+            />
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 

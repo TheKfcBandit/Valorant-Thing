@@ -187,6 +187,29 @@ const RECONNECT_INTERVAL = 3000;
 const HEALTH_CHECK_INTERVAL = 10000;
 const MATCH_POLL_INTERVAL = 1500;
 
+// Custom-decorations resize affordances. With `decorations: false` on the
+// Windows DWM, native edge-resize disappears even when `resizable: true` is
+// set — these 8 invisible hit zones restore drag-to-resize via Tauri's
+// startResizeDragging.
+function ResizeGutters() {
+  const drag = (dir) => (e) => {
+    e.preventDefault();
+    getCurrentWindow().startResizeDragging(dir).catch(() => {});
+  };
+  return (
+    <>
+      <div onMouseDown={drag("North")} className="fixed top-0 left-3 right-3 h-1.5 cursor-ns-resize z-40" />
+      <div onMouseDown={drag("South")} className="fixed bottom-0 left-3 right-3 h-1.5 cursor-ns-resize z-40" />
+      <div onMouseDown={drag("West")} className="fixed top-3 bottom-3 left-0 w-1.5 cursor-ew-resize z-40" />
+      <div onMouseDown={drag("East")} className="fixed top-3 bottom-3 right-0 w-1.5 cursor-ew-resize z-40" />
+      <div onMouseDown={drag("NorthWest")} className="fixed top-0 left-0 w-3 h-3 cursor-nwse-resize z-40" />
+      <div onMouseDown={drag("NorthEast")} className="fixed top-0 right-0 w-3 h-3 cursor-nesw-resize z-40" />
+      <div onMouseDown={drag("SouthWest")} className="fixed bottom-0 left-0 w-3 h-3 cursor-nesw-resize z-40" />
+      <div onMouseDown={drag("SouthEast")} className="fixed bottom-0 right-0 w-3 h-3 cursor-nwse-resize z-40" />
+    </>
+  );
+}
+
 export default function App() {
   const [status, setStatus] = useState("waiting");
   const [player, setPlayer] = useState(null);
@@ -1239,6 +1262,7 @@ export default function App() {
           : "linear-gradient(135deg, transparent 0%, rgb(var(--val-red) / 0.18) 100%), rgb(var(--base-900))"
       } : undefined}
     >
+      <ResizeGutters />
       <TitleBar simplifiedTheme={simplifiedTheme} minimizeToTray={minimizeToTray} />
       {!nodeInstalled && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm">
