@@ -11,7 +11,7 @@ const PROVIDERS = [
   { id: "openai-compat", label: "OpenAI-compatible", defaultModel: "gpt-4o-mini", baseUrlEditable: true },
 ];
 
-export default function CoachPage({ connected }) {
+export default function CoachPage() {
   const [provider, setProvider] = useState(() => localStorage.getItem("coach_provider") || "anthropic");
   const [apiKey, setApiKey] = useState(() => localStorage.getItem("coach_api_key") || "");
   const [model, setModel] = useState(() => localStorage.getItem("coach_model") || "");
@@ -138,7 +138,7 @@ export default function CoachPage({ connected }) {
       >
         <button
           onClick={handleAnalyze}
-          disabled={loading || !apiKey || !connected}
+          disabled={loading || !apiKey || matchCount === 0}
           className="self-start px-4 py-2 rounded-lg border border-val-red/40 bg-val-red/20 text-val-red font-display font-semibold text-sm hover:bg-val-red/30 disabled:opacity-50 transition-colors"
         >
           {loading ? "Analyzing..." : "Analyze last 10 matches"}

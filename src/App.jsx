@@ -334,6 +334,7 @@ export default function App() {
           shard: snap.shard,
           client_version: snap.client_version,
           player_card_url: snap.player_card_url,
+          saved_at_ms: snap.saved_at_ms,
         });
         setPlayerIsStale(true);
       })
@@ -649,7 +650,7 @@ export default function App() {
         addLog("error", `[Loadout] PD loadout check failed: ${errMsg}`);
       }
       try {
-const raw = localStorage.getItem("menu_video_config");
+        const raw = localStorage.getItem("menu_video_config");
         if (raw) {
           const cfg = normalizeMenuVideoConfig(JSON.parse(raw));
           if (cfg?.sourceBackupPath && Array.isArray(cfg.replacedFiles)) {
@@ -1463,12 +1464,12 @@ const raw = localStorage.getItem("menu_video_config");
           )}
           {activeTab === "wrapped" && (
             <motion.div key="wrapped" className="flex-1 flex min-h-0" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15, ease: "easeOut" }}>
-            <WrappedPage connected={status === "connected"} />
+            <WrappedPage />
             </motion.div>
           )}
           {activeTab === "coach" && (
             <motion.div key="coach" className="flex-1 flex min-h-0" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15, ease: "easeOut" }}>
-            <CoachPage connected={status === "connected"} />
+            <CoachPage />
             </motion.div>
           )}
           {activeTab === "party" && (

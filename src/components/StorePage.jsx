@@ -101,6 +101,8 @@ export default function StorePage({ connected }) {
         if (raw) {
           setStoreRaw(JSON.parse(raw));
           fetchedAtRef.current = Date.now();
+          // Fresh data from the background poller — drop the stale banner.
+          setStaleSinceMs(null);
         }
       } catch (e) {
         console.warn("[Store] store-update payload parse failed:", e);

@@ -192,7 +192,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
       </div>
     );
   }
-  const showOfflineBadge = !connected && !!player;
+  const showOfflineBadge = playerIsStale;
 
   const cardSmall = stats?.cardId ? `https://media.valorant-api.com/playercards/${stats.cardId}/smallart.png` : player?.player_card_url;
   const cardWide = stats?.cardId ? `https://media.valorant-api.com/playercards/${stats.cardId}/wideart.png` : null;
@@ -219,7 +219,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
 
         <div className="absolute top-3 right-3 flex items-center gap-2">
           {showOfflineBadge && (
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-yellow-500/20 backdrop-blur-sm border border-yellow-500/40" title={`Last seen on ${new Date().toLocaleString()} (cached)`}>
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-yellow-500/20 backdrop-blur-sm border border-yellow-500/40" title={`Last seen on ${new Date(player.saved_at_ms).toLocaleString()} (cached)`}>
               <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
               <span className="text-[10px] font-display font-semibold text-yellow-400 uppercase tracking-wider">Offline</span>
             </div>
@@ -231,7 +231,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
             <span className="text-[10px] font-mono text-text-muted tabular-nums">{formatTimer(timeLeft)}</span>
           </div>
           <button
-            onClick={() => { fetchStats(); fetchMatches(page); }}
+            onClick={() => { fetchStats(); fetchMatches(); }}
             disabled={loading}
             className="p-1.5 rounded-md bg-black/40 backdrop-blur-sm text-text-muted hover:text-text-primary transition-colors disabled:opacity-50"
           >
