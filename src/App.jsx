@@ -1507,7 +1507,7 @@ export default function App() {
             />
             </motion.div>
           )}
-          {activeTab === "loadout" && devTab && (
+          {activeTab === "loadout" && (
             <motion.div key="loadout" className="flex-1 flex min-h-0" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15, ease: "easeOut" }}>
             <LoadoutPage connected={status === "connected"} />
             </motion.div>
