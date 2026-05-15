@@ -83,6 +83,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
   const [spend, setSpend] = useState(null);
   const lastFetchRef = useRef(0);
   const lastAutoRefresh = useRef(0);
+  const backfilledRef = useRef(false);
 
   useEffect(() => { getMapData().then(setMaps); }, []);
 
@@ -131,6 +132,26 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
         } catch (e) {
           console.warn("[History] cache put failed:", e);
         }
+      }
+      // One-shot per-session backfill of older pages so first-install users
+      // get a meaningful history depth instead of the live API's 25-entry cap.
+      if (!backfilledRef.current) {
+        backfilledRef.current = true;
+        void (async () => {
+          for (let page = 1; page <= 3; page++) {
+            try {
+              const r = await invoke("get_match_page", { page, pageSize: 25 });
+              const d = JSON.parse(r);
+              const older = (d.matches || []).filter(m => m && m.matchId);
+              if (older.length === 0) break;
+              await invoke("match_history_put_many", { entries: older });
+              setMatches(prev => mergeMatches(prev || [], older));
+            } catch (e) {
+              console.warn("[History] backfill page", page, "failed:", e);
+              break;
+            }
+          }
+        })();
       }
     } catch (e) {
       if (!retry) {
