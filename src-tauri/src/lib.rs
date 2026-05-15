@@ -14,6 +14,7 @@ mod spend_tracker;
 mod coach;
 mod identity_cache;
 mod oauth;
+mod loadout_presets;
 
 type SharedState = Arc<Mutex<riot::ConnectionState>>;
 type DiscordShared = Arc<Mutex<discord::DiscordState>>;
@@ -782,6 +783,7 @@ pub fn run() {
         .manage(Mutex::new(match_cache::MatchCacheState::default()))
         .manage(Mutex::new(spend_tracker::SpendState::default()))
         .manage(Mutex::new(identity_cache::IdentityCacheState::default()))
+        .manage(Mutex::new(loadout_presets::PresetsState::default()))
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -926,6 +928,10 @@ pub fn run() {
             identity_cache::get_cached_identity,
             oauth::oauth_signin,
             oauth::oauth_signout,
+            loadout_presets::list_loadout_presets,
+            loadout_presets::save_loadout_preset,
+            loadout_presets::apply_loadout_preset,
+            loadout_presets::delete_loadout_preset,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
