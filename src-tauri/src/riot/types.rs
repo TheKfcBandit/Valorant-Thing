@@ -16,6 +16,10 @@ pub struct ConnectionState {
     pub player_card_url: Option<String>,
     pub token_fetched_at: Option<Instant>,
     pub last_token_check: Option<Instant>,
+    // Phase B (#26): true when the active session came from the webview OAuth
+    // flow rather than from the local Riot Client lockfile. Drives Settings
+    // UI state and tells health_check to skip the lockfile-based refresh path.
+    pub oauth_session: bool,
 }
 
 impl Default for ConnectionState {
@@ -35,6 +39,7 @@ impl Default for ConnectionState {
             player_card_url: None,
             token_fetched_at: None,
             last_token_check: None,
+            oauth_session: false,
         }
     }
 }
@@ -52,4 +57,6 @@ pub struct PlayerInfo {
     pub rso_debug: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub loadout_debug: Option<String>,
+    #[serde(default)]
+    pub oauth_session: bool,
 }

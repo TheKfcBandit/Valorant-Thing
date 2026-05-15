@@ -114,6 +114,7 @@ pub fn connect_and_store(state: &Mutex<ConnectionState>) -> Result<PlayerInfo, S
         player_card_url: player_card_url.clone(),
         rso_debug,
         loadout_debug,
+        oauth_session: false,
     };
 
     let mut s = state.lock().map_err(|e| e.to_string())?;
@@ -130,13 +131,14 @@ pub fn connect_and_store(state: &Mutex<ConnectionState>) -> Result<PlayerInfo, S
     s.game_tag = Some(game_tag);
     s.player_card_url = player_card_url;
     s.token_fetched_at = Some(Instant::now());
+    s.oauth_session = false;
 
     log_info("[Connect] Connected successfully");
     Ok(info)
 }
 
 pub fn health_check(state: &Mutex<ConnectionState>) -> Option<PlayerInfo> {
-    {
+    let oauth_session = {
         let s = match state.lock() {
             Ok(s) => s,
             Err(_) => return None,
@@ -144,28 +146,35 @@ pub fn health_check(state: &Mutex<ConnectionState>) -> Option<PlayerInfo> {
         if !s.connected {
             return None;
         }
-    }
-
-    if !is_riot_client_running() {
-        log_error("[Health] Riot Client not running, disconnecting");
-        disconnect(state);
-        return None;
-    }
-
-    let needs_refresh = {
-        let s = state.lock().ok()?;
-        match s.token_fetched_at {
-            Some(t) => t.elapsed().as_secs() > 600,
-            None => true,
-        }
+        s.oauth_session
     };
 
-    if needs_refresh {
-        log_info("[Health] Token expired, refreshing...");
-        if let Err(e) = refresh_tokens(state) {
-            log_error(&format!("[Health] Token refresh failed: {}, disconnecting", e));
+    // OAuth sessions don't have a lockfile to refresh from, so we skip the
+    // is-Riot-running gate and the lockfile refresh entirely. Token expiry
+    // is still detected by validate_token below; on failure we disconnect
+    // and let the user re-sign-in via Settings.
+    if !oauth_session {
+        if !is_riot_client_running() {
+            log_error("[Health] Riot Client not running, disconnecting");
             disconnect(state);
             return None;
+        }
+
+        let needs_refresh = {
+            let s = state.lock().ok()?;
+            match s.token_fetched_at {
+                Some(t) => t.elapsed().as_secs() > 600,
+                None => true,
+            }
+        };
+
+        if needs_refresh {
+            log_info("[Health] Token expired, refreshing...");
+            if let Err(e) = refresh_tokens(state) {
+                log_error(&format!("[Health] Token refresh failed: {}, disconnecting", e));
+                disconnect(state);
+                return None;
+            }
         }
     }
 
@@ -182,6 +191,13 @@ pub fn health_check(state: &Mutex<ConnectionState>) -> Option<PlayerInfo> {
             s.last_token_check = Some(Instant::now());
         }
         if !validate_token(state) {
+            // OAuth sessions can't recover via the lockfile refresh path; the
+            // user must re-sign-in through Settings.
+            if oauth_session {
+                log_error("[Health] OAuth token invalid, disconnecting (user must re-sign-in)");
+                disconnect(state);
+                return None;
+            }
             log_error("[Health] Token validation failed, refreshing...");
             if let Err(e) = refresh_tokens(state) {
                 log_error(&format!("[Health] Token refresh also failed: {}, disconnecting", e));
@@ -268,6 +284,7 @@ pub fn disconnect(state: &Mutex<ConnectionState>) {
         s.local_auth = None;
         s.access_token = None;
         s.entitlements = None;
+        s.oauth_session = false;
     }
 }
 
@@ -299,6 +316,7 @@ pub fn get_cached_player(state: &Mutex<ConnectionState>) -> Option<PlayerInfo> {
         player_card_url: s.player_card_url.clone(),
         rso_debug: None,
         loadout_debug: None,
+        oauth_session: s.oauth_session,
     })
 }
 

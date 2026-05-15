@@ -13,6 +13,7 @@ mod match_cache;
 mod spend_tracker;
 mod coach;
 mod identity_cache;
+mod oauth;
 
 type SharedState = Arc<Mutex<riot::ConnectionState>>;
 type DiscordShared = Arc<Mutex<discord::DiscordState>>;
@@ -905,6 +906,8 @@ pub fn run() {
             spend_tracker::get_spend_summary,
             coach::coach_analyze,
             identity_cache::get_cached_identity,
+            oauth::oauth_signin,
+            oauth::oauth_signout,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

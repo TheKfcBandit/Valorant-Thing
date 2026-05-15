@@ -603,6 +603,32 @@ export default function App() {
     doConnect();
   };
 
+  // Phase B (#26): webview OAuth sign-in. Pops Riot's official login page
+  // and, on success, lights up ConnectionState the same way doConnect does.
+  // Used by SettingsPage when Valorant isn't running.
+  const doOAuthSignin = async () => {
+    addLog("info", "[OAuth] Opening Riot sign-in webview...");
+    try {
+      const info = await invoke("oauth_signin");
+      setPlayer(info);
+      setPlayerIsStale(false);
+      setStatus("connected");
+      setRefreshKey(k => k + 1);
+      addLog("info", `[OAuth] Signed in as ${info.game_name}#${info.game_tag}`);
+    } catch (err) {
+      const errMsg = typeof err === "string" ? err : err?.message || String(err);
+      addLog("error", `[OAuth] Sign-in failed: ${errMsg}`);
+      throw err;
+    }
+  };
+
+  const doOAuthSignout = async () => {
+    try { await invoke("oauth_signout"); } catch (e) { addLog("error", `[OAuth] Sign-out: ${e}`); }
+    setPlayer(null);
+    setStatus("waiting");
+    addLog("info", "[OAuth] Signed out, cookies wiped");
+  };
+
   useEffect(() => {
     if (status !== "waiting") return;
     let cancelled = false;
@@ -1402,6 +1428,11 @@ export default function App() {
           {activeTab === "settings" && (
             <motion.div key="settings" className="flex-1 flex min-h-0" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15, ease: "easeOut" }}>
             <SettingsPage
+              oauthSession={!!player?.oauth_session}
+              valorantConnected={status === "connected"}
+              onOAuthSignin={doOAuthSignin}
+              onOAuthSignout={doOAuthSignout}
+              player={player}
               showLogs={showLogs}
               onShowLogsChange={(v) => { setShowLogs(v); localStorage.setItem("show_logs", String(v)); }}
               selectDelay={selectDelay}
