@@ -361,7 +361,10 @@ export default function StorePage({ connected }) {
           }
           accentColor="rgb(var(--val-red))"
         >
-          <div className="grid grid-cols-6 gap-3">
+          <div
+            className="grid gap-3"
+            style={{ gridTemplateColumns: `repeat(${Math.max(1, nightMarket.offers.length)}, minmax(0, 1fr))` }}
+          >
             {nightMarket.offers.map((o) => (
               <SkinCard
                 key={o.offerId}
@@ -627,6 +630,12 @@ function AccessoryCard({ offer, lookup }) {
 }
 
 function WishlistModal({ open, wishlistedIds, levelLookup, onClose, onRemove }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
   if (!open) return null;
   const rows = wishlistedIds
     .map(id => ({ id: id.toLowerCase(), meta: levelLookup[id.toLowerCase()] }))

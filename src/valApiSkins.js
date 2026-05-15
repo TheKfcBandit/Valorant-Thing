@@ -71,17 +71,24 @@ let accessoryPromise = null;
 export async function getAccessoryLookup() {
   if (accessoryLookup) return accessoryLookup;
   if (!accessoryPromise) {
-    accessoryPromise = Promise.all([
+    // allSettled rather than all so one 5xx endpoint doesn't kill the whole
+    // catalog — accessory cards for the surviving kinds still resolve.
+    accessoryPromise = Promise.allSettled([
       fetch("https://valorant-api.com/v1/buddies").then(r => r.json()),
       fetch("https://valorant-api.com/v1/sprays").then(r => r.json()),
       fetch("https://valorant-api.com/v1/playercards").then(r => r.json()),
       fetch("https://valorant-api.com/v1/playertitles").then(r => r.json()),
     ]);
   }
-  const [buddies, sprays, cards, titles] = await accessoryPromise;
+  const [buddiesR, spraysR, cardsR, titlesR] = await accessoryPromise;
+  const ok = (r) => r.status === "fulfilled" ? r.value : null;
+  const buddies = ok(buddiesR);
+  const sprays = ok(spraysR);
+  const cards = ok(cardsR);
+  const titles = ok(titlesR);
   const out = {};
 
-  for (const b of buddies.data || []) {
+  for (const b of buddies?.data || []) {
     for (const lvl of b.levels || []) {
       if (!lvl?.uuid) continue;
       out[lvl.uuid.toLowerCase()] = {
@@ -91,7 +98,7 @@ export async function getAccessoryLookup() {
       };
     }
   }
-  for (const s of sprays.data || []) {
+  for (const s of sprays?.data || []) {
     if (!s?.uuid) continue;
     out[s.uuid.toLowerCase()] = {
       kind: "spray",
@@ -99,7 +106,7 @@ export async function getAccessoryLookup() {
       image: s.fullIcon || s.displayIcon || s.fullTransparentIcon || null,
     };
   }
-  for (const c of cards.data || []) {
+  for (const c of cards?.data || []) {
     if (!c?.uuid) continue;
     out[c.uuid.toLowerCase()] = {
       kind: "card",
@@ -107,7 +114,7 @@ export async function getAccessoryLookup() {
       image: c.smallArt || c.displayIcon || null,
     };
   }
-  for (const t of titles.data || []) {
+  for (const t of titles?.data || []) {
     if (!t?.uuid) continue;
     // Titles have no image — the card renders the text instead.
     out[t.uuid.toLowerCase()] = {
