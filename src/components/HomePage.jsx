@@ -82,6 +82,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
   const [penalties, setPenalties] = useState([]);
   const [spend, setSpend] = useState(null);
   const [rrHistory, setRrHistory] = useState(null);
+  const [openMatch, setOpenMatch] = useState(null);
   const lastFetchRef = useRef(0);
   const lastAutoRefresh = useRef(0);
   const backfilledRef = useRef(false);
@@ -521,8 +522,14 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
               }
             }
 
+            const clickable = !!m.matchId;
             return (
-              <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.2, delay }} className={`relative rounded-lg overflow-hidden border ${borderColor} h-14 group`}>
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.2, delay }}
+                onClick={clickable ? () => setOpenMatch(m) : undefined}
+                className={`relative rounded-lg overflow-hidden border ${borderColor} h-14 group ${clickable ? "cursor-pointer hover:border-text-muted/40 transition-colors" : ""}`}
+              >
                 {mapImg && (
                   <img src={mapImg} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20 group-hover:opacity-30 transition-opacity" />
                 )}
@@ -573,6 +580,14 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
           })}
         </div>
       </div>
+      {openMatch && (
+        <MatchDetailsModal
+          match={openMatch}
+          maps={maps}
+          selfPuuid={player?.puuid}
+          onClose={() => setOpenMatch(null)}
+        />
+      )}
     </div>
   );
 }
@@ -640,5 +655,176 @@ function RRChart({ matches }) {
         <text x={last.x - 6} y={last.y - 6} textAnchor="end" fontSize="9" fill="rgb(var(--text-primary))" fontFamily="monospace">{last.rr}</text>
       </svg>
     </motion.div>
+  );
+}
+
+const DETAIL_MODE_NAMES = {
+  competitive: "Competitive", unrated: "Unrated", deathmatch: "Deathmatch",
+  spikerush: "Spike Rush", swiftplay: "Swiftplay", ggteam: "Escalation",
+  hurm: "Team Deathmatch", premier: "Premier", newmap: "New Map",
+  snowball: "Snowball Fight", onefa: "Replication", skirmish2v2: "Skirmish: 2v2",
+  skirmishascension1v1: "Skirmish: Ascension 1v1",
+  skirmishascension2v2: "Skirmish: Ascension 2v2",
+  valaram: "All Random One Site", dodgeball: "Knockout", custom: "Custom",
+};
+
+function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
+  const [details, setDetails] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await invoke("get_match_details", { matchId: match.matchId });
+        if (cancelled) return;
+        setDetails(JSON.parse(raw));
+      } catch (e) {
+        if (!cancelled) setError(typeof e === "string" ? e : e?.message || "Failed to load");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [match.matchId]);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const mapData = maps[match.map];
+  const mapName = mapData?.name || match.map || "Unknown map";
+  const modeName = DETAIL_MODE_NAMES[match.queueId] || (match.queueId ? match.queueId : "Custom");
+  const dateStr = match.dateMs ? new Date(match.dateMs).toLocaleString() : "";
+
+  const roundsPlayed = Math.max(1, details?.matchInfo?.roundsPlayed || 0);
+  const players = Array.isArray(details?.players) ? details.players : [];
+  const teams = Array.isArray(details?.teams) ? details.teams : [];
+
+  // Group by team. Deathmatch/escalation/etc. have no real team structure —
+  // detect that and fall back to one flat sorted list.
+  const teamIds = new Set(players.map(p => String(p.teamId || "").toLowerCase()));
+  const hasTeams = teams.length >= 2 && teamIds.size >= 2;
+  const sortedFlat = [...players].sort((a, b) => (b.stats?.score || 0) - (a.stats?.score || 0));
+
+  let leftTeam = [];
+  let rightTeam = [];
+  let leftWon = false;
+  let rightWon = false;
+  if (hasTeams) {
+    // Self's team on the left.
+    const selfPlayer = players.find(p => p.subject === selfPuuid);
+    const selfTeam = String(selfPlayer?.teamId || "").toLowerCase();
+    const otherTeam = teams.find(t => String(t.teamId).toLowerCase() !== selfTeam)?.teamId;
+    leftTeam = players
+      .filter(p => String(p.teamId || "").toLowerCase() === selfTeam)
+      .sort((a, b) => (b.stats?.score || 0) - (a.stats?.score || 0));
+    rightTeam = players
+      .filter(p => String(p.teamId || "").toLowerCase() !== selfTeam)
+      .sort((a, b) => (b.stats?.score || 0) - (a.stats?.score || 0));
+    leftWon = teams.find(t => String(t.teamId).toLowerCase() === selfTeam)?.won === true;
+    rightWon = teams.find(t => t.teamId === otherTeam)?.won === true;
+  }
+
+  const resultText = match.won ? "VICTORY" : (match.roundsWon === match.roundsLost ? "DRAW" : "DEFEAT");
+  const resultColor = match.won ? "text-green-400" : (match.roundsWon === match.roundsLost ? "text-text-muted" : "text-red-400");
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-base-900/80 backdrop-blur-sm p-6"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+        transition={noAnim() ? T0 : { duration: 0.15 }}
+        className="relative w-full max-w-3xl max-h-[85vh] rounded-xl border border-border bg-base-800 overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="relative h-24 shrink-0 overflow-hidden border-b border-border">
+          {mapData?.listIcon && (
+            <img src={mapData.listIcon} alt="" className="absolute inset-0 w-full h-full object-cover opacity-25" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-r from-base-900/95 via-base-900/70 to-base-900/50" />
+          <button onClick={onClose} aria-label="Close" className="absolute top-3 right-3 text-text-muted hover:text-text-primary z-10">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          </button>
+          <div className="relative h-full flex items-center px-5 gap-4">
+            <div className="flex-1 min-w-0">
+              <p className={`text-xl font-display font-bold ${resultColor}`}>{resultText}</p>
+              <p className="text-sm font-display text-text-primary">{mapName} <span className="text-text-muted">·</span> {modeName}</p>
+              <p className="text-[11px] font-body text-text-muted">{dateStr}</p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-2xl font-display font-bold text-text-primary tabular-nums">{match.roundsWon} <span className="text-text-muted">-</span> {match.roundsLost}</p>
+              <p className="text-[11px] font-mono text-text-muted">{match.kills}/{match.deaths}/{match.assists} K/D/A</p>
+            </div>
+          </div>
+        </header>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {error && (
+            <div className="px-3 py-2 rounded-md border border-val-red/40 bg-val-red/10 text-sm text-val-red">{error}</div>
+          )}
+          {!error && !details && (
+            <div className="space-y-1.5 animate-pulse">
+              {[0,1,2,3,4,5,6,7,8,9].map(i => (
+                <div key={i} className="h-9 rounded bg-base-700 border border-border" />
+              ))}
+            </div>
+          )}
+          {details && hasTeams && (
+            <div className="grid grid-cols-2 gap-4">
+              <ScoreboardColumn label={leftWon ? "Your team — won" : "Your team"} players={leftTeam} roundsPlayed={roundsPlayed} selfPuuid={selfPuuid} />
+              <ScoreboardColumn label={rightWon ? "Enemy team — won" : "Enemy team"} players={rightTeam} roundsPlayed={roundsPlayed} selfPuuid={selfPuuid} />
+            </div>
+          )}
+          {details && !hasTeams && (
+            <ScoreboardColumn label={`${sortedFlat.length} players`} players={sortedFlat} roundsPlayed={roundsPlayed} selfPuuid={selfPuuid} />
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function ScoreboardColumn({ label, players, roundsPlayed, selfPuuid }) {
+  return (
+    <div>
+      <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider mb-2">{label}</p>
+      <ul className="space-y-1">
+        {players.map((p) => {
+          const isSelf = p.subject === selfPuuid;
+          const k = p.stats?.kills || 0;
+          const d = p.stats?.deaths || 0;
+          const a = p.stats?.assists || 0;
+          const acs = Math.round((p.stats?.score || 0) / roundsPlayed);
+          const agentIcon = p.characterId
+            ? `https://media.valorant-api.com/agents/${p.characterId}/displayicon.png`
+            : null;
+          const name = p.gameName ? `${p.gameName}#${p.tagLine || ""}` : (p.subject ? p.subject.slice(0, 8) : "Unknown");
+          return (
+            <li
+              key={p.subject}
+              className={`flex items-center gap-2.5 px-2 py-1.5 rounded ${isSelf ? "bg-val-red/15 border border-val-red/30" : "bg-base-700/40 border border-border"}`}
+            >
+              {agentIcon && (
+                <img src={agentIcon} alt="" className="w-7 h-7 rounded-full border border-white/10 shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className={`text-xs font-display ${isSelf ? "text-val-red font-semibold" : "text-text-primary"} truncate`}>{name}</p>
+                <p className="text-[10px] font-mono text-text-muted tabular-nums">{acs} ACS</p>
+              </div>
+              <div className="text-right shrink-0 font-mono tabular-nums text-xs">
+                <span className="text-text-primary">{k}</span>
+                <span className="text-text-muted">/</span>
+                <span className="text-red-400">{d}</span>
+                <span className="text-text-muted">/</span>
+                <span className="text-text-muted">{a}</span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

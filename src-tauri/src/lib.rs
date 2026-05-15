@@ -730,6 +730,14 @@ async fn get_rr_history(state: tauri::State<'_, SharedState>, start: u64, end: u
 }
 
 #[tauri::command]
+async fn get_match_details(state: tauri::State<'_, SharedState>, match_id: String) -> Result<String, String> {
+    let state = Arc::clone(&state);
+    tauri::async_runtime::spawn_blocking(move || riot::get_match_details(&state, &match_id))
+        .await
+        .map_err(|e| format!("Task failed: {}", e))?
+}
+
+#[tauri::command]
 async fn resolve_player_names(state: tauri::State<'_, SharedState>, puuids: Vec<String>) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::resolve_player_names(&state, puuids))
@@ -862,6 +870,7 @@ pub fn run() {
             get_token_age,
             get_player_mmr,
             get_rr_history,
+            get_match_details,
             get_home_stats,
             check_loadout,
             get_match_page,

@@ -349,6 +349,16 @@ pub fn get_player_mmr(state: &Mutex<ConnectionState>, target_puuid: &str) -> Res
     Ok(result.to_string())
 }
 
+// #19: pass-through for the historical match-details endpoint. The frontend
+// renders the full scoreboard from Riot's raw response; no transformation
+// here so future details views (round-by-round, headshot %, etc.) don't have
+// to re-fetch or re-shape.
+pub fn get_match_details(state: &Mutex<ConnectionState>, match_id: &str) -> Result<String, String> {
+    let (access_token, entitlements, _, _, shard, client_version) = get_glz_creds(state)?;
+    let path = format!("/match-details/v1/matches/{}", match_id);
+    pd_get(&shard, &path, &access_token, &entitlements, &client_version)
+}
+
 // #24: per-match RR/tier history for the rolling line chart on HomePage.
 // Backed by /mmr/v1/players/{puuid}/competitiveupdates, which Riot returns
 // most-recent-first. We pass through the raw response so the frontend can
