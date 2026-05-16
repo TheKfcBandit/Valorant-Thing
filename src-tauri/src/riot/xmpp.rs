@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use base64::Engine;
 
@@ -12,7 +12,7 @@ pub struct XmppLog {
 
 pub struct XmppState {
     pub connected: bool,
-    pub stream: Option<native_tls::TlsStream<TcpStream>>,
+    pub stream: Arc<Mutex<Option<native_tls::TlsStream<TcpStream>>>>,
     pub logs: Vec<XmppLog>,
     pub jid: String,
     pub puuid: String,
@@ -26,7 +26,7 @@ impl Default for XmppState {
     fn default() -> Self {
         Self {
             connected: false,
-            stream: None,
+            stream: Arc::new(Mutex::new(None)),
             logs: Vec::new(),
             jid: String::new(),
             puuid: String::new(),
@@ -242,10 +242,12 @@ pub fn xmpp_connect(xmpp_state: &Mutex<XmppState>, riot_state: &Mutex<super::typ
     {
         let mut s = xmpp_state.lock().map_err(|e| format!("lock xmpp: {}", e))?;
         if s.connected {
-            if let Some(ref mut stream) = s.stream {
+            let mut sg = s.stream.lock().map_err(|e| format!("stream lock: {}", e))?;
+            if let Some(stream) = sg.as_mut() {
                 let _ = xmpp_write(stream, "</stream:stream>");
             }
-            s.stream = None;
+            *sg = None;
+            drop(sg);
             s.connected = false;
         }
         s.logs.clear();
@@ -447,7 +449,7 @@ pub fn xmpp_connect(xmpp_state: &Mutex<XmppState>, riot_state: &Mutex<super::typ
         let mut s = xmpp_state.lock().map_err(|e| format!("lock: {}", e))?;
         add_log(&mut s.logs, "system", "Connected and authenticated!");
         s.puuid = puuid_clone;
-        s.stream = Some(stream);
+        *s.stream.lock().map_err(|e| format!("stream lock: {}", e))? = Some(stream);
         s.connected = true;
         s.connected_at = Some(Instant::now());
     }
@@ -457,34 +459,41 @@ pub fn xmpp_connect(xmpp_state: &Mutex<XmppState>, riot_state: &Mutex<super::typ
 
 pub fn xmpp_disconnect(state: &Mutex<XmppState>) -> Result<(), String> {
     let mut s = state.lock().map_err(|e| format!("lock: {}", e))?;
-    if let Some(ref mut stream) = s.stream {
-        let _ = xmpp_write(stream, "</stream:stream>");
+    {
+        let mut sg = s.stream.lock().map_err(|e| format!("stream lock: {}", e))?;
+        if let Some(stream) = sg.as_mut() {
+            let _ = xmpp_write(stream, "</stream:stream>");
+        }
+        *sg = None;
     }
-    s.stream = None;
     s.connected = false;
     add_log(&mut s.logs, "system", "Disconnected");
     Ok(())
 }
 
 pub fn xmpp_poll(state: &Mutex<XmppState>) -> Result<String, String> {
-    let mut s = state.lock().map_err(|e| format!("lock: {}", e))?;
-    if !s.connected {
-        return Ok("not_connected".to_string());
-    }
-
-    let puuid = s.puuid.clone();
+    let (stream_arc, puuid) = {
+        let s = state.lock().map_err(|e| format!("lock: {}", e))?;
+        if !s.connected {
+            return Ok("not_connected".to_string());
+        }
+        (Arc::clone(&s.stream), s.puuid.clone())
+    };
 
     let read_result = {
-        let stream = match s.stream.as_mut() {
-            Some(st) => st,
+        let mut sg = stream_arc.lock().map_err(|e| format!("stream lock: {}", e))?;
+        match sg.as_mut() {
+            Some(stream) => xmpp_read_timeout(stream, 150),
             None => {
+                drop(sg);
+                let mut s = state.lock().map_err(|e| format!("lock: {}", e))?;
                 s.connected = false;
                 return Ok("no_stream".to_string());
             }
-        };
-        xmpp_read_timeout(stream, 150)
+        }
     };
 
+    let mut s = state.lock().map_err(|e| format!("lock: {}", e))?;
     match read_result {
         Ok(data) if !data.is_empty() => {
             if !puuid.is_empty() && data.contains(&puuid) {
@@ -497,7 +506,7 @@ pub fn xmpp_poll(state: &Mutex<XmppState>) -> Result<String, String> {
         Err(e) if e.contains("connection closed") => {
             add_log(&mut s.logs, "error", "Connection closed by server");
             s.connected = false;
-            s.stream = None;
+            *s.stream.lock().map_err(|e| format!("stream lock: {}", e))? = None;
         }
         Err(e) => {
             add_log(&mut s.logs, "error", &e);
@@ -532,8 +541,11 @@ pub fn xmpp_send_fake_presence(state: &Mutex<XmppState>, riot_state: &Mutex<supe
     // unavailable would be inconsistent and may be rejected by the server.
     if show == "unavailable" {
         let xml = "<presence type=\"unavailable\"/>".to_string();
-        let stream = s.stream.as_mut().ok_or("No stream")?;
-        xmpp_write(stream, &xml)?;
+        {
+            let mut sg = s.stream.lock().map_err(|e| format!("stream lock: {}", e))?;
+            let stream = sg.as_mut().ok_or("No stream")?;
+            xmpp_write(stream, &xml)?;
+        }
         add_log(&mut s.logs, "sent", "[FAKE PRESENCE] invisible mode (unavailable)");
         return Ok(());
     }
@@ -637,8 +649,11 @@ pub fn xmpp_send_fake_presence(state: &Mutex<XmppState>, riot_state: &Mutex<supe
         b64 = b64,
     );
 
-    let stream = s.stream.as_mut().ok_or("No stream")?;
-    xmpp_write(stream, &xml)?;
+    {
+        let mut sg = s.stream.lock().map_err(|e| format!("stream lock: {}", e))?;
+        let stream = sg.as_mut().ok_or("No stream")?;
+        xmpp_write(stream, &xml)?;
+    }
     add_log(&mut s.logs, "sent", &format!("[FAKE PRESENCE] show={} tier={} xml_len={}", show, valorant_data["playerPresenceData"]["competitiveTier"], xml.len()));
     add_log(&mut s.logs, "debug", &xml);
     Ok(())
