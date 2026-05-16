@@ -4,14 +4,14 @@
 // Same file-backed atomic-rename + corrupt-file backup pattern as
 // match_cache.rs. Storage: <appDataDir>/identity.json.
 
-use std::path::PathBuf;
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 use crate::riot::logging::log_error;
 use crate::riot::PlayerInfo;
+use crate::util::{cache_path as util_cache_path, now_ms};
 
 #[derive(Default, Serialize, Deserialize, Clone)]
 pub struct IdentitySnapshot {
@@ -32,23 +32,8 @@ pub struct IdentityCacheState {
     pub loaded: bool,
 }
 
-fn now_ms() -> i64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
-}
-
-fn cache_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("app_data_dir: {}", e))?;
-    if !dir.exists() {
-        std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir: {}", e))?;
-    }
-    Ok(dir.join("identity.json"))
+fn cache_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    util_cache_path(app, "identity.json")
 }
 
 fn ensure_loaded(app: &AppHandle, state: &Mutex<IdentityCacheState>) -> Result<(), String> {

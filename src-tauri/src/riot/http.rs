@@ -26,27 +26,6 @@ pub fn local_get(port: u16, auth: &str, path: &str) -> Result<String, String> {
     Ok(body)
 }
 
-pub fn local_put(port: u16, auth: &str, path: &str, body: &str) -> Result<String, String> {
-    let escaped_body = body.replace('\\', "\\\\").replace('\'', "\\'").replace('\n', "\\n");
-    let script = format!(
-        r#"const https=require('https');const d='{body}';const r=https.request('https://127.0.0.1:{port}{path}',{{method:'PUT',headers:{{Authorization:'{auth}','Content-Type':'application/json','Content-Length':Buffer.byteLength(d)}},agent:new https.Agent({{rejectUnauthorized:false}})}},res=>{{let b='';res.on('data',c=>b+=c);res.on('end',()=>process.stdout.write(res.statusCode+'\n'+b))}});r.on('error',e=>{{process.stderr.write(e.message);process.exit(1)}});r.setTimeout(5000,()=>{{r.destroy();process.stderr.write('timeout');process.exit(1)}});r.write(d);r.end()"#,
-        port = port, path = path, auth = auth, body = escaped_body
-    );
-
-    let mut cmd = Command::new("node");
-    cmd.args(["-e", &script]);
-    #[cfg(target_os = "windows")]
-    cmd.creation_flags(0x08000000);
-    let output = cmd.output().map_err(|e| format!("node failed: {}", e))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("PUT {}: {}", path, stderr.trim()));
-    }
-
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
-}
-
 pub fn local_post(port: u16, auth: &str, path: &str, body: &str) -> Result<String, String> {
     let escaped_body = body.replace('\\', "\\\\").replace('\'', "\\'").replace('\n', "\\n");
     let script = format!(

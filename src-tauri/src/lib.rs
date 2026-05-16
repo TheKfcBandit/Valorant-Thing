@@ -15,6 +15,7 @@ mod coach;
 mod identity_cache;
 mod oauth;
 mod loadout_presets;
+mod util;
 
 type SharedState = Arc<Mutex<riot::ConnectionState>>;
 type DiscordShared = Arc<Mutex<discord::DiscordState>>;

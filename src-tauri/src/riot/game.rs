@@ -481,7 +481,7 @@ pub fn request_to_join_party(state: &Mutex<ConnectionState>, target_puuid: &str)
         }
     }
     if target_party.is_none() {
-        for (product, party_id, _size) in &all_matches {
+        for (_product, party_id, _size) in &all_matches {
             if !party_id.is_empty() && *party_id != my_party_id {
                 target_party = Some(party_id.clone());
                 break;
@@ -705,7 +705,7 @@ fn act_peak_tier(season: &serde_json::Value) -> u64 {
     peak
 }
 
-pub fn get_home_stats(state: &Mutex<ConnectionState>, queue_filter: &str) -> Result<String, String> {
+pub fn get_home_stats(state: &Mutex<ConnectionState>, _queue_filter: &str) -> Result<String, String> {
     let (access_token, entitlements, puuid, _region, shard, client_version) = get_glz_creds(state)?;
 
     // MMR endpoint can return non-JSON for accounts with no comp history,

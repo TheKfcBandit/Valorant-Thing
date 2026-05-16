@@ -1,11 +1,11 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Mutex;
 
 use serde_json::Value;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 use crate::riot::logging::log_error;
+use crate::util::cache_path as util_cache_path;
 
 #[derive(Default)]
 pub struct MatchCacheState {
@@ -13,15 +13,8 @@ pub struct MatchCacheState {
     loaded: bool,
 }
 
-fn cache_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("app_data_dir: {}", e))?;
-    if !dir.exists() {
-        std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir: {}", e))?;
-    }
-    Ok(dir.join("match-cache.json"))
+fn cache_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    util_cache_path(app, "match-cache.json")
 }
 
 fn ensure_loaded(app: &AppHandle, state: &Mutex<MatchCacheState>) -> Result<(), String> {

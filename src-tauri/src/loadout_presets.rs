@@ -4,15 +4,15 @@
 // same atomic-rename + corrupt-file backup pattern as identity_cache /
 // match_cache.
 
-use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 use crate::riot::{self, ConnectionState};
 use crate::riot::logging::log_error;
+use crate::util::{cache_path as util_cache_path, now_ms};
 
 const MAX_PRESETS: usize = 50;
 const MAX_NAME_LEN: usize = 60;
@@ -36,16 +36,8 @@ pub struct PresetsState {
     loaded: bool,
 }
 
-fn now_ms() -> i64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
-}
-
-fn cache_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().app_data_dir().map_err(|e| format!("app_data_dir: {}", e))?;
-    if !dir.exists() {
-        std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir: {}", e))?;
-    }
-    Ok(dir.join("loadout-presets.json"))
+fn cache_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    util_cache_path(app, "loadout-presets.json")
 }
 
 fn ensure_loaded(app: &AppHandle, state: &Mutex<PresetsState>) -> Result<(), String> {

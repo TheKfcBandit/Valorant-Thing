@@ -1,13 +1,13 @@
 use std::collections::HashSet;
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 
 use crate::riot::{self, ConnectionState};
+use crate::util::{cache_path, now_ms};
 
 pub type WishlistShared = Arc<Mutex<Vec<String>>>;
 
@@ -19,17 +19,9 @@ struct StorefrontCacheFile {
     fetched_at_ms: i64,
 }
 
-fn store_cache_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().app_data_dir().map_err(|e| format!("app_data_dir: {}", e))?;
-    if !dir.exists() {
-        std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir: {}", e))?;
-    }
-    Ok(dir.join("store-cache.json"))
-}
-
 fn save_storefront_to_disk(app: &AppHandle, raw: &str) {
     // Best-effort. A failed write should never break a successful fetch.
-    let path = match store_cache_path(app) { Ok(p) => p, Err(e) => {
+    let path = match cache_path(app, "store-cache.json") { Ok(p) => p, Err(e) => {
         riot::logging::log_error(&format!("[StoreCache] path: {}", e)); return;
     }};
     let entry = StorefrontCacheFile { raw: raw.to_string(), fetched_at_ms: now_ms() };
@@ -47,7 +39,7 @@ fn save_storefront_to_disk(app: &AppHandle, raw: &str) {
 }
 
 fn load_storefront_from_disk(app: &AppHandle) -> Option<StorefrontCacheFile> {
-    let path = store_cache_path(app).ok()?;
+    let path = cache_path(app, "store-cache.json").ok()?;
     if !path.exists() { return None; }
     let s = std::fs::read_to_string(&path).ok()?;
     serde_json::from_str(&s).ok()
@@ -73,14 +65,6 @@ struct WishlistHit {
 struct StoreUpdate {
     raw: String,
     fetched_at_ms: i64,
-}
-
-fn now_ms() -> i64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
 }
 
 fn fetch_storefront_inner(state: &Mutex<ConnectionState>) -> Result<String, String> {

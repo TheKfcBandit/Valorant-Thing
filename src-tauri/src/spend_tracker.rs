@@ -1,14 +1,13 @@
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 use crate::riot::{self, ConnectionState};
 use crate::riot::logging::{log_error, log_info};
+use crate::util::{cache_path, now_ms};
 
 const SKIN_LEVEL_ITEM_TYPE: &str = "3ad1b2b2-acdb-4524-852f-954a76ddae0a";
 const COST_VP: &str = "85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741";
@@ -45,14 +44,8 @@ pub struct SpendState {
     loaded: bool,
 }
 
-fn now_ms() -> i64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
-}
-
-fn spend_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().app_data_dir().map_err(|e| format!("app_data_dir: {}", e))?;
-    if !dir.exists() { std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir: {}", e))?; }
-    Ok(dir.join("spend-tracker.json"))
+fn spend_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    cache_path(app, "spend-tracker.json")
 }
 
 fn ensure_loaded(app: &AppHandle, state: &Mutex<SpendState>) -> Result<(), String> {
