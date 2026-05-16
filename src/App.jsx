@@ -11,8 +11,8 @@ import InstalockPage from "./components/InstalockPage";
 import SettingsPage from "./components/SettingsPage";
 import LogsPage from "./components/LogsPage";
 import MapDodgePage from "./components/MapDodgePage";
-import MatchInfoPage from "./components/MatchInfoPage";
-import PartyPage from "./components/PartyPage";
+import LivePage from "./components/LivePage";
+import LineupsPage from "./components/LineupsPage";
 import MiscPage from "./components/MiscPage";
 import FakeStatusPage from "./components/FakeStatusPage";
 import ChatPage from "./components/ChatPage";
@@ -1435,9 +1435,14 @@ export default function App() {
             />
             </motion.div>
           )}
-          {activeTab === "matchinfo" && (
-            <motion.div key="matchinfo" className="flex-1 flex min-h-0" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15, ease: "easeOut" }}>
-            <MatchInfoPage splooshimaApiKey={splooshimaApiKey} splooshimaAvailable={splooshimaAvailable} player={player} connected={status === "connected"} addLog={addLog} />
+          {activeTab === "live" && (
+            <motion.div key="live" className="flex-1 flex min-h-0" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15, ease: "easeOut" }}>
+            <LivePage splooshimaApiKey={splooshimaApiKey} splooshimaAvailable={splooshimaAvailable} player={player} connected={status === "connected"} addLog={addLog} onRefresh={confirmRefresh} />
+            </motion.div>
+          )}
+          {activeTab === "lineups" && (
+            <motion.div key="lineups" className="flex-1 flex min-h-0" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15, ease: "easeOut" }}>
+            <LineupsPage />
             </motion.div>
           )}
           {activeTab === "mapdodge" && (
@@ -1525,11 +1530,6 @@ export default function App() {
           {activeTab === "coach" && (
             <motion.div key="coach" className="flex-1 flex min-h-0" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15, ease: "easeOut" }}>
             <CoachPage />
-            </motion.div>
-          )}
-          {activeTab === "party" && (
-            <motion.div key="party" className="flex-1 flex min-h-0" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15, ease: "easeOut" }}>
-            <PartyPage connected={status === "connected"} addLog={addLog} onRefresh={confirmRefresh} />
             </motion.div>
           )}
           {activeTab === "chat" && (

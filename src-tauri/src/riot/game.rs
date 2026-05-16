@@ -708,9 +708,21 @@ fn act_peak_tier(season: &serde_json::Value) -> u64 {
 pub fn get_home_stats(state: &Mutex<ConnectionState>, queue_filter: &str) -> Result<String, String> {
     let (access_token, entitlements, puuid, _region, shard, client_version) = get_glz_creds(state)?;
 
+    // MMR endpoint can return non-JSON for accounts with no comp history,
+    // brief Riot 5xx blips, or token-edge cases. Match the same resilience
+    // the loadout / xp fetches below already have: log the failure but
+    // continue with zeroed defaults so HomePage still renders the rest.
     let mmr_path = format!("/mmr/v1/players/{}", puuid);
-    let mmr_raw = pd_get(&shard, &mmr_path, &access_token, &entitlements, &client_version)?;
-    let mmr: serde_json::Value = serde_json::from_str(&mmr_raw).map_err(|e| format!("parse mmr: {}", e))?;
+    let mmr: serde_json::Value = match pd_get(&shard, &mmr_path, &access_token, &entitlements, &client_version) {
+        Ok(raw) => serde_json::from_str(&raw).unwrap_or_else(|e| {
+            log_info(&format!("[Home] mmr parse failed ({}), falling back to defaults", e));
+            serde_json::Value::Null
+        }),
+        Err(e) => {
+            log_info(&format!("[Home] mmr fetch failed ({}), falling back to defaults", e));
+            serde_json::Value::Null
+        }
+    };
 
     let current_tier = mmr["LatestCompetitiveUpdate"]["TierAfterUpdate"].as_u64().unwrap_or(0);
     let current_rr = mmr["LatestCompetitiveUpdate"]["RankedRatingAfterUpdate"].as_u64().unwrap_or(0);

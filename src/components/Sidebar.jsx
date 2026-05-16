@@ -41,11 +41,8 @@ export default function Sidebar({ status, player, onReconnect, activeTab, onTabC
         />
 
         <SectionLabel>Live</SectionLabel>
-        <NavButton id="matchinfo" label="Match Info" activeTab={activeTab} onTabChange={onTabChange} activeColor="text-accent-blue"
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M18 20V10M12 20V4M6 20v-6" /></svg>}
-        />
-        <NavButton id="party" label="Party" activeTab={activeTab} onTabChange={onTabChange}
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>}
+        <NavButton id="live" label="Live" activeTab={activeTab} onTabChange={onTabChange} activeColor="text-accent-blue"
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M18 20V10M12 20V4M6 20v-6" /><circle cx="6" cy="6" r="2" fill="currentColor" /></svg>}
         />
 
         <SectionLabel>Items</SectionLabel>
@@ -71,6 +68,9 @@ export default function Sidebar({ status, player, onReconnect, activeTab, onTabC
         />
 
         <SectionLabel>Insights</SectionLabel>
+        <NavButton id="lineups" label="Lineups" activeTab={activeTab} onTabChange={onTabChange}
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>}
+        />
         <NavButton id="wrapped" label="Wrapped" activeTab={activeTab} onTabChange={onTabChange}
           icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
         />
