@@ -7,6 +7,10 @@
 
 const ESCALATION_QUEUES = new Set(["ggteam", "dodgeball"]);
 const DEATHMATCH_QUEUES = new Set(["deathmatch"]);
+// Skirmish modes (2v2 / Ascension) are too short for the standard
+// round-count thresholds — a 4-round game with 3 deaths trips "Untouchable"
+// trivially. Bail out before any of the team-mode rules can fire.
+const SKIRMISH_QUEUES = new Set(["skirmish2v2", "skirmishascension1v1", "skirmishascension2v2"]);
 
 export function computeHighlights(match) {
   if (!match) return [];
@@ -32,6 +36,11 @@ export function computeHighlights(match) {
   // Escalation / TDM / other modes — kill thresholds only.
   if (ESCALATION_QUEUES.has(queue)) {
     if (k >= 30) out.push({ id: "carry", label: "Carried", color: "text-yellow-400", hint: "30+ kills" });
+    return out;
+  }
+
+  // Skirmish modes bail out before any standard rule fires.
+  if (SKIRMISH_QUEUES.has(queue)) {
     return out;
   }
 

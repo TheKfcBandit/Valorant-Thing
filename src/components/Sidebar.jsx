@@ -1,6 +1,14 @@
 import { motion, AnimatePresence } from "framer-motion";
 import PlayerInfo from "./PlayerInfo";
 
+function SectionLabel({ children }) {
+  return (
+    <p className="px-3 pt-2 pb-1 text-[9px] font-display font-bold text-text-muted/70 uppercase tracking-widest first:pt-0">
+      {children}
+    </p>
+  );
+}
+
 function NavButton({ id, label, icon, activeTab, onTabChange, activeColor = "text-val-red" }) {
   const isActive = activeTab === id;
   return (
@@ -27,14 +35,30 @@ export default function Sidebar({ status, player, onReconnect, activeTab, onTabC
   return (
     <div className={`w-52 border-r border-border flex flex-col shrink-0 relative ${simplifiedTheme ? "bg-base-700" : ""}`}>
       <nav className="p-2 pt-3 space-y-0.5">
+        <SectionLabel>Home</SectionLabel>
         <NavButton id="home" label="Home" activeTab={activeTab} onTabChange={onTabChange}
           icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>}
         />
-        <NavButton id="instalock" label="Instalock" activeTab={activeTab} onTabChange={onTabChange}
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>}
+
+        <SectionLabel>Live</SectionLabel>
+        <NavButton id="matchinfo" label="Match Info" activeTab={activeTab} onTabChange={onTabChange} activeColor="text-accent-blue"
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M18 20V10M12 20V4M6 20v-6" /></svg>}
         />
+        <NavButton id="party" label="Party" activeTab={activeTab} onTabChange={onTabChange}
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>}
+        />
+
+        <SectionLabel>Items</SectionLabel>
         <NavButton id="store" label="Store" activeTab={activeTab} onTabChange={onTabChange}
           icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 01-8 0" /></svg>}
+        />
+        <NavButton id="loadout" label="Loadout" activeTab={activeTab} onTabChange={onTabChange}
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14.5 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /></svg>}
+        />
+
+        <SectionLabel>Tools</SectionLabel>
+        <NavButton id="instalock" label="Instalock" activeTab={activeTab} onTabChange={onTabChange}
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>}
         />
         <NavButton id="mapdodge" label="Map Dodge" activeTab={activeTab} onTabChange={onTabChange}
           icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3V7z" /><path d="M9 4v13M15 7v13" /></svg>}
@@ -42,23 +66,16 @@ export default function Sidebar({ status, player, onReconnect, activeTab, onTabC
         <NavButton id="fakestatus" label="Fake Status" activeTab={activeTab} onTabChange={onTabChange}
           icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="2" /><path d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49" /><path d="M19.07 4.93a10 10 0 010 14.14m-14.14 0a10 10 0 010-14.14" /></svg>}
         />
-        <NavButton id="loadout" label="Loadout" activeTab={activeTab} onTabChange={onTabChange}
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14.5 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /></svg>}
+        <NavButton id="misc" label="Misc" activeTab={activeTab} onTabChange={onTabChange}
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>}
         />
-        <NavButton id="party" label="Party" activeTab={activeTab} onTabChange={onTabChange}
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>}
-        />
-        <NavButton id="matchinfo" label="Match Info" activeTab={activeTab} onTabChange={onTabChange} activeColor="text-accent-blue"
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M18 20V10M12 20V4M6 20v-6" /></svg>}
-        />
+
+        <SectionLabel>Insights</SectionLabel>
         <NavButton id="wrapped" label="Wrapped" activeTab={activeTab} onTabChange={onTabChange}
           icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>}
         />
         <NavButton id="coach" label="AI Coach" activeTab={activeTab} onTabChange={onTabChange}
           icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 2a3 3 0 00-3 3v7a3 3 0 006 0V5a3 3 0 00-3-3z" /><path d="M19 10v2a7 7 0 01-14 0v-2M12 19v3M8 22h8" /></svg>}
-        />
-        <NavButton id="misc" label="Misc" activeTab={activeTab} onTabChange={onTabChange}
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>}
         />
         {showLogs && (
           <NavButton id="logs" label="Logs" activeTab={activeTab} onTabChange={onTabChange} activeColor="text-accent-blue"
