@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion, AnimatePresence } from "framer-motion";
+import { noAnim, T0 } from "../utils/animation";
 
-const noAnim = () => localStorage.getItem("disable_animations") === "true";
-const T0 = { duration: 0 };
 const POLL_INTERVAL = 2000;
 
 const CONV_LABELS = {

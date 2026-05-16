@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
-
-const noAnim = () => localStorage.getItem("disable_animations") === "true";
-const T0 = { duration: 0 };
+import { noAnim, T0 } from "../utils/animation";
 
 const PROVIDERS = [
   { id: "anthropic", label: "Anthropic", defaultModel: "claude-haiku-4-5", baseUrlEditable: false },

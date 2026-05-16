@@ -2,13 +2,13 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
 import { computeHighlights, computeScoreboardBadges } from "../matchHighlights";
+import { noAnim, T0 } from "../utils/animation";
+import { MODE_NAMES } from "../utils/gameMode";
 
 const TIER_UUID = "03621f52-342b-cf4e-4f86-9350a49c6d04";
 const CUSTOM_AGENT_ICONS = {
   "7c8a4701-4de6-9355-b254-e09bc2a34b72": "/agents/miks.png",
 };
-const noAnim = () => localStorage.getItem("disable_animations") === "true";
-const T0 = { duration: 0 };
 const rankIcon = (tier) => `https://media.valorant-api.com/competitivetiers/${TIER_UUID}/${tier}/smallicon.png`;
 
 const RANKS = [
@@ -27,16 +27,6 @@ const RANKS = [
 const rankName = (tier) => RANKS.find(r => r.tier === tier)?.name || "Unranked";
 
 const REFRESH_INTERVAL = 5 * 60 * 1000;
-
-const MODE_NAMES = {
-  competitive: "Competitive", unrated: "Unrated", deathmatch: "Deathmatch",
-  spikerush: "Spike Rush", swiftplay: "Swiftplay", ggteam: "Escalation",
-  hurm: "Team Deathmatch", premier: "Premier", newmap: "New Map",
-  snowball: "Snowball Fight", onefa: "Replication", skirmish2v2: "Skirmish: 2v2",
-  skirmishascension1v1: "Skirmish: Ascension 1v1",
-  skirmishascension2v2: "Skirmish: Ascension 2v2",
-  valaram: "All Random One Site", dodgeball: "Knockout", custom: "Custom",
-};
 
 function formatTimer(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));

@@ -1,7 +1,5 @@
 import { motion } from "framer-motion";
-
-const noAnim = () => localStorage.getItem("disable_animations") === "true";
-const T0 = { duration: 0 };
+import { noAnim, T0 } from "../utils/animation";
 
 // Placeholder. Real content (per-agent lineup videos, smoke/molly maps,
 // dart spots, etc.) is tracked in the roadmap — this surface gives the

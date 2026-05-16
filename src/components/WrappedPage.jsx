@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
-
-const noAnim = () => localStorage.getItem("disable_animations") === "true";
-const T0 = { duration: 0 };
+import { noAnim, T0 } from "../utils/animation";
 
 const AGENTS_URL = "https://valorant-api.com/v1/agents?isPlayableCharacter=true";
 const MAPS_URL = "https://valorant-api.com/v1/maps";

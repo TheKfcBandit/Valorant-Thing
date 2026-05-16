@@ -3,9 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { motion } from "framer-motion";
 import { getLevelLookup, getBundleLookup, getAccessoryLookup } from "../valApiSkins";
-
-const noAnim = () => localStorage.getItem("disable_animations") === "true";
-const T0 = { duration: 0 };
+import { noAnim, T0 } from "../utils/animation";
 
 const COST_VP = "85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741";
 const COST_RP = "e59aa87c-4cbf-517a-5983-6e81511be9b7";

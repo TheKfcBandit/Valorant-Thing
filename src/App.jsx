@@ -27,6 +27,7 @@ import { emitTo } from "@tauri-apps/api/event";
 import { register, unregister, isRegistered } from "@tauri-apps/plugin-global-shortcut";
 import HomePage from "./components/HomePage";
 import { getCached, setCache } from "./matchCache";
+import { MODE_NAMES } from "./utils/gameMode";
 
 function parseGamePod(podId) {
   if (!podId) return "";
@@ -39,26 +40,6 @@ function parseGamePod(podId) {
   }
   return podId.split(".").pop()?.split("-").slice(0, 2).join(" ") || podId;
 }
-
-const MODE_NAMES = {
-  competitive: "Competitive",
-  unrated: "Unrated",
-  deathmatch: "Deathmatch",
-  spikerush: "Spike Rush",
-  swiftplay: "Swiftplay",
-  ggteam: "Escalation",
-  hurm: "Team Deathmatch",
-  premier: "Premier",
-  newmap: "New Map",
-  snowball: "Snowball Fight",
-  onefa: "Replication",
-  skirmish2v2: "Skirmish: 2v2",
-  skirmishascension1v1: "Skirmish: Ascension 1v1",
-  skirmishascension2v2: "Skirmish: Ascension 2v2",
-  valaram: "All Random One Site",
-  dodgeball: "Knockout",
-  custom: "Custom",
-};
 
 function resolveModeName(queueId = "", modeUrl = "") {
   const key = Object.keys(MODE_NAMES).find((k) => queueId === k || modeUrl.includes(k));

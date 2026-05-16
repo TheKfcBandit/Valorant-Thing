@@ -1,12 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
+import { noAnim, T0 } from "../utils/animation";
 
 const EXCLUDED_MAPS = ["The Range", "Basic Training"];
 const DM_MAPS = new Set(["Kasbah", "Glitch", "Drift", "Piazza", "District"]);
 const SKIRMISH_MAPS = new Set(["Skirmish A", "Skirmish B", "Skirmish C"]);
 const CONFIG_KEY = "mapdodge-config";
-const noAnim = () => localStorage.getItem("disable_animations") === "true";
-const T0 = { duration: 0 };
 
 const SEARCH_ICON = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">

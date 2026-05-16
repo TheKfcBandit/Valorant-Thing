@@ -3,8 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { motion, AnimatePresence } from "framer-motion";
 import { computeFitness } from "../squadAnalytics";
 
-const noAnim = () => localStorage.getItem("disable_animations") === "true";
-const T0 = { duration: 0 };
+import { noAnim, T0 } from "../utils/animation";
 
 const QUEUES = [
   { id: "unrated", label: "Unrated" },

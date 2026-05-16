@@ -4,6 +4,7 @@ import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
 import { open } from "@tauri-apps/plugin-dialog";
 import { appDataDir } from "@tauri-apps/api/path";
+import { noAnim, T0 } from "../utils/animation";
 
 const MENU_VIDEO_SUBPATH = "ShooterGame\\Content\\Movies\\Menu";
 const MENU_VIDEO_FILE_REGEX = /\.(mp4|webm)$/i;
@@ -12,8 +13,6 @@ const MENU_VIDEO_EXCLUDED_FILES = new Set([
   "contract glitches.webm",
 ]);
 const MENU_VIDEO_CONFIG_KEY = "menu_video_config";
-const noAnim = () => localStorage.getItem("disable_animations") === "true";
-const T0 = { duration: 0 };
 
 const trimSlashes = (value) => String(value || "").replace(/[\\/]+$/g, "");
 const normalizeFileName = (value) => String(value || "").trim().toLowerCase();

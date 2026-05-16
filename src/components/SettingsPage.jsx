@@ -5,8 +5,7 @@ import { motion } from "framer-motion";
 import { open } from "@tauri-apps/plugin-shell";
 import { exportVtFile, readVtFile } from "../cloud";
 
-const noAnim = () => localStorage.getItem("disable_animations") === "true";
-const T0 = { duration: 0 };
+import { noAnim, T0 } from "../utils/animation";
 const THEMES = [
   { id: "crimson-moon", name: "Crimson Moon", bg: "#1C1212", accent: "#ED4245", vars: {
     '--base-900':'16 10 10','--base-800':'28 18 18','--base-700':'34 24 24','--base-600':'44 32 32','--base-500':'56 42 42','--base-400':'68 54 54','--border':'80 62 62','--border-light':'96 76 76','--val-red':'237 66 69','--val-red-dark':'200 50 55','--accent-blue':'237 66 69','--accent-blue-dark':'200 50 55',

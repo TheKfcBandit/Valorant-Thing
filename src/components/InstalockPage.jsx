@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
 import { exportVtFile, readVtFile } from "../cloud";
+import { noAnim, T0 } from "../utils/animation";
+import { CUSTOM_AGENTS } from "../utils/agents";
 
 const EXCLUDED_MAPS = ["The Range", "Basic Training"];
 const DM_MAPS = new Set(["Kasbah", "Glitch", "Drift", "Piazza", "District"]);
@@ -14,10 +16,6 @@ const ROLE_ICONS = {
   Controller: "https://media.valorant-api.com/agents/roles/4ee40330-ecdd-4f2f-98a8-eb1243428373/displayicon.png",
   Sentinel: "https://media.valorant-api.com/agents/roles/5fc02f99-4091-4486-a531-98459a3e95e9/displayicon.png",
 };
-const noAnim = () => localStorage.getItem("disable_animations") === "true";
-const T0 = { duration: 0 };
-
-
 const GLOBE_ICON = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
     <circle cx="12" cy="12" r="10" />
@@ -70,16 +68,6 @@ const SKIRMISH_ALLOWED = {
   "breach": "Flashpoint",
   "veto": "Crosscut",
 };
-
-const CUSTOM_AGENTS = [
-  {
-    uuid: "7c8a4701-4de6-9355-b254-e09bc2a34b72",
-    displayName: "Miks",
-    displayIcon: "/agents/miks.png",
-    role: { displayName: "Controller", displayIcon: "https://media.valorant-api.com/agents/roles/4ee40330-ecdd-4f2f-98a8-eb1243428373/displayicon.png" },
-    isPlayableCharacter: true,
-  },
-];
 
 function mergeCustomAgents(apiAgents) {
   const existingIds = new Set(apiAgents.map(a => a.uuid.toLowerCase()));
