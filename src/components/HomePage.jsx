@@ -534,7 +534,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
             const clickable = !!m.matchId;
             return (
               <motion.div
-                key={i}
+                key={m.matchId || `idx-${i}`}
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.2, delay }}
                 onClick={clickable ? () => setOpenMatch(m) : undefined}
                 className={`relative rounded-lg overflow-hidden border ${borderColor} h-14 group ${clickable ? "cursor-pointer hover:border-text-muted/40 transition-colors" : ""}`}
