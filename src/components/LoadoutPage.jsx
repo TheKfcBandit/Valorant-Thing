@@ -152,7 +152,6 @@ export default function LoadoutPage({ connected }) {
         if (skinUuids.has(id)) bySkin++;
         if (levelUuids.has(id)) byLevel++;
       }
-      console.log(`[Loadout] Entitlement ID matching: ${bySkin} match skin UUIDs, ${byLevel} match level UUIDs (out of ${levels.size} owned)`);
       setOwned({ levels, chromas, buddies: buds, sprays: sprys, cards: crds, titles: ttls });
     } catch (e) {
       setError(typeof e === "string" ? e : e?.message || "Failed to load");
@@ -312,11 +311,9 @@ export default function LoadoutPage({ connected }) {
     try {
       const body = { Guns: pending.Guns, Sprays: pending.Sprays, Identity: pending.Identity, Incognito: pending.Incognito };
       const jsonStr = JSON.stringify(body);
-      console.log("[Loadout] Saving, body length:", jsonStr.length);
       await invoke("set_loadout", { loadoutJson: jsonStr });
       const verifyRaw = await invoke("get_loadout");
       const verified = JSON.parse(verifyRaw);
-      console.log("[Loadout] Verified version:", verified.Version);
       setLoadout(verified);
       setPending(JSON.parse(JSON.stringify(verified)));
       setSuccessMsg("Loadout updated! Restart game to see changes.");

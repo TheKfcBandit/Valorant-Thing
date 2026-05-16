@@ -107,9 +107,7 @@ ValorantApp/
 │       ├── LogsPage.jsx          # Debug log viewer
 │       ├── DevPage.jsx           # Developer debug page (logs, notifications, cloud, state)
 │       ├── NotificationOverlayWindow.jsx  # Transparent overlay window for notifications
-│       ├── NotificationToast.jsx # Notification toast components (match-found, locking, etc.)
-│       ├── Overlay.jsx           # In-game overlay component
-│       └── OverlayWindow.jsx     # In-game overlay window
+│       └── NotificationToast.jsx # Notification toast components (match-found, locking, etc.)
 ├── src-tauri/                    # Rust backend
 │   ├── Cargo.toml                # Rust dependencies
 │   ├── tauri.conf.json           # Tauri config (window, bundle, security)

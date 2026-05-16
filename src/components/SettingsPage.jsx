@@ -234,8 +234,6 @@ export default function SettingsPage({
   closeWithGame, onCloseWithGameChange,
   disableAnimations, onDisableAnimationsChange,
   updateInfo, onShowUpdate,
-  overlayEnabled, onOverlayEnabledChange,
-  overlayLinger, onOverlayLingerChange,
   notificationsEnabled, onNotificationsEnabledChange,
   notificationPosition, onNotificationPositionChange,
   notificationScreen, onNotificationScreenChange,
@@ -647,33 +645,6 @@ export default function SettingsPage({
           </div>
         )}
       </motion.div>
-
-      {/* Overlay section hidden — code kept in Overlay.jsx & OverlayWindow.jsx
-      <motion.div variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }} transition={noAnim() ? T0 : { duration: 0.2 }} className="rounded-xl bg-base-700 border border-border divide-y divide-border">
-        <div className="px-4 pt-3 pb-1">
-          <h2 className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">Overlay</h2>
-        </div>
-        <div className="flex items-center justify-between p-4">
-          <div>
-            <p className="text-sm font-display font-medium text-text-primary">Valorant Thing Overlay</p>
-            <p className="text-xs font-body text-text-muted mt-0.5">Show match info overlay in-game</p>
-          </div>
-          <Toggle enabled={overlayEnabled} onChange={onOverlayEnabledChange} />
-        </div>
-        {overlayEnabled && (
-          <div className="px-4 py-3 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-display font-medium text-text-primary">Linger Time</p>
-              <p className="text-xs font-body text-text-muted mt-0.5">How long overlay stays after agent select (0 = instant hide)</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <input type="range" min={0} max={30} step={5} value={overlayLinger} onChange={(e) => onOverlayLingerChange(parseInt(e.target.value, 10))} className="w-24 accent-val-red" />
-              <span className="text-xs font-display font-bold text-text-primary w-8 text-right tabular-nums">{overlayLinger}s</span>
-            </div>
-          </div>
-        )}
-      </motion.div>
-      */}
 
       <motion.div variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }} transition={noAnim() ? T0 : { duration: 0.2 }} className="rounded-xl bg-base-700 border border-border divide-y divide-border">
         <div className="px-4 pt-3 pb-1">

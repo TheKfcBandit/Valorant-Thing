@@ -96,21 +96,9 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
       const isTeamMode = !nonTeamModes.includes(modeName);
       const info = { mode: modeName, server: match.GamePodID || "", isTeamMode };
 
-      // Score tracking disabled — coregame endpoint doesn't return Teams/RoundsWon
-      // if (phase === "INGAME" && isTeamMode) {
-      //   const me = (match.Players || []).find((p) => p.Subject === myPuuid);
-      //   const myTeam = me?.TeamID;
-      //   const blueTeam = match.Teams?.find?.((t) => t.TeamID === "Blue");
-      //   const redTeam = match.Teams?.find?.((t) => t.TeamID === "Red");
-      //   info.allyScore = myTeam === "Blue" ? (blueTeam?.RoundsWon ?? 0) : (redTeam?.RoundsWon ?? 0);
-      //   info.enemyScore = myTeam === "Blue" ? (redTeam?.RoundsWon ?? 0) : (blueTeam?.RoundsWon ?? 0);
-      //   info.round = (info.allyScore + info.enemyScore + 1);
-      // }
-
       setMatchInfo(info);
 
       const rawPlayers = phase === "PREGAME" ? (match.AllyTeam?.Players || []) : (match.Players || []);
-      if (rawPlayers.length > 0) console.log("[MatchInfo] Sample PlayerIdentity:", JSON.stringify(rawPlayers[0]?.PlayerIdentity, null, 2));
 
       let playerList = [];
       if (phase === "PREGAME") {

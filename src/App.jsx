@@ -26,7 +26,6 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { emitTo } from "@tauri-apps/api/event";
 import { register, unregister, isRegistered } from "@tauri-apps/plugin-global-shortcut";
 import HomePage from "./components/HomePage";
-// import Overlay from "./components/Overlay";
 import { getCached, setCache } from "./matchCache";
 
 function parseGamePod(podId) {
@@ -279,11 +278,6 @@ export default function App() {
     const saved = localStorage.getItem("instalock_lock_mode");
     return saved && ["instant", "last-second", "select-only"].includes(saved) ? saved : "instant";
   });
-  // const [overlayEnabled, setOverlayEnabled] = useState(() => localStorage.getItem("overlay_enabled") !== "false");
-  // const [overlayLinger, setOverlayLinger] = useState(() => {
-  //   const saved = localStorage.getItem("overlay_linger");
-  //   return saved != null ? parseInt(saved, 10) : 20;
-  // });
   const notifWindowRef = useRef(null);
   const mapLookupRef = useRef({});
   const currentMatchMapRef = useRef(null);
@@ -424,7 +418,6 @@ export default function App() {
       const val = on === undefined ? localStorage.getItem("dev_tab_enabled") !== "true" : !!on;
       localStorage.setItem("dev_tab_enabled", String(val));
       setDevTab(val);
-      console.log(`[VT] Dev tab ${val ? "enabled" : "disabled"}`);
     };
     return () => window.removeEventListener("keydown", handler);
   }, []);
@@ -993,8 +986,6 @@ export default function App() {
 
   useEffect(() => { splooshimaApiKeyRef.current = splooshimaApiKey; }, [splooshimaApiKey]);
   useEffect(() => { splooshimaAvailableRef.current = splooshimaAvailable; }, [splooshimaAvailable]);
-  // useEffect(() => { localStorage.setItem("overlay_enabled", String(overlayEnabled)); }, [overlayEnabled]);
-  // useEffect(() => { localStorage.setItem("overlay_linger", String(overlayLinger)); }, [overlayLinger]);
 
   useEffect(() => {
     const unsubPromise = listen("notif-ready", () => {
@@ -1253,7 +1244,6 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion={disableAnimations ? "always" : "never"}>
-    {/* <Overlay connected={status === "connected"} enabled={overlayEnabled} theme={theme} player={player} linger={overlayLinger} /> */}
     <div
       className={`w-full h-full rounded-xl overflow-hidden border border-border flex flex-col shadow-2xl ${simplifiedTheme ? "bg-base-800" : ""}`}
       style={!simplifiedTheme ? {
@@ -1505,10 +1495,6 @@ export default function App() {
               onNotificationPositionChange={(v) => { setNotificationPosition(v); localStorage.setItem("notification_position", v); if (notifWindowRef.current) { try { notifWindowRef.current.destroy(); } catch {} notifWindowRef.current = null; overlayReadyRef.current = false; creatingWindowRef.current = false; } }}
               notificationScreen={notificationScreen}
               onNotificationScreenChange={(v) => { setNotificationScreen(v); localStorage.setItem("notification_screen", v); if (notifWindowRef.current) { try { notifWindowRef.current.destroy(); } catch {} notifWindowRef.current = null; overlayReadyRef.current = false; creatingWindowRef.current = false; } }}
-              // overlayEnabled={overlayEnabled}
-              // onOverlayEnabledChange={setOverlayEnabled}
-              // overlayLinger={overlayLinger}
-              // onOverlayLingerChange={setOverlayLinger}
             />
             </motion.div>
           )}
