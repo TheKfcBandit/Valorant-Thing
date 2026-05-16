@@ -766,6 +766,24 @@ async fn splooshima_lookup(puuids: Vec<String>, api_key: String) -> Result<Strin
 }
 
 pub fn run() {
+    // Route any backend panic through riot::logging so it lands in the log
+    // viewer instead of vanishing with the window. Without this hook a panic
+    // anywhere in a Tauri command (or a spawn_blocking task) is a silent
+    // process death with no diagnostic trail.
+    std::panic::set_hook(Box::new(|info| {
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}", l.file(), l.line()))
+            .unwrap_or_else(|| "<unknown>".to_string());
+        let payload = info
+            .payload()
+            .downcast_ref::<&str>()
+            .copied()
+            .or_else(|| info.payload().downcast_ref::<String>().map(|s| s.as_str()))
+            .unwrap_or("<non-string payload>");
+        riot::logging::log_error(&format!("[panic] {} at {}", payload, location));
+    }));
+
     #[cfg(windows)]
     {
         #[link(name = "shell32")]

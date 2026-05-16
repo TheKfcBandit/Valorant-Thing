@@ -279,8 +279,16 @@ pub fn parse_region_shard() -> Result<(String, String), String> {
         .map_err(|e| e.to_string())?;
     let last = re.captures_iter(&log).last()
         .ok_or("Could not find region/shard in ShooterGame.log")?;
-    let region = last[1].to_string();
-    let shard = last[2].to_string();
+    let region = last
+        .get(1)
+        .ok_or("ShooterGame.log region capture missing")?
+        .as_str()
+        .to_string();
+    let shard = last
+        .get(2)
+        .ok_or("ShooterGame.log shard capture missing")?
+        .as_str()
+        .to_string();
     log_info(&format!("[Connect] Parsed region={} shard={} from ShooterGame.log", region, shard));
     Ok((region, shard))
 }
@@ -291,7 +299,12 @@ pub fn parse_client_version() -> Result<String, String> {
         .map_err(|e| e.to_string())?;
     match re.captures(&log) {
         Some(cap) => {
-            let version = cap[1].trim().to_string();
+            let version = cap
+                .get(1)
+                .ok_or("ShooterGame.log version capture missing")?
+                .as_str()
+                .trim()
+                .to_string();
             log_info(&format!("[Connect] Parsed client_version={} from ShooterGame.log", version));
             Ok(version)
         }

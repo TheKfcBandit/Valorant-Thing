@@ -71,6 +71,7 @@ pub async fn oauth_signin(
     let (tx, rx) = oneshot::channel::<String>();
     let tx_slot = Arc::new(Mutex::new(Some(tx)));
     let tx_for_nav = Arc::clone(&tx_slot);
+    let tx_for_close = Arc::clone(&tx_slot);
 
     let win = WebviewWindowBuilder::new(&app, "oauth", WebviewUrl::External(authorize_url))
         .title("Sign in with Riot")
@@ -95,6 +96,16 @@ pub async fn oauth_signin(
         })
         .build()
         .map_err(|e| format!("webview build: {}", e))?;
+
+    // Drop the sender on manual close so rx resolves immediately to
+    // "Sign-in cancelled." instead of waiting out SIGNIN_TIMEOUT_SECS.
+    win.on_window_event(move |event| {
+        if let tauri::WindowEvent::CloseRequested { .. } = event {
+            if let Ok(mut guard) = tx_for_close.lock() {
+                guard.take();
+            }
+        }
+    });
 
     let captured_url = match tokio::time::timeout(
         Duration::from_secs(SIGNIN_TIMEOUT_SECS),

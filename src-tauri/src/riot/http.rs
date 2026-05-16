@@ -124,7 +124,7 @@ pub fn splooshima_api_post(path: &str, body: &str, api_key: &str) -> Result<Stri
 
     let raw = String::from_utf8_lossy(&output.stdout).to_string();
     let lines: Vec<&str> = raw.splitn(2, '\n').collect();
-    let status = lines.first().and_then(|s| s.parse::<u16>().ok()).unwrap_or(0);
+    let status = lines.first().and_then(|s| s.parse::<u16>().ok()).unwrap_or(500);
     let resp_body = lines.get(1).unwrap_or(&"").to_string();
 
     if status >= 400 {
