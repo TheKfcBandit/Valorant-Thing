@@ -302,7 +302,11 @@ fn fetch_userinfo(
         .bearer_auth(access_token)
         .send()
         .map_err(|e| format!("userinfo request: {}", e))?;
+    let status = resp.status();
     let body = resp.text().map_err(|e| format!("userinfo read: {}", e))?;
+    if !status.is_success() {
+        return Err(format!("Userinfo call failed: HTTP {}", status));
+    }
     let v: Value = serde_json::from_str(&body).map_err(|e| format!("userinfo parse: {}", e))?;
     let puuid = v["sub"]
         .as_str()
