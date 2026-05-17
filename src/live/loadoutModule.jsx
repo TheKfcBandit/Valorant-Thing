@@ -3,7 +3,13 @@ import { getCached, setCache } from "../matchCache";
 import { getLevelLookup, getAccessoryLookup, getWeaponLookup } from "../valApiSkins";
 import { useApiLookup } from "../hooks/useApiLookup";
 
-const SOCKET_SKIN_LEVEL = "bcef87d6-209b-46c6-8b19-fbe40bd95abc";
+// Well-known Riot socket UUIDs. Cross-checked against multiple community
+// client implementations (RadiantConnect, valorant-rank-yoinker, etc).
+// Per-weapon Sockets is keyed by these:
+//   skin       → base skin UUID (we don't read it)
+//   skin_level → specific equipped level UUID (resolves via getLevelLookup)
+//   buddy      → equipped buddy level UUID (resolves via getAccessoryLookup)
+const SOCKET_SKIN_LEVEL = "e7c63390-eda7-46e0-bb7a-a6abdacd2433";
 const SOCKET_BUDDY_LEVEL = "dd3bf334-87f3-40bd-b043-682a57a8dc3a";
 
 // Curated marquee. Order = visual priority in the row. Display names come
@@ -21,9 +27,10 @@ const ALL_WEAPONS = [
   "42da8ccc-40d5-affc-beec-15aa47b42eda", // Shorty
   "44d4e95c-4157-0037-81b2-17841bf2e8e3", // Frenzy
   "1baa85b4-4c70-1284-64bb-6481dfc3bb4e", // Ghost
+  "410b2e0b-4ceb-1321-1727-20858f7f3477", // Bandit
   "e336c6b8-418d-9340-d77f-7a9e4cfe0702", // Sheriff
   "f7e1b454-4ad4-1063-ec0a-159e56b58941", // Stinger
-  "462080d1-4035-2937-7c09-27aa2a5e27a7", // Spectre
+  "462080d1-4035-2937-7c09-27aa2a5c27a7", // Spectre
   "910be174-449b-c412-ab22-d0873436b21b", // Bucky
   "ec845bf4-4f79-ddda-a3da-0db3774b2794", // Judge
   "ae3de142-4d85-2547-dd26-4e90bed35cf7", // Bulldog
@@ -31,6 +38,7 @@ const ALL_WEAPONS = [
   "ee8e8d15-496b-07ac-e5f6-8fae5d4c7b1a", // Phantom
   "9c82e19d-4575-0200-1a81-3eacf00cf872", // Vandal
   "c4883e50-4494-202c-3ec3-6b8a9284f00b", // Marshal
+  "5f0aaf7a-4289-3998-d5ff-eb9a5cf7ef5c", // Outlaw
   "a03b24d3-4319-996d-0f8c-94bbfba1dfc7", // Operator
   "55d8a0f4-4274-ca67-fe2c-06ab45efdf58", // Ares
   "63e6c2b6-4a8e-869c-3d4c-e38355226584", // Odin
@@ -109,10 +117,10 @@ function DialogSection({ player, data: loadout }) {
   const accessoryLookup = useApiLookup(getAccessoryLookup);
   const weaponLookup = useApiLookup(getWeaponLookup);
   if (!loadout) return null;
-  const identity = loadout.Identity || {};
-  const cardMeta = identity.PlayerCardID ? accessoryLookup[identity.PlayerCardID.toLowerCase()] : null;
-  const titleMeta = identity.PlayerTitleID ? accessoryLookup[identity.PlayerTitleID.toLowerCase()] : null;
-  const sprays = Array.isArray(loadout.Sprays) ? loadout.Sprays : [];
+  // Match-loadout responses wrap spray selections in an inner array, NOT
+  // as a flat list. Per-entry shape: { SocketID, SprayID, LevelID } —
+  // accessoryLookup keys on the base SprayID.
+  const sprays = loadout.Sprays?.SpraySelections || [];
 
   return (
     <div className="space-y-4">
@@ -157,7 +165,7 @@ function DialogSection({ player, data: loadout }) {
           <h3 className="text-xs font-display font-medium text-text-secondary uppercase tracking-wider mb-2">Sprays</h3>
           <div className="flex gap-2">
             {sprays.map((s, i) => {
-              const sprayId = (s?.SprayID || s?.LevelID || "").toLowerCase();
+              const sprayId = (s?.SprayID || "").toLowerCase();
               const meta = sprayId ? accessoryLookup[sprayId] : null;
               return (
                 <div key={i} className="flex-1 p-2 rounded-lg bg-base-700 border border-border flex flex-col items-center gap-1">
@@ -178,22 +186,6 @@ function DialogSection({ player, data: loadout }) {
         </div>
       )}
 
-      {(cardMeta?.image || titleMeta?.name) && (
-        <div>
-          <h3 className="text-xs font-display font-medium text-text-secondary uppercase tracking-wider mb-2">Identity</h3>
-          <div className="flex items-center gap-3 p-2 rounded-lg bg-base-700 border border-border">
-            {cardMeta?.image && (
-              <img src={cardMeta.image} alt="" className="w-12 h-12 rounded object-cover" loading="lazy" />
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-body text-text-primary truncate">{cardMeta?.name || "—"}</p>
-              {titleMeta?.name && (
-                <p className="text-[10px] font-body text-text-muted italic truncate">{titleMeta.name}</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
