@@ -4,6 +4,30 @@
 
 let weaponsPromise = null;
 let levelLookup = null;
+let weaponLookup = null;
+
+// Maps weaponUuid → { displayName, category, displayIcon }. Shares the
+// /v1/weapons fetch with getLevelLookup so first caller pays and the rest
+// are free regardless of which lookup is requested first.
+export async function getWeaponLookup() {
+  if (weaponLookup) return weaponLookup;
+  if (!weaponsPromise) {
+    weaponsPromise = fetch("https://valorant-api.com/v1/weapons")
+      .then(r => r.json())
+      .then(d => d.data);
+  }
+  const weapons = await weaponsPromise;
+  const out = {};
+  for (const w of weapons) {
+    out[w.uuid.toLowerCase()] = {
+      displayName: w.displayName,
+      category: w.shopData?.category || "",
+      displayIcon: w.displayIcon || "",
+    };
+  }
+  weaponLookup = out;
+  return out;
+}
 
 export async function getLevelLookup() {
   if (levelLookup) return levelLookup;
