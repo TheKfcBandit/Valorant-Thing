@@ -6,7 +6,6 @@ const DISMISS_MS = { "match-found": 8000, "locked": 4000, "dodged": 4000, "queue
 const SPIKE_TOTAL_S = 45;
 const FULL_DEFUSE_S = 7;
 const HALF_DEFUSE_S = 3.5;
-const HALF_DEFUSE_COLOR = "#f59e0b";
 
 export default function NotificationToast({ notification, onDismiss }) {
   const [remaining, setRemaining] = useState(0);
@@ -81,7 +80,7 @@ export default function NotificationToast({ notification, onDismiss }) {
                 />
               </div>
               <DefuseTick seconds={FULL_DEFUSE_S} color="rgb(var(--status-green))" />
-              <DefuseTick seconds={HALF_DEFUSE_S} color={HALF_DEFUSE_COLOR} />
+              <DefuseTick seconds={HALF_DEFUSE_S} color="rgb(var(--status-yellow))" />
             </div>
             <SpikeDefuseStatus tier={spikeT} />
           </>
@@ -195,11 +194,11 @@ function DodgedCard({ n }) {
     : "Manually dodged";
   const title = n.reason === "map" ? "Map Dodged" : "Match Dodged";
   return (
-    <CardShell stripBg="linear-gradient(180deg, #f59e0b, #f59e0b80)">
+    <CardShell stripBg="linear-gradient(180deg, rgb(var(--status-yellow)), rgb(var(--status-yellow) / 0.3))">
       <div className="flex-1 px-3.5 py-3 flex flex-col gap-2 min-w-0">
         <VTHeader />
         <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-body font-semibold" style={{ color: "#f59e0b" }}>{title}</span>
+          <span className="text-sm font-body font-semibold" style={{ color: "rgb(var(--status-yellow))" }}>{title}</span>
           <span className="text-xs font-body text-text-muted">{reason}</span>
         </div>
       </div>
@@ -279,8 +278,8 @@ function spikeTier(remaining) {
     icon: "check",
   };
   if (s >= HALF_DEFUSE_S) return {
-    color: HALF_DEFUSE_COLOR,
-    stripBg: "linear-gradient(180deg, #f59e0b, rgba(245, 158, 11, 0.3))",
+    color: "rgb(var(--status-yellow))",
+    stripBg: "linear-gradient(180deg, rgb(var(--status-yellow)), rgb(var(--status-yellow) / 0.3))",
     label: "Half defuse only",
     icon: "half",
   };
