@@ -23,24 +23,13 @@ import WrappedPage from "./components/WrappedPage";
 import CoachPage from "./components/CoachPage";
 import DevPage from "./components/DevPage";
 import { getLevelLookup, getMaps } from "./valApiSkins";
+import { parseGamePod } from "./utils/gamePod";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { emitTo } from "@tauri-apps/api/event";
 import { register, unregister, isRegistered } from "@tauri-apps/plugin-global-shortcut";
 import HomePage from "./components/HomePage";
 import { getCached, setCache } from "./matchCache";
 import { MODE_NAMES } from "./utils/gameMode";
-
-function parseGamePod(podId) {
-  if (!podId) return "";
-  const parts = podId.split("-");
-  const gpIdx = parts.indexOf("gp");
-  if (gpIdx >= 0 && gpIdx + 1 < parts.length) {
-    const region = parts.slice(0, gpIdx).find(p => ["na", "eu", "ap", "kr", "br", "latam"].includes(p))?.toUpperCase() || "";
-    const city = parts[gpIdx + 1].charAt(0).toUpperCase() + parts[gpIdx + 1].slice(1).replace(/\d+$/, "");
-    return region ? `${region} - ${city}` : city;
-  }
-  return podId.split(".").pop()?.split("-").slice(0, 2).join(" ") || podId;
-}
 
 function resolveModeName(queueId = "", modeUrl = "") {
   const key = Object.keys(MODE_NAMES).find((k) => queueId === k || modeUrl.includes(k));

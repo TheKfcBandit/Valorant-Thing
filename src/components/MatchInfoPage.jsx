@@ -7,6 +7,7 @@ import { MODE_NAMES } from "../utils/gameMode";
 import { LIVE_MODULES } from "../live/registry";
 import { getAgentLookup, getMapLookup, getTierLookup } from "../valApiSkins";
 import { useApiLookup } from "../hooks/useApiLookup";
+import { parseGamePod } from "../utils/gamePod";
 
 const POLL_INTERVAL = 2000;
 
@@ -461,18 +462,6 @@ function splitTeams(players, phase, myPuuid) {
   return { mode: "list", all: players };
 }
 
-function parseServer(podId) {
-  if (!podId) return "";
-  const parts = podId.split("-");
-  const gpIdx = parts.indexOf("gp");
-  if (gpIdx >= 0 && gpIdx + 1 < parts.length) {
-    const region = parts.slice(0, gpIdx).find((p) => ["na", "eu", "ap", "kr", "br", "latam"].includes(p))?.toUpperCase() || "";
-    const city = parts[gpIdx + 1].charAt(0).toUpperCase() + parts[gpIdx + 1].slice(1).replace(/\d+$/, "");
-    return region ? `${region} - ${city}` : city;
-  }
-  return podId.split(".").pop()?.split("-").slice(0, 2).join(" ") || podId;
-}
-
 function MatchHeader({ mapId, maps, matchPhase, matchInfo, matchId, playerCount, fetching, error }) {
   const mapData = mapId ? (maps[mapId.toLowerCase()] || null) : null;
   const mapName = mapData?.displayName || "Unknown Map";
@@ -506,7 +495,7 @@ function MatchHeader({ mapId, maps, matchPhase, matchInfo, matchId, playerCount,
             {matchInfo?.server && (
               <>
                 <span className="text-[11px] text-text-muted/40">·</span>
-                <span className="text-[11px] font-body text-text-muted">{parseServer(matchInfo.server)}</span>
+                <span className="text-[11px] font-body text-text-muted">{parseGamePod(matchInfo.server)}</span>
               </>
             )}
             <span className="text-[11px] text-text-muted/40">·</span>
