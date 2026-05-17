@@ -3,6 +3,11 @@ import { motion } from "framer-motion";
 
 const DISMISS_MS = { "match-found": 8000, "locked": 4000, "dodged": 4000, "queue": 4000, "wishlist-hit": 8000 };
 
+const SPIKE_TOTAL_S = 45;
+const FULL_DEFUSE_S = 7;
+const HALF_DEFUSE_S = 3.5;
+const HALF_DEFUSE_COLOR = "#f59e0b";
+
 export default function NotificationToast({ notification, onDismiss }) {
   const [remaining, setRemaining] = useState(0);
   const rafRef = useRef(null);
@@ -65,14 +70,18 @@ export default function NotificationToast({ notification, onDismiss }) {
                 {(remaining / 1000).toFixed(1)}s
               </span>
             </div>
-            <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: "rgb(var(--base-600))" }}>
-              <motion.div
-                className="h-full rounded-full"
-                style={{ background: spikeT.color, transformOrigin: "left", transition: "background 200ms" }}
-                initial={{ scaleX: 1 }}
-                animate={{ scaleX: notification.totalMs ? remaining / notification.totalMs : 0 }}
-                transition={{ duration: 0.05, ease: "linear" }}
-              />
+            <div className="relative w-full pb-3">
+              <div className="w-full h-1 rounded-full" style={{ background: "rgb(var(--base-600))" }}>
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ background: spikeT.color, transformOrigin: "left", transition: "background 200ms" }}
+                  initial={{ scaleX: 1 }}
+                  animate={{ scaleX: notification.totalMs ? remaining / notification.totalMs : 0 }}
+                  transition={{ duration: 0.05, ease: "linear" }}
+                />
+              </div>
+              <DefuseTick seconds={FULL_DEFUSE_S} color="rgb(var(--status-green))" />
+              <DefuseTick seconds={HALF_DEFUSE_S} color={HALF_DEFUSE_COLOR} />
             </div>
             <SpikeDefuseStatus tier={spikeT} />
           </>
@@ -243,16 +252,34 @@ function WishlistHitCard({ n }) {
   );
 }
 
+function DefuseTick({ seconds, color }) {
+  const leftPct = (seconds / SPIKE_TOTAL_S) * 100;
+  return (
+    <div
+      className="absolute top-0 pointer-events-none"
+      style={{ left: `${leftPct}%`, transform: "translateX(-50%)" }}
+    >
+      <div style={{ width: 1, height: 8, background: color, marginTop: -2 }} />
+      <div
+        className="text-[9px] font-body tabular-nums leading-none mt-0.5"
+        style={{ color, transform: "translateX(-50%)", marginLeft: "50%" }}
+      >
+        {seconds}s
+      </div>
+    </div>
+  );
+}
+
 function spikeTier(remaining) {
   const s = remaining / 1000;
-  if (s >= 7) return {
+  if (s >= FULL_DEFUSE_S) return {
     color: "rgb(var(--status-green))",
     stripBg: "linear-gradient(180deg, rgb(var(--status-green)), rgb(var(--status-green) / 0.3))",
     label: "Full defuse",
     icon: "check",
   };
-  if (s >= 3.5) return {
-    color: "#f59e0b",
+  if (s >= HALF_DEFUSE_S) return {
+    color: HALF_DEFUSE_COLOR,
     stripBg: "linear-gradient(180deg, #f59e0b, rgba(245, 158, 11, 0.3))",
     label: "Half defuse only",
     icon: "half",
