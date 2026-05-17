@@ -24,6 +24,7 @@ import CoachPage from "./components/CoachPage";
 import DevPage from "./components/DevPage";
 import { getLevelLookup, getMaps } from "./valApiSkins";
 import { parseGamePod } from "./utils/gamePod";
+import { hexToRgb } from "./utils/color";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { emitTo } from "@tauri-apps/api/event";
 import { register, unregister, isRegistered } from "@tauri-apps/plugin-global-shortcut";
@@ -62,10 +63,6 @@ function normalizeMenuVideoConfig(config) {
 }
 
 const CUSTOM_VARS = ['--base-900','--base-800','--base-700','--base-600','--base-500','--base-400','--border','--border-light','--val-red','--val-red-dark','--accent-blue','--accent-blue-dark'];
-
-function hexToRgb(hex) {
-  return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
-}
 
 const DEFAULT_CUSTOM = {
   accent: "#e94560",
