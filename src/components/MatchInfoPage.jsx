@@ -3,21 +3,19 @@ import { invoke } from "@tauri-apps/api/core";
 import { motion, AnimatePresence } from "framer-motion";
 import { getCached, setCache } from "../matchCache";
 import { noAnim, T0 } from "../utils/animation";
-import { CUSTOM_AGENTS } from "../utils/agents";
 import { MODE_NAMES } from "../utils/gameMode";
 import { LIVE_MODULES } from "../live/registry";
+import { getAgentLookup, getMapLookup, getTierLookup } from "../valApiSkins";
+import { useApiLookup } from "../hooks/useApiLookup";
 
-const AGENT_MAP_URL = "https://valorant-api.com/v1/agents?isPlayableCharacter=true";
-const COMP_TIERS_URL = "https://valorant-api.com/v1/competitivetiers";
-const MAPS_URL = "https://valorant-api.com/v1/maps";
 const POLL_INTERVAL = 2000;
 
 export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, player: selfPlayer, connected, addLog }) {
   const myPuuid = selfPlayer?.puuid;
   const [players, setPlayers] = useState([]);
-  const [agents, setAgents] = useState({});
-  const [tiers, setTiers] = useState({});
-  const [maps, setMaps] = useState({});
+  const agents = useApiLookup(getAgentLookup);
+  const tiers = useApiLookup(getTierLookup);
+  const maps = useApiLookup(getMapLookup);
   const [matchPhase, setMatchPhase] = useState(null);
   const [mapId, setMapId] = useState(null);
   const [matchId, setMatchId] = useState(null);
@@ -30,47 +28,6 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
   const fetchedMatchRef = useRef(null);
   const fetchedModuleKeysRef = useRef({});
   const cancelledRef = useRef(false);
-
-  useEffect(() => {
-    fetch(AGENT_MAP_URL)
-      .then((r) => r.json())
-      .then((res) => {
-        const map = {};
-        (res.data || []).forEach((a) => {
-          map[a.uuid.toLowerCase()] = a;
-        });
-        for (const ca of CUSTOM_AGENTS) {
-          const key = ca.uuid.toLowerCase();
-          if (!map[key]) map[key] = ca;
-        }
-        setAgents(map);
-      })
-      .catch(() => {});
-    fetch(COMP_TIERS_URL)
-      .then((r) => r.json())
-      .then((res) => {
-        const episodes = res.data || [];
-        const latest = episodes[episodes.length - 1];
-        if (!latest) return;
-        const map = {};
-        (latest.tiers || []).forEach((t) => {
-          map[t.tier] = { name: t.tierName === "Unused1" || t.tierName === "Unused2" ? "Unranked" : t.tierName, icon: t.smallIcon };
-        });
-        setTiers(map);
-      })
-      .catch(() => {});
-    fetch(MAPS_URL)
-      .then((r) => r.json())
-      .then((res) => {
-        const m = {};
-        (res.data || []).forEach((map) => {
-          if (map.mapUrl) m[map.mapUrl.toLowerCase()] = map;
-          m[map.uuid.toLowerCase()] = map;
-        });
-        setMaps(m);
-      })
-      .catch(() => {});
-  }, []);
 
   // Generic module orchestrator: run each registered LiveModule's fetch
   // once per (matchId, phase, moduleId). Modules don't see each other —

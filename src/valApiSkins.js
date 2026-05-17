@@ -1,24 +1,37 @@
 // Lazy lookups against valorant-api.com. Each builder caches its result so
 // later callers (and component re-renders) don't re-fetch. All maps are
 // keyed by lowercase UUID to match the casing the storefront returns.
+//
+// Pattern per resource:
+//   getX()       memoized fetch returning the raw API array
+//   getXLookup() memoized keyed view built from getX() — consumers that
+//                want a different shape should project locally rather than
+//                add a third entry point.
+
+import { CUSTOM_AGENTS } from "./utils/agents";
+
+const VAL_API = "https://valorant-api.com/v1";
+
+// --- Weapons (shared by weapon + skin-level lookups) -----------------------
 
 let weaponsPromise = null;
-let levelLookup = null;
 let weaponLookup = null;
+let levelLookup = null;
 
-// Maps weaponUuid → { displayName, category, displayIcon }. Shares the
-// /v1/weapons fetch with getLevelLookup so first caller pays and the rest
-// are free regardless of which lookup is requested first.
+async function getWeapons() {
+  if (!weaponsPromise) {
+    weaponsPromise = fetch(`${VAL_API}/weapons`).then(r => r.json()).then(d => d.data);
+  }
+  return weaponsPromise;
+}
+
+// Maps weaponUuid → { displayName, category, displayIcon }.
 export async function getWeaponLookup() {
   if (weaponLookup) return weaponLookup;
-  if (!weaponsPromise) {
-    weaponsPromise = fetch("https://valorant-api.com/v1/weapons")
-      .then(r => r.json())
-      .then(d => d.data);
-  }
-  const weapons = await weaponsPromise;
+  const weapons = await getWeapons();
   const out = {};
   for (const w of weapons) {
+    if (!w?.uuid) continue;
     out[w.uuid.toLowerCase()] = {
       displayName: w.displayName,
       category: w.shopData?.category || "",
@@ -29,14 +42,10 @@ export async function getWeaponLookup() {
   return out;
 }
 
+// Maps skin-level UUID → { skinUuid, name, icon, tier, weapon }.
 export async function getLevelLookup() {
   if (levelLookup) return levelLookup;
-  if (!weaponsPromise) {
-    weaponsPromise = fetch("https://valorant-api.com/v1/weapons")
-      .then(r => r.json())
-      .then(d => d.data);
-  }
-  const weapons = await weaponsPromise;
+  const weapons = await getWeapons();
   const out = {};
   for (const w of weapons) {
     for (const skin of w.skins || []) {
@@ -58,6 +67,116 @@ export async function getLevelLookup() {
   return out;
 }
 
+// --- Maps ------------------------------------------------------------------
+
+let mapsPromise = null;
+let mapLookup = null;
+
+export async function getMaps() {
+  if (!mapsPromise) {
+    mapsPromise = fetch(`${VAL_API}/maps`).then(r => r.json()).then(d => d.data || []);
+  }
+  return mapsPromise;
+}
+
+// Indexed by both uuid AND mapUrl (both lowercase). Consumers that key by
+// the trailing slug of mapUrl (e.g. HomePage, WrappedPage) should iterate
+// the raw array from getMaps() and derive their own slim shape.
+export async function getMapLookup() {
+  if (mapLookup) return mapLookup;
+  const maps = await getMaps();
+  const out = {};
+  for (const m of maps) {
+    if (m?.uuid) out[m.uuid.toLowerCase()] = m;
+    if (m?.mapUrl) out[m.mapUrl.toLowerCase()] = m;
+  }
+  mapLookup = out;
+  return out;
+}
+
+// --- Agents (playable + custom) -------------------------------------------
+
+let agentsPromise = null;
+let agentLookup = null;
+
+export async function getAgents() {
+  if (!agentsPromise) {
+    agentsPromise = fetch(`${VAL_API}/agents?isPlayableCharacter=true`)
+      .then(r => r.json())
+      .then(d => {
+        const apiAgents = d.data || [];
+        const existing = new Set(apiAgents.map(a => a.uuid.toLowerCase()));
+        const extras = CUSTOM_AGENTS.filter(c => !existing.has(c.uuid.toLowerCase()));
+        return [...apiAgents, ...extras];
+      });
+  }
+  return agentsPromise;
+}
+
+export async function getAgentLookup() {
+  if (agentLookup) return agentLookup;
+  const agents = await getAgents();
+  const out = {};
+  for (const a of agents) {
+    if (a?.uuid) out[a.uuid.toLowerCase()] = a;
+  }
+  agentLookup = out;
+  return out;
+}
+
+// --- Competitive tiers (flat latest-episode view) -------------------------
+
+let tiersPromise = null;
+let tierLookup = null;
+
+// Indexed by tier number (0 = unranked, 27 = Radiant). Each entry: { name, icon }.
+// The "Unused1"/"Unused2" placeholder tier names are normalized to "Unranked".
+export async function getTierLookup() {
+  if (tierLookup) return tierLookup;
+  if (!tiersPromise) {
+    tiersPromise = fetch(`${VAL_API}/competitivetiers`).then(r => r.json()).then(d => d.data || []);
+  }
+  const episodes = await tiersPromise;
+  const out = {};
+  const latest = episodes[episodes.length - 1];
+  if (latest) {
+    for (const t of latest.tiers || []) {
+      const placeholder = t.tierName === "Unused1" || t.tierName === "Unused2";
+      out[t.tier] = { name: placeholder ? "Unranked" : t.tierName, icon: t.smallIcon };
+    }
+  }
+  tierLookup = out;
+  return out;
+}
+
+// --- Game modes -----------------------------------------------------------
+
+let gameModesPromise = null;
+let gameModeLookup = null;
+
+export async function getGameModes() {
+  if (!gameModesPromise) {
+    gameModesPromise = fetch(`${VAL_API}/gamemodes`).then(r => r.json()).then(d => d.data || []);
+  }
+  return gameModesPromise;
+}
+
+// Indexed by the trailing class name of assetPath (lowercase) — matches the
+// shape PartyPage's mode-icon lookups consume.
+export async function getGameModeLookup() {
+  if (gameModeLookup) return gameModeLookup;
+  const modes = await getGameModes();
+  const out = {};
+  for (const m of modes) {
+    const cls = (m?.assetPath || "").split("/").pop()?.toLowerCase();
+    if (cls) out[cls] = m;
+  }
+  gameModeLookup = out;
+  return out;
+}
+
+// --- Bundles --------------------------------------------------------------
+
 let bundleLookup = null;
 let bundlesPromise = null;
 
@@ -67,9 +186,7 @@ let bundlesPromise = null;
 export async function getBundleLookup() {
   if (bundleLookup) return bundleLookup;
   if (!bundlesPromise) {
-    bundlesPromise = fetch("https://valorant-api.com/v1/bundles")
-      .then(r => r.json())
-      .then(d => d.data);
+    bundlesPromise = fetch(`${VAL_API}/bundles`).then(r => r.json()).then(d => d.data);
   }
   const bundles = await bundlesPromise;
   const out = {};
@@ -85,6 +202,8 @@ export async function getBundleLookup() {
   return out;
 }
 
+// --- Accessories (buddies + sprays + cards + titles) ----------------------
+
 let accessoryLookup = null;
 let accessoryPromise = null;
 
@@ -98,10 +217,10 @@ export async function getAccessoryLookup() {
     // allSettled rather than all so one 5xx endpoint doesn't kill the whole
     // catalog — accessory cards for the surviving kinds still resolve.
     accessoryPromise = Promise.allSettled([
-      fetch("https://valorant-api.com/v1/buddies").then(r => r.json()),
-      fetch("https://valorant-api.com/v1/sprays").then(r => r.json()),
-      fetch("https://valorant-api.com/v1/playercards").then(r => r.json()),
-      fetch("https://valorant-api.com/v1/playertitles").then(r => r.json()),
+      fetch(`${VAL_API}/buddies`).then(r => r.json()),
+      fetch(`${VAL_API}/sprays`).then(r => r.json()),
+      fetch(`${VAL_API}/playercards`).then(r => r.json()),
+      fetch(`${VAL_API}/playertitles`).then(r => r.json()),
     ]);
   }
   const [buddiesR, spraysR, cardsR, titlesR] = await accessoryPromise;

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { computeFitness } from "../squadAnalytics";
 
 import { noAnim, T0 } from "../utils/animation";
+import { getMapLookup, getGameModeLookup } from "../valApiSkins";
 
 const QUEUES = [
   { id: "unrated", label: "Unrated" },
@@ -269,21 +270,10 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
   useEffect(() => {
     if (isCustom && !customConfigs) fetchCustomConfigs();
     if (isCustom && !apiMaps) {
-      fetch("https://valorant-api.com/v1/maps?language=en-US").then(r => r.json()).then(j => {
-        const lookup = {};
-        (j.data || []).forEach(m => { if (m.mapUrl) lookup[m.mapUrl] = m; });
-        setApiMaps(lookup);
-      }).catch(() => {});
+      getMapLookup().then(setApiMaps).catch(() => {});
     }
     if (isCustom && !apiModes) {
-      fetch("https://valorant-api.com/v1/gamemodes?language=en-US").then(r => r.json()).then(j => {
-        const lookup = {};
-        (j.data || []).forEach(m => {
-          const cls = (m.assetPath || "").split("/").pop();
-          if (cls) lookup[cls] = m;
-        });
-        setApiModes(lookup);
-      }).catch(() => {});
+      getGameModeLookup().then(setApiModes).catch(() => {});
     }
   }, [isCustom]);
 
@@ -527,11 +517,11 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
         const SERVER_NAMES = { dallas: "US Central (Texas)", atlanta: "US Central (Georgia)", chicago: "US Central (Illinois)", ashburn: "US East (N. Virginia)", norcal: "US West (N. California)", oregon: "US West (Oregon)" };
 
         const getModeName = (m) => { const f = normalizeModeKey(m); if (MODE_NAMES[f]) return MODE_NAMES[f]; if (f.includes("hurm")) return "Team Deathmatch"; return f.replace(/_gamemode|gamemode/gi, "").replace(/_/g, " ").trim(); };
-        const getModeIcon = (m) => { const cls = m.split("/").pop()?.split(".")[0] || ""; return apiModes?.[cls]?.displayIcon || null; };
-        const getModeBg = (m) => { const cls = m.split("/").pop()?.split(".")[0] || ""; return apiModes?.[cls]?.listViewIconTall || null; };
-        const getMapName = (m) => { const raw = m.split("/").pop() || m; return apiMaps?.[m]?.displayName || MAP_NAMES[raw] || raw; };
-        const getMapImg = (m) => apiMaps?.[m]?.listViewIcon || null;
-        const getMapSplash = (m) => apiMaps?.[m]?.splash || null;
+        const getModeIcon = (m) => { const cls = (m.split("/").pop()?.split(".")[0] || "").toLowerCase(); return apiModes?.[cls]?.displayIcon || null; };
+        const getModeBg = (m) => { const cls = (m.split("/").pop()?.split(".")[0] || "").toLowerCase(); return apiModes?.[cls]?.listViewIconTall || null; };
+        const getMapName = (m) => { const raw = m.split("/").pop() || m; return apiMaps?.[m.toLowerCase()]?.displayName || MAP_NAMES[raw] || raw; };
+        const getMapImg = (m) => apiMaps?.[m.toLowerCase()]?.listViewIcon || null;
+        const getMapSplash = (m) => apiMaps?.[m.toLowerCase()]?.splash || null;
 
         const curMode = party.custom_mode || "";
         const isHURM = curMode.includes("HURM");

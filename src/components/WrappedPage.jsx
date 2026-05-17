@@ -2,9 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
 import { noAnim, T0 } from "../utils/animation";
-
-const AGENTS_URL = "https://valorant-api.com/v1/agents?isPlayableCharacter=true";
-const MAPS_URL = "https://valorant-api.com/v1/maps";
+import { getAgentLookup, getMaps } from "../valApiSkins";
 
 function isCompetitiveQueue(q) {
   const s = String(q || "").toLowerCase();
@@ -88,17 +86,14 @@ export default function WrappedPage() {
   const [mapLookup, setMapLookup] = useState({});
 
   useEffect(() => {
-    fetch(AGENTS_URL).then(r => r.json()).then(d => {
-      const map = {};
-      for (const a of d.data || []) map[a.uuid.toLowerCase()] = a;
-      setAgentLookup(map);
-    }).catch(() => {});
-    fetch(MAPS_URL).then(r => r.json()).then(d => {
-      const map = {};
-      for (const m of d.data || []) {
-        if (m.mapUrl) map[m.mapUrl.split("/").pop()] = m;
+    getAgentLookup().then(setAgentLookup).catch(() => {});
+    getMaps().then((maps) => {
+      const slug = {};
+      for (const m of maps) {
+        const key = m.mapUrl?.split("/").pop();
+        if (key) slug[key] = m;
       }
-      setMapLookup(map);
+      setMapLookup(slug);
     }).catch(() => {});
   }, []);
 

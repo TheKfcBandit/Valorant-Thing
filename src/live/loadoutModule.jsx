@@ -1,13 +1,13 @@
-import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCached, setCache } from "../matchCache";
 import { getLevelLookup, getAccessoryLookup, getWeaponLookup } from "../valApiSkins";
+import { useApiLookup } from "../hooks/useApiLookup";
 
 const SOCKET_SKIN_LEVEL = "bcef87d6-209b-46c6-8b19-fbe40bd95abc";
 const SOCKET_BUDDY_LEVEL = "dd3bf334-87f3-40bd-b043-682a57a8dc3a";
 
 // Curated marquee. Order = visual priority in the row. Display names come
-// from valorant-api.com via useWeaponLookup at render time.
+// from valorant-api.com via useApiLookup(getWeaponLookup) at render time.
 const MARQUEE_WEAPONS = [
   "9c82e19d-4575-0200-1a81-3eacf00cf872", // Vandal
   "ee8e8d15-496b-07ac-e5f6-8fae5d4c7b1a", // Phantom
@@ -53,33 +53,10 @@ function socketItemId(loadout, weaponUuid, socketUuid) {
 const getEquippedSkinLevelUuid = (loadout, weaponUuid) => socketItemId(loadout, weaponUuid, SOCKET_SKIN_LEVEL);
 const getEquippedBuddyUuid = (loadout, weaponUuid) => socketItemId(loadout, weaponUuid, SOCKET_BUDDY_LEVEL);
 
-// Singleton-backed hooks — getLevelLookup/getAccessoryLookup memoize the
-// underlying fetch, so calling them from every card is cheap.
-function useSkinLookup() {
-  const [v, setV] = useState(null);
-  useEffect(() => { let alive = true; getLevelLookup().then((r) => { if (alive) setV(r); }).catch(() => {}); return () => { alive = false; }; }, []);
-  return v || {};
-}
-
-function useAccessoryLookup() {
-  const [v, setV] = useState(null);
-  useEffect(() => { let alive = true; getAccessoryLookup().then((r) => { if (alive) setV(r); }).catch(() => {}); return () => { alive = false; }; }, []);
-  return v || {};
-}
-
-function useWeaponLookup() {
-  const [v, setV] = useState(null);
-  useEffect(() => { let alive = true; getWeaponLookup().then((r) => { if (alive) setV(r); }).catch(() => {}); return () => { alive = false; }; }, []);
-  return v || {};
-}
-
-// The Riot loadouts endpoint differs between phases:
-//   coregame: each Loadouts[i].Loadout.Subject identifies the player.
-//   pregame:  entries may have no Subject — they're positional, in the same
-//             order as AllyTeam.Players.
-// So we collect explicit subjects first, then fall back to positional
-// matching against allies for any entries without a Subject.
-async function fetchLoadouts({ matchId, phase, players, addLog }) {
+// Both endpoints return Loadouts[]; coregame nests the per-player payload
+// under .Loadout, pregame puts it on the entry directly. Either way Subject
+// is present, so we don't need a positional fallback.
+async function fetchLoadouts({ matchId, phase, addLog }) {
   if (!matchId) return {};
   const phaseArg = phase === "PREGAME" ? "pregame" : "ingame";
   const raw = await invoke("get_match_loadouts", { matchId, phase: phaseArg });
@@ -87,30 +64,12 @@ async function fetchLoadouts({ matchId, phase, players, addLog }) {
   const entries = data?.Loadouts || [];
 
   const byPuuid = {};
-  const orderedNoSubject = [];
   for (const entry of entries) {
     const inner = entry?.Loadout || entry;
     const subject = (inner?.Subject || entry?.Subject || "").toLowerCase();
-    if (subject) {
-      byPuuid[subject] = inner;
-    } else {
-      orderedNoSubject.push(inner);
-    }
-  }
-
-  if (orderedNoSubject.length > 0) {
-    let posIdx = 0;
-    for (const p of players) {
-      if (p.team !== "ally") continue;
-      const puuid = (p.puuid || "").toLowerCase();
-      if (byPuuid[puuid]) continue;
-      if (posIdx >= orderedNoSubject.length) break;
-      byPuuid[puuid] = orderedNoSubject[posIdx++];
-    }
-  }
-
-  for (const [puuid, lo] of Object.entries(byPuuid)) {
-    setCache(puuid, "loadout", lo);
+    if (!subject) continue;
+    byPuuid[subject] = inner;
+    setCache(subject, "loadout", inner);
   }
 
   addLog?.("info", `[Live] Loadouts ${phaseArg}: ${Object.keys(byPuuid).length} player(s)`);
@@ -118,8 +77,8 @@ async function fetchLoadouts({ matchId, phase, players, addLog }) {
 }
 
 function CardSlot({ player, data: loadout }) {
-  const skinLookup = useSkinLookup();
-  const weaponLookup = useWeaponLookup();
+  const skinLookup = useApiLookup(getLevelLookup);
+  const weaponLookup = useApiLookup(getWeaponLookup);
   if (!loadout) return null;
   return (
     <div className="flex items-center gap-1 mt-1">
@@ -146,9 +105,9 @@ function CardSlot({ player, data: loadout }) {
 }
 
 function DialogSection({ player, data: loadout }) {
-  const skinLookup = useSkinLookup();
-  const accessoryLookup = useAccessoryLookup();
-  const weaponLookup = useWeaponLookup();
+  const skinLookup = useApiLookup(getLevelLookup);
+  const accessoryLookup = useApiLookup(getAccessoryLookup);
+  const weaponLookup = useApiLookup(getWeaponLookup);
   if (!loadout) return null;
   const identity = loadout.Identity || {};
   const cardMeta = identity.PlayerCardID ? accessoryLookup[identity.PlayerCardID.toLowerCase()] : null;

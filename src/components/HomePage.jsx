@@ -5,6 +5,7 @@ import { computeHighlights, computeScoreboardBadges } from "../matchHighlights";
 import { noAnim, T0 } from "../utils/animation";
 import { MODE_NAMES } from "../utils/gameMode";
 import { rankIcon, rankName } from "../utils/rank";
+import { getMaps } from "../valApiSkins";
 
 const CUSTOM_AGENT_ICONS = {
   "7c8a4701-4de6-9355-b254-e09bc2a34b72": "/agents/miks.png",
@@ -41,10 +42,9 @@ let mapCache = null;
 async function getMapData() {
   if (mapCache) return mapCache;
   try {
-    const res = await fetch("https://valorant-api.com/v1/maps");
-    const json = await res.json();
+    const maps = await getMaps();
     const lookup = {};
-    for (const m of json.data || []) {
+    for (const m of maps) {
       const key = m.mapUrl?.split("/").pop();
       if (key) lookup[key] = { name: m.displayName, splash: m.splash, listIcon: m.listViewIcon };
     }

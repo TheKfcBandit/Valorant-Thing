@@ -22,7 +22,7 @@ import StorePage from "./components/StorePage";
 import WrappedPage from "./components/WrappedPage";
 import CoachPage from "./components/CoachPage";
 import DevPage from "./components/DevPage";
-import { getLevelLookup } from "./valApiSkins";
+import { getLevelLookup, getMaps } from "./valApiSkins";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { emitTo } from "@tauri-apps/api/event";
 import { register, unregister, isRegistered } from "@tauri-apps/plugin-global-shortcut";
@@ -297,14 +297,14 @@ export default function App() {
 
   useEffect(() => {
     const EXCLUDED = ["The Range", "Basic Training"];
-    fetch("https://valorant-api.com/v1/maps").then(r => r.json()).then(res => {
+    getMaps().then(rawMaps => {
       const lookup = {};
-      (res.data || []).forEach(m => { if (m.mapUrl) lookup[m.mapUrl.toLowerCase()] = m; });
+      for (const m of rawMaps) { if (m.mapUrl) lookup[m.mapUrl.toLowerCase()] = m; }
       mapLookupRef.current = lookup;
 
       const cfg = (() => { try { return JSON.parse(localStorage.getItem("instalock-config")); } catch { return null; } })();
       if (!cfg) return;
-      const maps = (res.data || []).filter(m => !EXCLUDED.includes(m.displayName));
+      const maps = rawMaps.filter(m => !EXCLUDED.includes(m.displayName));
       const perMap = {};
       if (cfg.perMap) {
         for (const [mapId, saved] of Object.entries(cfg.perMap)) {

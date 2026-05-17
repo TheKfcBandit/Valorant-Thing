@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { noAnim, T0 } from "../utils/animation";
+import { getMaps } from "../valApiSkins";
 
 const EXCLUDED_MAPS = ["The Range", "Basic Training"];
 const DM_MAPS = new Set(["Kasbah", "Glitch", "Drift", "Piazza", "District"]);
@@ -33,12 +34,9 @@ export default function MapDodgePage({ onActiveChange, onBlacklistChange, connec
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("https://valorant-api.com/v1/maps")
-      .then((r) => r.json())
-      .then((res) => {
-        const playable = (res.data || []).filter(
-          (m) => !EXCLUDED_MAPS.includes(m.displayName)
-        );
+    getMaps()
+      .then((allMaps) => {
+        const playable = allMaps.filter((m) => !EXCLUDED_MAPS.includes(m.displayName));
         setMaps(playable);
 
         const cfg = loadConfig();

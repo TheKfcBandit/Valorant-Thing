@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
 import { exportVtFile, readVtFile } from "../cloud";
 import { noAnim, T0 } from "../utils/animation";
-import { CUSTOM_AGENTS } from "../utils/agents";
+import { getAgents, getMaps } from "../valApiSkins";
 
 const EXCLUDED_MAPS = ["The Range", "Basic Training"];
 const DM_MAPS = new Set(["Kasbah", "Glitch", "Drift", "Piazza", "District"]);
@@ -69,11 +69,6 @@ const SKIRMISH_ALLOWED = {
   "veto": "Crosscut",
 };
 
-function mergeCustomAgents(apiAgents) {
-  const existingIds = new Set(apiAgents.map(a => a.uuid.toLowerCase()));
-  const toAdd = CUSTOM_AGENTS.filter(c => !existingIds.has(c.uuid.toLowerCase()));
-  return [...apiAgents, ...toAdd];
-}
 
 const CONFIG_KEY = "instalock-config";
 const PROFILES_KEY = "instalock-profiles";
@@ -189,13 +184,10 @@ export default function InstalockPage({ onActiveChange, onConfigChange, connecte
   }, []);
 
   useEffect(() => {
-    Promise.all([
-      fetch("https://valorant-api.com/v1/agents?isPlayableCharacter=true").then(r => r.json()),
-      fetch("https://valorant-api.com/v1/maps").then(r => r.json()),
-    ]).then(([agentsRes, mapsRes]) => {
-      const sorted = mergeCustomAgents(agentsRes.data || []).sort((a, b) => a.displayName.localeCompare(b.displayName));
+    Promise.all([getAgents(), getMaps()]).then(([allAgents, allMaps]) => {
+      const sorted = [...allAgents].sort((a, b) => a.displayName.localeCompare(b.displayName));
       setAgents(sorted);
-      const playable = (mapsRes.data || []).filter(m => !EXCLUDED_MAPS.includes(m.displayName));
+      const playable = allMaps.filter(m => !EXCLUDED_MAPS.includes(m.displayName));
       setMaps(playable);
 
       let profs = loadProfiles();
