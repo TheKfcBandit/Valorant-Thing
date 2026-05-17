@@ -243,6 +243,7 @@ export default function App() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => localStorage.getItem("notifications_enabled") !== "false");
   const [notificationPosition, setNotificationPosition] = useState(() => localStorage.getItem("notification_position") || "top-right");
   const [notificationScreen, setNotificationScreen] = useState(() => localStorage.getItem("notification_screen") || "game");
+  const [spikeTimerEnabled, setSpikeTimerEnabled] = useState(() => localStorage.getItem("spike_timer_enabled") !== "false");
   const [pregameMatchId, setPregameMatchId] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [autoUnqueue, setAutoUnqueue] = useState(() => localStorage.getItem("auto_unqueue") === "true");
@@ -1142,6 +1143,26 @@ export default function App() {
   }, [pushNotification]);
 
   useEffect(() => {
+    if (!spikeTimerEnabled) {
+      invoke("stop_bomb_tracker").catch(() => {});
+      return;
+    }
+    invoke("start_bomb_tracker").catch(() => {});
+    const unsub = listen("bomb-planted", (event) => {
+      if (localStorage.getItem("notifications_enabled") === "false") return;
+      if (localStorage.getItem("spike_timer_enabled") === "false") return;
+      const epochMs = event.payload?.epochMs ?? Date.now();
+      pushNotification({
+        id: `spike-${epochMs}`,
+        type: "spike",
+        totalMs: 45000,
+        startTime: epochMs,
+      });
+    });
+    return () => { unsub.then(fn => fn()); };
+  }, [pushNotification, spikeTimerEnabled]);
+
+  useEffect(() => {
     if (status !== "connected") return;
     let cancelled = false;
     const PREFETCH_INTERVAL = 250; // 250ms
@@ -1476,6 +1497,8 @@ export default function App() {
               onNotificationPositionChange={(v) => { setNotificationPosition(v); localStorage.setItem("notification_position", v); if (notifWindowRef.current) { try { notifWindowRef.current.destroy(); } catch {} notifWindowRef.current = null; overlayReadyRef.current = false; creatingWindowRef.current = false; } }}
               notificationScreen={notificationScreen}
               onNotificationScreenChange={(v) => { setNotificationScreen(v); localStorage.setItem("notification_screen", v); if (notifWindowRef.current) { try { notifWindowRef.current.destroy(); } catch {} notifWindowRef.current = null; overlayReadyRef.current = false; creatingWindowRef.current = false; } }}
+              spikeTimerEnabled={spikeTimerEnabled}
+              onSpikeTimerEnabledChange={(v) => { setSpikeTimerEnabled(v); localStorage.setItem("spike_timer_enabled", String(v)); }}
             />
             </motion.div>
           )}

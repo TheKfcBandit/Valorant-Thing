@@ -16,6 +16,7 @@ mod identity_cache;
 mod oauth;
 mod loadout_presets;
 mod util;
+mod bomb_tracker;
 
 type SharedState = Arc<Mutex<riot::ConnectionState>>;
 type DiscordShared = Arc<Mutex<discord::DiscordState>>;
@@ -951,6 +952,9 @@ pub fn run() {
             loadout_presets::save_loadout_preset,
             loadout_presets::apply_loadout_preset,
             loadout_presets::delete_loadout_preset,
+            bomb_tracker::start_bomb_tracker,
+            bomb_tracker::stop_bomb_tracker,
+            bomb_tracker::is_bomb_tracker_running,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

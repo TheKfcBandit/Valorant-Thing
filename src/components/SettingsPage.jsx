@@ -236,6 +236,7 @@ export default function SettingsPage({
   notificationsEnabled, onNotificationsEnabledChange,
   notificationPosition, onNotificationPositionChange,
   notificationScreen, onNotificationScreenChange,
+  spikeTimerEnabled, onSpikeTimerEnabledChange,
 }) {
   const fileRef = useRef(null);
   const configFileRef = useRef(null);
@@ -639,6 +640,13 @@ export default function SettingsPage({
                   </button>
                 ))}
               </div>
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <div>
+                <p className="text-sm font-display font-medium text-text-primary">Spike Timer</p>
+                <p className="text-xs font-body text-text-muted mt-0.5">Show a 45s countdown when the spike is planted</p>
+              </div>
+              <Toggle enabled={spikeTimerEnabled} onChange={onSpikeTimerEnabledChange} />
             </div>
             <DodgeKeybindSetting />
           </div>

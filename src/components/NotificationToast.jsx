@@ -13,7 +13,7 @@ export default function NotificationToast({ notification, onDismiss }) {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (!notification) return;
 
-    if (notification.type === "locking") {
+    if (notification.type === "locking" || notification.type === "spike") {
       const { totalMs, startTime } = notification;
       const tick = () => {
         const left = Math.max(0, totalMs - (Date.now() - startTime));
@@ -43,14 +43,40 @@ export default function NotificationToast({ notification, onDismiss }) {
   if (type === "queue") return <QueueCard n={notification} />;
   if (type === "wishlist-hit") return <WishlistHitCard n={notification} />;
 
+  const spikeT = type === "spike" ? spikeTier(remaining) : null;
   const stripBg = type === "locked"
     ? "linear-gradient(180deg, rgb(var(--status-green)), rgb(var(--status-green) / 0.4))"
+    : spikeT
+    ? spikeT.stripBg
     : "linear-gradient(180deg, rgb(var(--val-red)), rgb(var(--val-red) / 0.3))";
 
   return (
     <CardShell stripBg={stripBg}>
       <div className="flex-1 px-3.5 py-3 flex flex-col gap-2 min-w-0">
         <VTHeader />
+        {type === "spike" && (
+          <>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-sm font-body text-text-secondary">Spike detonates in</span>
+              <span
+                className="text-sm font-display font-bold tabular-nums"
+                style={{ color: spikeT.color, minWidth: "3.5ch", textAlign: "right", transition: "color 200ms" }}
+              >
+                {(remaining / 1000).toFixed(1)}s
+              </span>
+            </div>
+            <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: "rgb(var(--base-600))" }}>
+              <motion.div
+                className="h-full rounded-full"
+                style={{ background: spikeT.color, transformOrigin: "left", transition: "background 200ms" }}
+                initial={{ scaleX: 1 }}
+                animate={{ scaleX: notification.totalMs ? remaining / notification.totalMs : 0 }}
+                transition={{ duration: 0.05, ease: "linear" }}
+              />
+            </div>
+            <SpikeDefuseStatus tier={spikeT} />
+          </>
+        )}
         {type === "locking" && (
           <>
             <div className="flex items-baseline gap-1.5">
@@ -214,6 +240,58 @@ function WishlistHitCard({ n }) {
         </div>
       </div>
     </CardShell>
+  );
+}
+
+function spikeTier(remaining) {
+  const s = remaining / 1000;
+  if (s >= 7) return {
+    color: "rgb(var(--status-green))",
+    stripBg: "linear-gradient(180deg, rgb(var(--status-green)), rgb(var(--status-green) / 0.3))",
+    label: "Full defuse",
+    icon: "check",
+  };
+  if (s >= 3.5) return {
+    color: "#f59e0b",
+    stripBg: "linear-gradient(180deg, #f59e0b, rgba(245, 158, 11, 0.3))",
+    label: "Half defuse only",
+    icon: "half",
+  };
+  return {
+    color: "rgb(var(--val-red))",
+    stripBg: "linear-gradient(180deg, rgb(var(--val-red)), rgb(var(--val-red) / 0.3))",
+    label: "Too late",
+    icon: "boom",
+  };
+}
+
+function SpikeDefuseStatus({ tier }) {
+  const { color, label, icon } = tier;
+  return (
+    <div className="flex items-center gap-1.5" style={{ transition: "color 200ms" }}>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" className="shrink-0" style={{ color, transition: "color 200ms" }}>
+        {icon === "check" && (
+          <>
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+            <path d="M8 12.5l2.5 2.5L16 9.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </>
+        )}
+        {icon === "half" && (
+          <>
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+            <path d="M12 3a9 9 0 010 18z" fill="currentColor" />
+          </>
+        )}
+        {icon === "boom" && (
+          <>
+            <circle cx="11" cy="14" r="6.5" stroke="currentColor" strokeWidth="2" />
+            <path d="M16 9.5l2-2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            <path d="M19 6.5l1.5-1M19 6.5l-1-2M19 6.5l2 .5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </>
+        )}
+      </svg>
+      <span className="text-[11px] font-body font-semibold tracking-wide" style={{ color, transition: "color 200ms" }}>{label}</span>
+    </div>
   );
 }
 
