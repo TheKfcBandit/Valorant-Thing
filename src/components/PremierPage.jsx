@@ -148,15 +148,19 @@ export default function PremierPage({ connected, player, playerIsStale }) {
       }
       setFromCache(false);
       setCacheTs(0);
-      // Persist the full bundle so the page works next time Valorant is closed.
-      // Best-effort — the live data is already in component state.
-      try {
-        await invoke("cache_premier_bundle", {
-          player: playerRaw,
-          division: divisionRaw,
-          conference: conferenceRaw,
-        });
-      } catch { /* non-fatal */ }
+      // Only persist when the full bundle landed cleanly — a partial write
+      // would atomically clobber a previously-valid snapshot, leaving the
+      // next cold load with a fresh timestamp but blank standings/schedule.
+      const bundleComplete = divisionRes.status === "fulfilled" && conferenceRes.status === "fulfilled";
+      if (bundleComplete) {
+        try {
+          await invoke("cache_premier_bundle", {
+            player: playerRaw,
+            division: divisionRaw,
+            conference: conferenceRaw,
+          });
+        } catch { /* non-fatal */ }
+      }
     } catch (e) {
       setError(typeof e === "string" ? e : (e?.message || "Failed to load Premier data"));
     } finally {

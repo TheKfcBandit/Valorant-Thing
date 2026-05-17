@@ -758,28 +758,20 @@ async fn get_player_level_from_history(state: tauri::State<'_, SharedState>, tar
 }
 
 // #23 Premier roster + standing view. Three pass-through commands that hit
-// the same PD shard as the rest of the game endpoints. On success they
-// persist a snapshot via premier_cache::save so the page also works when
-// Valorant is closed (Phase A pattern from #18). A failed cache write is
-// best-effort — it logs but doesn't break the live fetch.
+// the same PD shard as the rest of the game endpoints. The cache write only
+// happens once via cache_premier_bundle after the frontend has assembled the
+// full player + division + conference triple — writing a partial bundle
+// would atomically clobber a previously-valid snapshot with empty fields and
+// poison the offline cache (Phase A pattern from #18).
 #[tauri::command]
 async fn get_premier_player(
-    app: tauri::AppHandle,
     state: tauri::State<'_, SharedState>,
-    cache: tauri::State<'_, Mutex<premier_cache::PremierCacheState>>,
     target_puuid: String,
 ) -> Result<String, String> {
     let state = Arc::clone(&state);
-    let result = tauri::async_runtime::spawn_blocking(move || riot::get_premier_player(&state, &target_puuid))
+    tauri::async_runtime::spawn_blocking(move || riot::get_premier_player(&state, &target_puuid))
         .await
-        .map_err(|e| format!("Task failed: {}", e))??;
-    // Save just the player payload; division + conference come on their own
-    // fetches and will overwrite this snapshot via the cache_premier_bundle
-    // command below.
-    if let Err(e) = premier_cache::save(&app, &cache, result.clone(), String::new(), String::new()) {
-        riot::logging::log_error(&format!("[PremierCache] partial save failed: {}", e));
-    }
-    Ok(result)
+        .map_err(|e| format!("Task failed: {}", e))?
 }
 
 #[tauri::command]
@@ -804,6 +796,8 @@ async fn get_premier_conference(
         .map_err(|e| format!("Task failed: {}", e))?
 }
 
+// Best-effort persist: a disk failure here logs but does not surface to the
+// frontend, matching how identity_cache::save is handled from `connect`.
 #[tauri::command]
 async fn cache_premier_bundle(
     app: tauri::AppHandle,
@@ -812,7 +806,10 @@ async fn cache_premier_bundle(
     division: String,
     conference: String,
 ) -> Result<(), String> {
-    premier_cache::save(&app, &cache, player, division, conference)
+    if let Err(e) = premier_cache::save(&app, &cache, player, division, conference) {
+        riot::logging::log_error(&format!("[PremierCache] save failed: {}", e));
+    }
+    Ok(())
 }
 
 #[tauri::command]

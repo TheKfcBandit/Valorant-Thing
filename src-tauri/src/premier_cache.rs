@@ -92,9 +92,9 @@ fn persist(app: &AppHandle, state: &Mutex<PremierCacheState>) -> Result<(), Stri
     Ok(())
 }
 
-/// Save a fresh Premier snapshot. Called from the Premier Tauri commands
-/// after a successful live fetch. Best-effort — a failed write logs but does
-/// not propagate, so a transient disk issue can't break the page.
+/// Save a fresh Premier snapshot. Returns `Err` on disk failure; callers
+/// should treat the write as best-effort and log-and-swallow rather than
+/// propagating to the frontend (see `cache_premier_bundle` in lib.rs).
 pub fn save(
     app: &AppHandle,
     state: &Mutex<PremierCacheState>,
