@@ -44,6 +44,9 @@ export default function Sidebar({ status, player, onReconnect, activeTab, onTabC
         <NavButton id="live" label="Live" activeTab={activeTab} onTabChange={onTabChange} activeColor="text-accent-blue"
           icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M18 20V10M12 20V4M6 20v-6" /><circle cx="6" cy="6" r="2" fill="currentColor" /></svg>}
         />
+        <NavButton id="premier" label="Premier" activeTab={activeTab} onTabChange={onTabChange}
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4zM5 6H2v2a3 3 0 003 3M19 6h3v2a3 3 0 01-3 3" /></svg>}
+        />
 
         <SectionLabel>Items</SectionLabel>
         <NavButton id="store" label="Store" activeTab={activeTab} onTabChange={onTabChange}

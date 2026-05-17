@@ -13,6 +13,7 @@ import LogsPage from "./components/LogsPage";
 import MapDodgePage from "./components/MapDodgePage";
 import LivePage from "./components/LivePage";
 import LineupsPage from "./components/LineupsPage";
+import PremierPage from "./components/PremierPage";
 import MiscPage from "./components/MiscPage";
 import FakeStatusPage from "./components/FakeStatusPage";
 import ChatPage from "./components/ChatPage";
@@ -1430,6 +1431,11 @@ export default function App() {
           {activeTab === "live" && (
             <motion.div key="live" className="flex-1 flex min-h-0" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15, ease: "easeOut" }}>
             <LivePage splooshimaApiKey={splooshimaApiKey} splooshimaAvailable={splooshimaAvailable} player={player} connected={status === "connected"} addLog={addLog} onRefresh={confirmRefresh} />
+            </motion.div>
+          )}
+          {activeTab === "premier" && (
+            <motion.div key="premier" className="flex-1 flex min-h-0" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.15, ease: "easeOut" }}>
+            <PremierPage connected={status === "connected"} player={player} playerIsStale={playerIsStale} />
             </motion.div>
           )}
           {activeTab === "lineups" && (
