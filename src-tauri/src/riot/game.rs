@@ -67,6 +67,16 @@ pub fn check_current_game(state: &Mutex<ConnectionState>) -> Result<String, Stri
     Err("Not in a match".to_string())
 }
 
+pub fn get_match_loadouts(state: &Mutex<ConnectionState>, match_id: &str, phase: &str) -> Result<String, String> {
+    let (access_token, entitlements, _puuid, region, shard, client_version) = get_glz_creds(state)?;
+    let path = match phase {
+        "pregame" => format!("/pregame/v1/matches/{}/loadouts", match_id),
+        "ingame" => format!("/core-game/v1/matches/{}/loadouts", match_id),
+        _ => return Err(format!("Bad phase: {}", phase)),
+    };
+    glz_get(&region, &shard, &path, &access_token, &entitlements, &client_version)
+}
+
 pub fn select_agent(state: &Mutex<ConnectionState>, match_id: &str, agent_id: &str) -> Result<String, String> {
     let (access_token, entitlements, _, region, shard, client_version) = get_glz_creds(state)?;
     let path = format!("/pregame/v1/matches/{}/select/{}", match_id, agent_id);

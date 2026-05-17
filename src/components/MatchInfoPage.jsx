@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { getCached, setCache } from "../matchCache";
 import { noAnim, T0 } from "../utils/animation";
 import { CUSTOM_AGENTS } from "../utils/agents";
 import { MODE_NAMES } from "../utils/gameMode";
+import { LIVE_MODULES } from "../live/registry";
 
 const AGENT_MAP_URL = "https://valorant-api.com/v1/agents?isPlayableCharacter=true";
 const COMP_TIERS_URL = "https://valorant-api.com/v1/competitivetiers";
@@ -24,7 +25,10 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [error, setError] = useState(null);
+  const [moduleData, setModuleData] = useState({});
+  const [openPuuid, setOpenPuuid] = useState(null);
   const fetchedMatchRef = useRef(null);
+  const fetchedModuleKeysRef = useRef({});
   const cancelledRef = useRef(false);
 
   useEffect(() => {
@@ -66,6 +70,52 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
         setMaps(m);
       })
       .catch(() => {});
+  }, []);
+
+  // Generic module orchestrator: run each registered LiveModule's fetch
+  // once per (matchId, phase, moduleId). Modules don't see each other —
+  // each one's result lands in moduleData[module.id][puuid] independently.
+  const runModules = useCallback((matchId, phase, currentPlayers) => {
+    if (!matchId) return;
+    for (const mod of LIVE_MODULES) {
+      if (typeof mod.fetch !== "function") continue;
+      const key = `${matchId}_${phase}_${mod.id}`;
+      if (fetchedModuleKeysRef.current[mod.id] === key) continue;
+      fetchedModuleKeysRef.current[mod.id] = key;
+      Promise.resolve()
+        .then(() => mod.fetch({ matchId, phase, players: currentPlayers, addLog }))
+        .then((result) => {
+          if (cancelledRef.current) return;
+          if (!result) return;
+          setModuleData((prev) => ({ ...prev, [mod.id]: { ...(prev[mod.id] || {}), ...result } }));
+        })
+        .catch((e) => {
+          if (cancelledRef.current) return;
+          fetchedModuleKeysRef.current[mod.id] = null;
+          const msg = typeof e === "string" ? e : e?.message || String(e);
+          addLog?.("error", `[Live] Module '${mod.id}' failed: ${msg}`);
+        });
+    }
+  }, [addLog]);
+
+  const seedModuleCache = useCallback((puuid) => {
+    const seeded = {};
+    for (const mod of LIVE_MODULES) {
+      if (typeof mod.cachedFor !== "function") continue;
+      const cached = mod.cachedFor(puuid);
+      if (cached != null) {
+        if (!seeded[mod.id]) seeded[mod.id] = {};
+        seeded[mod.id][puuid] = cached;
+      }
+    }
+    if (Object.keys(seeded).length === 0) return;
+    setModuleData((prev) => {
+      const next = { ...prev };
+      for (const [mid, byPuuid] of Object.entries(seeded)) {
+        next[mid] = { ...(next[mid] || {}), ...byPuuid };
+      }
+      return next;
+    });
   }, []);
 
   const fetchMatchData = useCallback(async () => {
@@ -122,6 +172,7 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
           return updated ? { ...old, characterId: updated.characterId, team: updated.team, accountLevel: updated.accountLevel } : old;
         }));
         setLoading(false);
+        runModules(matchId, phase, playerList);
         return;
       }
       fetchedMatchRef.current = newKey;
@@ -133,6 +184,8 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
       }));
       setPlayers(withCached);
       setLoading(false);
+      for (const p of playerList) seedModuleCache(p.puuid);
+      runModules(matchId, phase, playerList);
 
       const needsAccount = withCached.filter((p) => !p.account);
 
@@ -285,7 +338,9 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
       if (msg.includes("Not in a match")) {
         setMatchPhase(null);
         setPlayers([]);
+        setModuleData({});
         fetchedMatchRef.current = null;
+        fetchedModuleKeysRef.current = {};
         setError(null);
         setFetching(false);
       }
@@ -390,7 +445,7 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
               </p>
               {teamData.ally.map((p, i) => (
                 <motion.div key={p.puuid} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.15, delay: i * 0.04 }}>
-                <PlayerCard player={p} agents={agents} tiers={tiers} isSelf={p.puuid === myPuuid} />
+                <PlayerCard player={p} agents={agents} tiers={tiers} moduleData={moduleData} isSelf={p.puuid === myPuuid} onOpen={() => setOpenPuuid(p.puuid)} />
                 </motion.div>
               ))}
             </div>
@@ -401,7 +456,7 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
               </p>
               {teamData.enemy.map((p, i) => (
                 <motion.div key={p.puuid} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.15, delay: i * 0.04 }}>
-                <PlayerCard player={p} agents={agents} tiers={tiers} isSelf={p.puuid === myPuuid} />
+                <PlayerCard player={p} agents={agents} tiers={tiers} moduleData={moduleData} isSelf={p.puuid === myPuuid} onOpen={() => setOpenPuuid(p.puuid)} />
                 </motion.div>
               ))}
             </div>
@@ -410,12 +465,24 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
           <div className="space-y-1.5">
             {teamData.all.map((p, i) => (
               <motion.div key={p.puuid} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.15, delay: i * 0.04 }}>
-              <PlayerCard player={p} agents={agents} tiers={tiers} isSelf={p.puuid === myPuuid} />
+              <PlayerCard player={p} agents={agents} tiers={tiers} moduleData={moduleData} isSelf={p.puuid === myPuuid} onOpen={() => setOpenPuuid(p.puuid)} />
               </motion.div>
             ))}
           </div>
         )}
       </div>
+
+      <AnimatePresence>
+        {openPuuid && (
+          <PlayerDetailDialog
+            player={players.find((p) => p.puuid === openPuuid)}
+            agents={agents}
+            tiers={tiers}
+            moduleData={moduleData}
+            onClose={() => setOpenPuuid(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -525,7 +592,7 @@ function MatchHeader({ mapId, maps, matchPhase, matchInfo, matchId, playerCount,
   );
 }
 
-function PlayerCard({ player, agents, tiers, isSelf }) {
+function PlayerCard({ player, agents, tiers, moduleData, isSelf, onOpen }) {
   const agent = agents[player.characterId?.toLowerCase()];
   const acct = player.account;
   const mmr = player.mmr;
@@ -535,12 +602,26 @@ function PlayerCard({ player, agents, tiers, isSelf }) {
   const displayName = acct?.name || agent?.displayName || player.puuid.slice(0, 8);
   const displayLevel = acct?.account_level || player.accountLevel || 0;
 
+  const slots = [];
+  for (const mod of LIVE_MODULES) {
+    if (!mod.CardSlot) continue;
+    const data = moduleData?.[mod.id]?.[player.puuid];
+    if (data == null) continue;
+    slots.push({ mod, data });
+  }
+  const hasModuleData = slots.length > 0 || hasAnyDialogContent(player, moduleData);
+
   return (
-    <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border ${
-      isSelf
-        ? "bg-val-red/10 border-val-red/30"
-        : "bg-base-700 border-border"
-    }`}>
+    <div
+      role={hasModuleData ? "button" : undefined}
+      tabIndex={hasModuleData ? 0 : undefined}
+      onClick={hasModuleData ? onOpen : undefined}
+      onKeyDown={hasModuleData ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen?.(); } } : undefined}
+      className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors ${
+        isSelf
+          ? "bg-val-red/10 border-val-red/30"
+          : "bg-base-700 border-border"
+      } ${hasModuleData ? "cursor-pointer hover:border-val-red/40" : ""}`}>
       <div className="w-10 h-10 rounded-lg bg-base-600 overflow-hidden shrink-0 flex items-center justify-center">
         {agent?.displayIconSmall ? (
           <img src={agent.displayIconSmall} alt="" className="w-full h-full object-cover" />
@@ -597,11 +678,22 @@ function PlayerCard({ player, agents, tiers, isSelf }) {
                 </>
               )}
             </div>
+            {slots.map(({ mod, data }) => (
+              <mod.CardSlot key={mod.id} player={player} data={data} />
+            ))}
           </>
         )}
       </div>
     </div>
   );
+}
+
+function hasAnyDialogContent(player, moduleData) {
+  for (const mod of LIVE_MODULES) {
+    if (!mod.DialogSection) continue;
+    if (moduleData?.[mod.id]?.[player.puuid] != null) return true;
+  }
+  return false;
 }
 
 function Spinner() {
@@ -610,5 +702,86 @@ function Spinner() {
       <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-20" />
       <path d="M12 2a10 10 0 019.95 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
     </svg>
+  );
+}
+
+function PlayerDetailDialog({ player, agents, tiers, moduleData, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose?.(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  if (!player) return null;
+
+  const agent = agents[player.characterId?.toLowerCase()];
+  const acct = player.account;
+  const mmr = player.mmr;
+  const tierInfo = tiers[mmr?.currenttier] || null;
+  const displayName = acct?.name || agent?.displayName || player.puuid.slice(0, 8);
+
+  const sections = [];
+  for (const mod of LIVE_MODULES) {
+    if (!mod.DialogSection) continue;
+    const data = moduleData?.[mod.id]?.[player.puuid];
+    if (data == null) continue;
+    sections.push({ mod, data });
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      transition={noAnim() ? T0 : { duration: 0.15 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.96, opacity: 0 }}
+        transition={noAnim() ? T0 : { type: "spring", stiffness: 400, damping: 28 }}
+        className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-xl border border-border bg-base-800 shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-base-700/60">
+          <div className="w-10 h-10 rounded-lg bg-base-600 overflow-hidden shrink-0 flex items-center justify-center">
+            {agent?.displayIconSmall ? (
+              <img src={agent.displayIconSmall} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-text-muted text-[10px]">?</span>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline gap-1.5">
+              <p className="text-base font-display font-bold text-text-primary truncate">{displayName}</p>
+              {acct?.tag && <span className="text-xs font-body text-text-muted">#{acct.tag}</span>}
+            </div>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              {tierInfo?.icon && <img src={tierInfo.icon} alt="" className="w-3.5 h-3.5" />}
+              <span className="text-[11px] font-display font-semibold text-text-secondary">{tierInfo?.name || "Unranked"}</span>
+              <span className="text-[11px] font-body text-text-muted">{mmr?.ranking_in_tier ?? 0}RR</span>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="shrink-0 w-7 h-7 rounded-md text-text-muted hover:text-text-primary hover:bg-base-600 flex items-center justify-center transition-colors"
+            aria-label="Close"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          {sections.length === 0 ? (
+            <p className="text-xs font-body text-text-muted italic text-center py-8">No additional info available for this player.</p>
+          ) : (
+            sections.map(({ mod, data }) => (
+              <mod.DialogSection key={mod.id} player={player} data={data} />
+            ))
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }

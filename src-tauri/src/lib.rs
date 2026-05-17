@@ -250,6 +250,14 @@ async fn check_current_game(state: tauri::State<'_, SharedState>) -> Result<Stri
 }
 
 #[tauri::command]
+async fn get_match_loadouts(state: tauri::State<'_, SharedState>, match_id: String, phase: String) -> Result<String, String> {
+    let state = Arc::clone(&state);
+    tauri::async_runtime::spawn_blocking(move || riot::get_match_loadouts(&state, &match_id, &phase))
+        .await
+        .map_err(|e| format!("Task failed: {}", e))?
+}
+
+#[tauri::command]
 async fn select_agent(state: tauri::State<'_, SharedState>, match_id: String, agent_id: String) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::select_agent(&state, &match_id, &agent_id))
@@ -941,6 +949,7 @@ pub fn run() {
             check_for_update,
             download_and_install_update,
             check_current_game,
+            get_match_loadouts,
             select_agent,
             lock_agent,
             pregame_quit,
