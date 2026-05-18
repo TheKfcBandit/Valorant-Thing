@@ -6,6 +6,7 @@ import { noAnim, T0 } from "../utils/animation";
 import { MODE_NAMES } from "../utils/gameMode";
 import { rankIcon, rankName } from "../utils/rank";
 import { ROUND_GLYPH, getRoundOutcome, formatRoundTooltip } from "../utils/roundResult";
+import { normalizeRrEntry, normalizeRrResponse } from "../riotShapes";
 import { getMaps } from "../valApiSkins";
 
 const CUSTOM_AGENT_ICONS = {
@@ -183,7 +184,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
         const res = await invoke("rr_history_list", { limit: 50 });
         const cached = Array.isArray(res?.matches) ? res.matches : [];
         if (!cancelled && cached.length > 0) {
-          setRrHistory(cached);
+          setRrHistory(cached.map(normalizeRrEntry));
         }
       } catch (e) {
         console.warn("[RR] cache load failed:", e);
@@ -224,9 +225,11 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
     try {
       const raw = await invoke("get_rr_history", { start: 0, end: 20 });
       const json = JSON.parse(raw);
-      const matches = Array.isArray(json?.Matches) ? json.Matches : [];
-      // Filter out placement-tier-zero entries: they collapse the y-axis to 0.
-      const usable = matches.filter((m) => (m?.TierAfterUpdate || 0) > 0);
+      // The backend cache stores raw PascalCase entries (it keys on
+      // `MatchID`), so we filter and put the raw shape — normalization
+      // happens when we read for display, below.
+      const rawMatches = Array.isArray(json?.Matches) ? json.Matches : [];
+      const usable = rawMatches.filter((m) => (m?.TierAfterUpdate || 0) > 0);
       try {
         await invoke("rr_history_put_many", { entries: usable });
       } catch (e) {
@@ -240,8 +243,8 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
     // head of the window.
     try {
       const res = await invoke("rr_history_list", { limit: 50 });
-      const merged = Array.isArray(res?.matches) ? res.matches : [];
-      setRrHistory(merged);
+      const rawList = Array.isArray(res?.matches) ? res.matches : [];
+      setRrHistory(rawList.map(normalizeRrEntry));
     } catch (e) {
       console.warn("[RR] cache list failed:", e);
     }
@@ -754,13 +757,16 @@ function StatCard({ label, children, loading }) {
 // matches. Riot returns matches most-recent-first; we reverse for
 // left-to-right time. Y axis uses tier*100 + rr to give a continuous signal
 // across tier promotion/demotion boundaries.
+//
+// `matches` is an array of normalized RrEntry from riotShapes.js — all
+// fields are camelCase, defensively coerced to numbers.
 function RRChart({ matches }) {
   // Reverse so left = oldest, right = most recent.
-  const points = [...matches].reverse().map((m) => {
-    const tier = m.TierAfterUpdate || 0;
-    const rr = m.RankedRatingAfterUpdate || 0;
-    return { y: tier * 100 + rr, rr, earned: m.RankedRatingEarned || 0 };
-  });
+  const points = [...matches].reverse().map((m) => ({
+    y: m.tierAfter * 100 + m.rrAfter,
+    rr: m.rrAfter,
+    earned: m.rrEarned,
+  }));
   const ys = points.map((p) => p.y);
   const minY = Math.min(...ys);
   const maxY = Math.max(...ys);
