@@ -638,6 +638,10 @@ pub fn xmpp_send_fake_presence(
     let params: serde_json::Value =
         serde_json::from_str(presence_json).map_err(|e| format!("parse presence params: {}", e))?;
 
+    // Literal-set filter, not a plain unwrap_or — values outside this whitelist
+    // fall back to "chat" even when params["show"] is Some(...). Clippy's
+    // suggested `unwrap_or` would drop the whitelist and forward any string.
+    #[allow(clippy::manual_unwrap_or)]
     let show = match params["show"].as_str() {
         Some(s @ ("chat" | "away" | "dnd" | "xa" | "unavailable")) => s,
         _ => "chat",

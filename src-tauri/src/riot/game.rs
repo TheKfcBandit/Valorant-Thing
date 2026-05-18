@@ -1022,6 +1022,10 @@ pub fn get_custom_configs(state: &Mutex<ConnectionState>) -> Result<String, Stri
     Ok(serde_json::json!({ "maps": maps, "modes": modes, "pods": pods }).to_string())
 }
 
+// Mirrors the Tauri command signature in lib.rs — one parameter per
+// frontend-facing custom-game setting. Bundling into a struct would force
+// a parallel JS shape; not worth it.
+#[allow(clippy::too_many_arguments)]
 pub fn set_custom_settings(
     state: &Mutex<ConnectionState>,
     map: &str,

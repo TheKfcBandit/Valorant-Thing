@@ -5,14 +5,9 @@ use std::time::Duration;
 
 const APP_ID: &str = "1469359571637108931";
 
+#[derive(Default)]
 pub struct DiscordState {
     client: Option<DiscordIpcClient>,
-}
-
-impl Default for DiscordState {
-    fn default() -> Self {
-        Self { client: None }
-    }
 }
 
 pub fn start_rpc(state: &Mutex<DiscordState>) -> Result<(), String> {

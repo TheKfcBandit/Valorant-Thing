@@ -121,11 +121,12 @@ fn list_dir(path: String) -> Result<Vec<String>, String> {
         return Ok(vec![]);
     }
     let mut entries = vec![];
-    for entry in std::fs::read_dir(dir).map_err(|e| format!("readdir {}: {}", path, e))? {
-        if let Ok(e) = entry {
-            if let Some(name) = e.file_name().to_str() {
-                entries.push(name.to_string());
-            }
+    for entry in std::fs::read_dir(dir)
+        .map_err(|e| format!("readdir {}: {}", path, e))?
+        .flatten()
+    {
+        if let Some(name) = entry.file_name().to_str() {
+            entries.push(name.to_string());
         }
     }
     Ok(entries)
@@ -484,7 +485,11 @@ async fn get_custom_configs(state: tauri::State<'_, SharedState>) -> Result<Stri
         .map_err(|e| format!("Task failed: {}", e))?
 }
 
+// Tauri commands expose an explicit parameter for each frontend-facing field;
+// bundling into a struct would require a parallel JS-side shape and add no
+// real simplification. The signature is intentional.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 async fn set_custom_settings(
     state: tauri::State<'_, SharedState>,
     map: String,

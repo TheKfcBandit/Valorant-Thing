@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 
+#[derive(Default)]
 pub struct ConnectionState {
     pub connected: bool,
     pub port: Option<u16>,
@@ -20,28 +21,6 @@ pub struct ConnectionState {
     // flow rather than from the local Riot Client lockfile. Drives Settings
     // UI state and tells health_check to skip the lockfile-based refresh path.
     pub oauth_session: bool,
-}
-
-impl Default for ConnectionState {
-    fn default() -> Self {
-        Self {
-            connected: false,
-            port: None,
-            local_auth: None,
-            access_token: None,
-            entitlements: None,
-            puuid: None,
-            region: None,
-            shard: None,
-            client_version: None,
-            game_name: None,
-            game_tag: None,
-            player_card_url: None,
-            token_fetched_at: None,
-            last_token_check: None,
-            oauth_session: false,
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]

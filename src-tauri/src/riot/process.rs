@@ -124,7 +124,6 @@ pub fn get_valorant_monitor() -> Result<(i32, i32, u32, u32), String> {
     }
 
     extern "system" {
-        fn FindWindowW(class: *const u16, title: *const u16) -> isize;
         fn MonitorFromWindow(hwnd: isize, flags: u32) -> isize;
         fn GetMonitorInfoW(monitor: isize, info: *mut MonitorInfo) -> i32;
         fn EnumWindows(callback: extern "system" fn(isize, isize) -> i32, lparam: isize) -> i32;
@@ -266,6 +265,15 @@ pub fn list_monitors() -> Result<String, String> {
     const MONITORINFOF_PRIMARY: u32 = 1;
     const ENUM_CURRENT_SETTINGS: u32 = 0xFFFFFFFF;
 
+    // Win32's GetMonitorInfoW accepts either MONITORINFO or MONITORINFOEX —
+    // the caller sets `cbSize` to indicate which struct layout it's passing.
+    // `get_valorant_monitor` (above) declares it with MonitorInfo;
+    // `list_monitors` here declares it with the extended MonitorInfoExW.
+    // Both are correct at the symbol level (one C function); rustc sees
+    // two Rust declarations and warns. Suppress with a comment, do not
+    // unify into a single module-level extern — that would force pointer
+    // casts in one of the two callers without simplifying anything.
+    #[allow(clashing_extern_declarations)]
     extern "system" {
         fn EnumDisplayMonitors(
             hdc: isize,
@@ -317,7 +325,7 @@ pub fn list_monitors() -> Result<String, String> {
             };
 
             if let Ok(mut guard) = MONITORS.lock() {
-                guard.as_mut().map(|v| {
+                if let Some(v) = guard.as_mut() {
                     v.push(MonEntry {
                         device,
                         x,
@@ -326,8 +334,8 @@ pub fn list_monitors() -> Result<String, String> {
                         h,
                         hz,
                         primary,
-                    })
-                });
+                    });
+                }
             }
         }
         1
