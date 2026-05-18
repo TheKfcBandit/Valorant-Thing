@@ -13,7 +13,3 @@
 *.woff2 binary
 *.mp4 binary
 *.webm binary
-
-# Tauri auto-generates these on every build with the host's line endings.
-# Mark them non-text so git stops reporting LF/CRLF churn that has no diff.
-src-tauri/gen/schemas/*.json -text

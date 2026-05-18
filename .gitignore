@@ -1,6 +1,12 @@
 node_modules/
 dist/
 target/
+
+# Tauri auto-generates these on every `cargo tauri` build. They were
+# previously tracked + marked -text in .gitattributes, but they kept
+# appearing in unrelated commits as regenerated artifacts. Generating
+# fresh on each build is the simpler contract.
+src-tauri/gen/schemas/
 .windsurf/
 .agents/
 .claude/
