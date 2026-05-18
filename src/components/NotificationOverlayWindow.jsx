@@ -35,7 +35,9 @@ export default function NotificationOverlayWindow() {
           y: pos.y / sf,
           bottom: (pos.y + size.height) / sf,
         };
-      } catch {}
+      } catch (e) {
+        console.warn("[NotifyOverlay] suppressed:", e);
+      }
     })();
 
     const blockMenu = (e) => e.preventDefault();
@@ -51,48 +53,72 @@ export default function NotificationOverlayWindow() {
     };
     applyTheme(localStorage.getItem("app_theme"));
     const unlisten = listen("notif-theme", (e) => applyTheme(e.payload));
-    return () => { unlisten.then(fn => fn()); document.removeEventListener("contextmenu", blockMenu); };
+    return () => {
+      unlisten.then((fn) => fn());
+      document.removeEventListener("contextmenu", blockMenu);
+    };
   }, []);
 
   useEffect(() => {
     let unsubs = [];
     (async () => {
-      unsubs.push(await listen("notif-push", async (e) => {
-        const data = e.payload;
-        if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; }
-        try {
-          await invoke("show_window_no_focus", { label: "notification-overlay" });
-          await getCurrentWindow().setIgnoreCursorEvents(true);
-        } catch {}
-        if (data.position) setPosition(data.position);
-        setVisible(prev => {
-          const idx = prev.findIndex(n => n.id === data.id);
-          if (idx >= 0) return prev.map((n, i) => i === idx ? data : n);
-          if (prev.length >= MAX_VISIBLE) {
-            queueRef.current.push(data);
-            return prev;
+      unsubs.push(
+        await listen("notif-push", async (e) => {
+          const data = e.payload;
+          if (hideTimer.current) {
+            clearTimeout(hideTimer.current);
+            hideTimer.current = null;
           }
-          return [...prev, data];
-        });
-      }));
-      unsubs.push(await listen("notif-dismiss-all", () => {
-        queueRef.current = [];
-        setVisible([]);
-      }));
+          try {
+            await invoke("show_window_no_focus", { label: "notification-overlay" });
+            await getCurrentWindow().setIgnoreCursorEvents(true);
+          } catch (e) {
+            console.warn("[NotifyOverlay] suppressed:", e);
+          }
+          if (data.position) setPosition(data.position);
+          setVisible((prev) => {
+            const idx = prev.findIndex((n) => n.id === data.id);
+            if (idx >= 0) return prev.map((n, i) => (i === idx ? data : n));
+            if (prev.length >= MAX_VISIBLE) {
+              queueRef.current.push(data);
+              return prev;
+            }
+            return [...prev, data];
+          });
+        })
+      );
+      unsubs.push(
+        await listen("notif-dismiss-all", () => {
+          queueRef.current = [];
+          setVisible([]);
+        })
+      );
       emit("notif-ready", {});
     })();
-    return () => { unsubs.forEach(fn => fn()); };
+    return () => {
+      unsubs.forEach((fn) => fn());
+    };
   }, []);
 
   useEffect(() => {
     if (visible.length === 0) {
       hideTimer.current = setTimeout(() => {
-        getCurrentWindow().hide().catch(() => {});
+        getCurrentWindow()
+          .hide()
+          .catch(() => {});
       }, 300);
     } else {
-      if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; }
+      if (hideTimer.current) {
+        clearTimeout(hideTimer.current);
+        hideTimer.current = null;
+      }
     }
-    return () => { if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; } };
+    return () => {
+      if (hideTimer.current) {
+        clearTimeout(hideTimer.current);
+        hideTimer.current = null;
+      }
+    };
   }, [visible.length]);
 
   useEffect(() => {
@@ -115,12 +141,15 @@ export default function NotificationOverlayWindow() {
       });
     });
     ro.observe(el);
-    return () => { ro.disconnect(); if (resizeFrame) cancelAnimationFrame(resizeFrame); };
+    return () => {
+      ro.disconnect();
+      if (resizeFrame) cancelAnimationFrame(resizeFrame);
+    };
   }, [position]);
 
   const handleDismiss = useCallback((id) => {
-    setVisible(prev => {
-      const next = prev.filter(n => n.id !== id);
+    setVisible((prev) => {
+      const next = prev.filter((n) => n.id !== id);
       if (queueRef.current.length > 0 && next.length < MAX_VISIBLE) {
         const promoted = queueRef.current.shift();
         return [...next, promoted];
@@ -144,13 +173,22 @@ export default function NotificationOverlayWindow() {
         }}
       >
         <AnimatePresence>
-          {visible.map(n => (
+          {visible.map((n) => (
             <motion.div
               key={n.id}
               layout
               initial={{ x: isRight ? 340 : -340, opacity: 0, scale: 0.92 }}
-              animate={{ x: 0, opacity: 1, scale: 1, transition: { type: "spring", stiffness: 400, damping: 22, mass: 0.8 } }}
-              exit={{ x: isRight ? 340 : -340, opacity: 0, transition: { duration: 0.25, ease: "easeIn" } }}
+              animate={{
+                x: 0,
+                opacity: 1,
+                scale: 1,
+                transition: { type: "spring", stiffness: 400, damping: 22, mass: 0.8 },
+              }}
+              exit={{
+                x: isRight ? 340 : -340,
+                opacity: 0,
+                transition: { duration: 0.25, ease: "easeIn" },
+              }}
               style={{ pointerEvents: "none" }}
             >
               <NotificationToast notification={n} onDismiss={handleDismiss} />

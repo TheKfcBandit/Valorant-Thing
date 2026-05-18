@@ -39,7 +39,9 @@ fn cache_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 fn ensure_loaded(app: &AppHandle, state: &Mutex<IdentityCacheState>) -> Result<(), String> {
     {
         let s = state.lock().map_err(|e| e.to_string())?;
-        if s.loaded { return Ok(()); }
+        if s.loaded {
+            return Ok(());
+        }
     }
     let path = cache_path(app)?;
     let snap: Option<IdentitySnapshot> = if path.exists() {
@@ -95,7 +97,11 @@ fn persist(app: &AppHandle, state: &Mutex<IdentityCacheState>) -> Result<(), Str
 
 /// Save a fresh PlayerInfo snapshot. Called from connect_and_store after a
 /// successful live connect.
-pub fn save(app: &AppHandle, state: &Mutex<IdentityCacheState>, info: &PlayerInfo) -> Result<(), String> {
+pub fn save(
+    app: &AppHandle,
+    state: &Mutex<IdentityCacheState>,
+    info: &PlayerInfo,
+) -> Result<(), String> {
     ensure_loaded(app, state)?;
     let snap = IdentitySnapshot {
         puuid: info.puuid.clone(),

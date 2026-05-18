@@ -59,10 +59,12 @@ export default function StorePage({ connected }) {
       const parsed = raw ? JSON.parse(raw) : [];
       return new Set(
         (Array.isArray(parsed) ? parsed : [])
-          .filter(s => s != null)
-          .map(s => String(s).toLowerCase())
+          .filter((s) => s != null)
+          .map((s) => String(s).toLowerCase())
       );
-    } catch { return new Set(); }
+    } catch {
+      return new Set();
+    }
   });
   const [now, setNow] = useState(Date.now());
   const fetchedAtRef = useRef(0);
@@ -70,13 +72,13 @@ export default function StorePage({ connected }) {
   useEffect(() => {
     getLevelLookup()
       .then(setLevelLookup)
-      .catch(e => console.warn("[Store] Skin lookup load failed:", e));
+      .catch((e) => console.warn("[Store] Skin lookup load failed:", e));
     getBundleLookup()
       .then(setBundleLookup)
-      .catch(e => console.warn("[Store] Bundle lookup load failed:", e));
+      .catch((e) => console.warn("[Store] Bundle lookup load failed:", e));
     getAccessoryLookup()
       .then(setAccessoryLookup)
-      .catch(e => console.warn("[Store] Accessory lookup load failed:", e));
+      .catch((e) => console.warn("[Store] Accessory lookup load failed:", e));
   }, []);
 
   const [staleSinceMs, setStaleSinceMs] = useState(null);
@@ -118,7 +120,9 @@ export default function StorePage({ connected }) {
         console.warn("[Store] store-update payload parse failed:", e);
       }
     });
-    return () => { unsub.then(fn => fn()); };
+    return () => {
+      unsub.then((fn) => fn());
+    };
   }, []);
 
   useEffect(() => {
@@ -128,7 +132,10 @@ export default function StorePage({ connected }) {
 
   // Reset NM total + bundle carousel index whenever the storefront changes
   // so stale UI state can't bleed across days.
-  useEffect(() => { setSpendSummary(null); setBundleIndex(0); }, [storeRaw]);
+  useEffect(() => {
+    setSpendSummary(null);
+    setBundleIndex(0);
+  }, [storeRaw]);
 
   const loadSpendSummary = useCallback(async () => {
     setSpendLoading(true);
@@ -146,20 +153,25 @@ export default function StorePage({ connected }) {
   const persistWishlist = useCallback((set) => {
     const arr = Array.from(set);
     localStorage.setItem("wishlist_skins", JSON.stringify(arr));
-    invoke("set_wishlist", { items: arr })
-      .catch(e => console.warn("[Store] set_wishlist failed:", e));
+    invoke("set_wishlist", { items: arr }).catch((e) =>
+      console.warn("[Store] set_wishlist failed:", e)
+    );
   }, []);
 
-  const toggleWishlist = useCallback((levelUuid) => {
-    if (!levelUuid) return;
-    setWishlist(prev => {
-      const next = new Set(prev);
-      const k = levelUuid.toLowerCase();
-      if (next.has(k)) next.delete(k); else next.add(k);
-      persistWishlist(next);
-      return next;
-    });
-  }, [persistWishlist]);
+  const toggleWishlist = useCallback(
+    (levelUuid) => {
+      if (!levelUuid) return;
+      setWishlist((prev) => {
+        const next = new Set(prev);
+        const k = levelUuid.toLowerCase();
+        if (next.has(k)) next.delete(k);
+        else next.add(k);
+        persistWishlist(next);
+        return next;
+      });
+    },
+    [persistWishlist]
+  );
 
   const dailyOffers = useMemo(() => {
     if (!storeRaw) return [];
@@ -167,25 +179,25 @@ export default function StorePage({ connected }) {
     const offers = panel.SingleItemStoreOffers || [];
     const ids = panel.SingleItemOffers || [];
     if (offers.length) {
-      return offers.map(o => ({
+      return offers.map((o) => ({
         offerId: (o.OfferID || "").toLowerCase(),
         cost: fmtCost(o.Cost),
       }));
     }
-    return ids.map(id => ({ offerId: (id || "").toLowerCase(), cost: null }));
+    return ids.map((id) => ({ offerId: (id || "").toLowerCase(), cost: null }));
   }, [storeRaw]);
 
   const accessoryOffers = useMemo(() => {
     if (!storeRaw) return [];
     const accs = storeRaw.AccessoryStore || {};
     const list = accs.AccessoryStoreOffers || [];
-    return list.map(a => {
+    return list.map((a) => {
       const offer = a.Offer || a;
       const rewards = offer.Rewards || [];
       return {
         offerId: (offer.OfferID || "").toLowerCase(),
         cost: fmtCost(offer.Cost),
-        rewards: rewards.map(r => ({
+        rewards: rewards.map((r) => ({
           itemTypeId: r.ItemTypeID,
           itemId: (r.ItemID || "").toLowerCase(),
         })),
@@ -200,8 +212,8 @@ export default function StorePage({ connected }) {
     if (!storeRaw) return [];
     const fb = storeRaw.FeaturedBundle || {};
     const arr = Array.isArray(fb.Bundles) ? [...fb.Bundles] : [];
-    if (fb.Bundle && !arr.some(b => b.ID === fb.Bundle.ID)) arr.unshift(fb.Bundle);
-    return arr.map(b => ({
+    if (fb.Bundle && !arr.some((b) => b.ID === fb.Bundle.ID)) arr.unshift(fb.Bundle);
+    return arr.map((b) => ({
       id: b.ID,
       dataAssetId: (b.DataAssetID || "").toLowerCase(),
       cost: fmtCost(b.TotalDiscountedCost || b.TotalBaseCost),
@@ -216,7 +228,7 @@ export default function StorePage({ connected }) {
     const offers = nm.BonusStoreOffers || [];
     return {
       remaining: nm.BonusStoreRemainingDurationInSeconds,
-      offers: offers.map(o => ({
+      offers: offers.map((o) => ({
         offerId: (o.Offer?.OfferID || o.BonusOfferID || "").toLowerCase(),
         baseCost: fmtCost(o.Offer?.Cost),
         discountedCost: fmtCost(o.DiscountCosts),
@@ -251,13 +263,25 @@ export default function StorePage({ connected }) {
     return (
       <div className="flex-1 flex items-center justify-center p-5">
         <div className="text-center space-y-2">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-muted mx-auto">
+          <svg
+            width="32"
+            height="32"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-text-muted mx-auto"
+          >
             <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
             <line x1="3" y1="6" x2="21" y2="6" />
             <path d="M16 10a4 4 0 01-8 0" />
           </svg>
           <p className="text-sm font-display text-text-muted">No store data yet</p>
-          <p className="text-[11px] font-body text-text-muted/60">Open Valorant once and reopen this page</p>
+          <p className="text-[11px] font-body text-text-muted/60">
+            Open Valorant once and reopen this page
+          </p>
         </div>
       </div>
     );
@@ -290,12 +314,20 @@ export default function StorePage({ connected }) {
             onClick={() => setWishlistOpen(true)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-display font-semibold border border-border bg-base-700 hover:bg-base-600 text-text-primary"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-val-red">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className="text-val-red"
+            >
               <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
             </svg>
             Wishlist
             {wishlist.size > 0 && (
-              <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-val-red/20 text-val-red text-[10px] tabular-nums">{wishlist.size}</span>
+              <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-val-red/20 text-val-red text-[10px] tabular-nums">
+                {wishlist.size}
+              </span>
             )}
           </button>
           <button
@@ -315,10 +347,17 @@ export default function StorePage({ connected }) {
       )}
 
       {staleSinceMs && (
-        <div className={`px-3 py-2 rounded-md border text-xs font-body ${crossesMidnight ? "border-val-red/40 bg-val-red/10 text-val-red" : "border-yellow-500/40 bg-yellow-500/10 text-yellow-400"}`}>
-          {crossesMidnight
-            ? <>⚠️ Showing yesterday's reset (last updated {staleAgeText}). Today's offers are different — open Valorant to refresh.</>
-            : <>Last updated {staleAgeText} · cached (Valorant not running)</>}
+        <div
+          className={`px-3 py-2 rounded-md border text-xs font-body ${crossesMidnight ? "border-val-red/40 bg-val-red/10 text-val-red" : "border-yellow-500/40 bg-yellow-500/10 text-yellow-400"}`}
+        >
+          {crossesMidnight ? (
+            <>
+              ⚠️ Showing yesterday's reset (last updated {staleAgeText}). Today's offers are
+              different — open Valorant to refresh.
+            </>
+          ) : (
+            <>Last updated {staleAgeText} · cached (Valorant not running)</>
+          )}
         </div>
       )}
 
@@ -333,7 +372,11 @@ export default function StorePage({ connected }) {
 
       <Section
         title="Daily Offers"
-        subtitle={dailyCountdown != null ? `Resets in ${fmtRemaining(dailyCountdown)}` : "Resets every 24 hours"}
+        subtitle={
+          dailyCountdown != null
+            ? `Resets in ${fmtRemaining(dailyCountdown)}`
+            : "Resets every 24 hours"
+        }
       >
         <div className="grid grid-cols-4 gap-3">
           {dailyOffers.map((offer) => (
@@ -351,7 +394,11 @@ export default function StorePage({ connected }) {
       {accessoryOffers.length > 0 && (
         <Section
           title="Accessory Store"
-          subtitle={accessoryCountdown != null ? `Resets in ${fmtRemaining(accessoryCountdown)}` : "Resets weekly"}
+          subtitle={
+            accessoryCountdown != null
+              ? `Resets in ${fmtRemaining(accessoryCountdown)}`
+              : "Resets weekly"
+          }
         >
           <div className="grid grid-cols-4 gap-3">
             {accessoryOffers.map((a) => (
@@ -376,12 +423,19 @@ export default function StorePage({ connected }) {
         >
           <div
             className="grid gap-3"
-            style={{ gridTemplateColumns: `repeat(${Math.max(1, nightMarket.offers.length)}, minmax(0, 1fr))` }}
+            style={{
+              gridTemplateColumns: `repeat(${Math.max(1, nightMarket.offers.length)}, minmax(0, 1fr))`,
+            }}
           >
             {nightMarket.offers.map((o) => (
               <SkinCard
                 key={o.offerId}
-                offer={{ offerId: o.offerId, cost: o.discountedCost, baseCost: o.baseCost, discountPct: o.discountPct }}
+                offer={{
+                  offerId: o.offerId,
+                  cost: o.discountedCost,
+                  baseCost: o.baseCost,
+                  discountPct: o.discountPct,
+                }}
                 meta={levelLookup[o.offerId]}
                 wishlisted={wishlist.has(o.offerId)}
                 onToggleWishlist={() => toggleWishlist(o.offerId)}
@@ -420,9 +474,7 @@ function NightMarketSubtitle({ remaining, summary, loading, onShow }) {
       ) : summary.error ? (
         <span className="text-[10px] text-val-red">Spend: {summary.error}</span>
       ) : (
-        <span className="text-[10px] text-val-red tabular-nums">
-          {formatSpendSummary(summary)}
-        </span>
+        <span className="text-[10px] text-val-red tabular-nums">{formatSpendSummary(summary)}</span>
       )}
     </span>
   );
@@ -442,7 +494,8 @@ function formatSpendSummary(s) {
 function Section({ title, subtitle, accentColor, children }) {
   return (
     <motion.section
-      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={noAnim() ? T0 : { duration: 0.2 }}
     >
       <div className="flex items-baseline justify-between mb-2">
@@ -460,7 +513,9 @@ function Section({ title, subtitle, accentColor, children }) {
 }
 
 function SkinCard({ offer, meta, wishlisted, onToggleWishlist, nightMarket, portrait }) {
-  const tierColor = meta?.tier ? RARITY_COLORS[meta.tier] || "rgb(var(--text-muted))" : "rgb(var(--text-muted))";
+  const tierColor = meta?.tier
+    ? RARITY_COLORS[meta.tier] || "rgb(var(--text-muted))"
+    : "rgb(var(--text-muted))";
   const aspectClass = portrait ? "aspect-[3/4]" : "aspect-[2/1]";
   return (
     <motion.div
@@ -475,32 +530,58 @@ function SkinCard({ offer, meta, wishlisted, onToggleWishlist, nightMarket, port
           className="p-1.5 rounded-full bg-base-800/70 hover:bg-base-800 transition-colors"
           title={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill={wishlisted ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" style={{ color: wishlisted ? "rgb(var(--val-red))" : "rgb(var(--text-muted))" }}>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill={wishlisted ? "currentColor" : "none"}
+            stroke="currentColor"
+            strokeWidth="2"
+            style={{ color: wishlisted ? "rgb(var(--val-red))" : "rgb(var(--text-muted))" }}
+          >
             <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
           </svg>
         </button>
       </div>
-      <div className={`${aspectClass} w-full flex items-center justify-center p-3`} style={{ background: `linear-gradient(135deg, ${tierColor}22 0%, transparent 60%)` }}>
+      <div
+        className={`${aspectClass} w-full flex items-center justify-center p-3`}
+        style={{ background: `linear-gradient(135deg, ${tierColor}22 0%, transparent 60%)` }}
+      >
         {meta?.icon ? (
-          <img src={meta.icon} alt={meta.name} className="max-h-full max-w-full object-contain" loading="lazy" draggable={false} />
+          <img
+            src={meta.icon}
+            alt={meta.name}
+            className="max-h-full max-w-full object-contain"
+            loading="lazy"
+            draggable={false}
+          />
         ) : (
           <div className="text-text-muted text-xs">No preview</div>
         )}
       </div>
       <div className="p-3 border-t border-border" style={{ borderTopColor: tierColor + "40" }}>
-        <p className="text-sm font-display font-semibold text-text-primary truncate">{meta?.name || "Unknown skin"}</p>
+        <p className="text-sm font-display font-semibold text-text-primary truncate">
+          {meta?.name || "Unknown skin"}
+        </p>
         <div className="flex items-center justify-between mt-1.5">
-          <span className="text-[10px] uppercase tracking-wider text-text-muted">{meta?.weapon || ""}</span>
+          <span className="text-[10px] uppercase tracking-wider text-text-muted">
+            {meta?.weapon || ""}
+          </span>
           {offer.cost && (
             <span className="text-sm font-display font-semibold tabular-nums text-text-primary">
-              {offer.cost.amount.toLocaleString()} <span className="text-[10px] text-text-muted">{offer.cost.currency}</span>
+              {offer.cost.amount.toLocaleString()}{" "}
+              <span className="text-[10px] text-text-muted">{offer.cost.currency}</span>
             </span>
           )}
         </div>
         {nightMarket && offer.baseCost && offer.discountPct != null && (
           <div className="mt-1 flex items-center gap-2">
-            <span className="text-[10px] line-through text-text-muted tabular-nums">{offer.baseCost.amount.toLocaleString()}</span>
-            <span className="text-[10px] font-semibold" style={{ color: "rgb(var(--val-red))" }}>-{offer.discountPct}%</span>
+            <span className="text-[10px] line-through text-text-muted tabular-nums">
+              {offer.baseCost.amount.toLocaleString()}
+            </span>
+            <span className="text-[10px] font-semibold" style={{ color: "rgb(var(--val-red))" }}>
+              -{offer.discountPct}%
+            </span>
           </div>
         )}
       </div>
@@ -522,7 +603,8 @@ function BundleCarousel({ bundles, index, onIndex, lookup }) {
 
   return (
     <motion.section
-      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={noAnim() ? T0 : { duration: 0.2 }}
     >
       <div className="flex items-baseline justify-between mb-2">
@@ -530,31 +612,49 @@ function BundleCarousel({ bundles, index, onIndex, lookup }) {
           Featured Bundle{hasMultiple ? `s (${safeIndex + 1}/${bundles.length})` : ""}
         </h2>
         {bundle.remaining != null && (
-          <span className="text-[10px] text-text-muted tabular-nums">Closes in {fmtRemaining(bundle.remaining)}</span>
+          <span className="text-[10px] text-text-muted tabular-nums">
+            Closes in {fmtRemaining(bundle.remaining)}
+          </span>
         )}
       </div>
       {useCompactRow ? (
         <div className="relative rounded-lg border border-border bg-base-700/50 p-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-display font-semibold text-text-primary">{meta.displayName || "New bundle"}</p>
-            <p className="text-[11px] font-body italic text-text-muted mt-0.5">Image not yet available</p>
+            <p className="text-sm font-display font-semibold text-text-primary">
+              {meta.displayName || "New bundle"}
+            </p>
+            <p className="text-[11px] font-body italic text-text-muted mt-0.5">
+              Image not yet available
+            </p>
           </div>
           {bundle.cost && (
             <div className="text-right shrink-0">
               <p className="text-[10px] uppercase tracking-wider text-text-muted">Total</p>
               <p className="text-base font-display font-bold tabular-nums text-text-primary">
-                {bundle.cost.amount.toLocaleString()} <span className="text-xs text-text-muted">{bundle.cost.currency}</span>
+                {bundle.cost.amount.toLocaleString()}{" "}
+                <span className="text-xs text-text-muted">{bundle.cost.currency}</span>
               </p>
             </div>
           )}
           {hasMultiple && (
-            <BundleCarouselControls bundles={bundles} safeIndex={safeIndex} onIndex={onIndex} compact />
+            <BundleCarouselControls
+              bundles={bundles}
+              safeIndex={safeIndex}
+              onIndex={onIndex}
+              compact
+            />
           )}
         </div>
       ) : (
         <div className="relative rounded-lg border border-border bg-base-700/50 overflow-hidden">
           <div className="relative aspect-[16/6] w-full">
-            <img src={hero} alt={meta.displayName || "Featured bundle"} className="absolute inset-0 w-full h-full object-cover" loading="lazy" draggable={false} />
+            <img
+              src={hero}
+              alt={meta.displayName || "Featured bundle"}
+              className="absolute inset-0 w-full h-full object-cover"
+              loading="lazy"
+              draggable={false}
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-base-900/95 via-base-900/40 to-transparent" />
             <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between gap-3">
               <p className="text-xl font-display font-bold text-white drop-shadow-md truncate">
@@ -564,7 +664,8 @@ function BundleCarousel({ bundles, index, onIndex, lookup }) {
                 <div className="text-right shrink-0">
                   <p className="text-[10px] uppercase tracking-wider text-white/70">Total</p>
                   <p className="text-lg font-display font-bold tabular-nums text-white">
-                    {bundle.cost.amount.toLocaleString()} <span className="text-xs text-white/70">{bundle.cost.currency}</span>
+                    {bundle.cost.amount.toLocaleString()}{" "}
+                    <span className="text-xs text-white/70">{bundle.cost.currency}</span>
                   </p>
                 </div>
               )}
@@ -592,14 +693,32 @@ function BundleCarouselControls({ bundles, safeIndex, onIndex, compact }) {
         className={`${arrowClass} ${compact ? "left-1" : "left-2"}`}
         aria-label="Previous bundle"
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
       </button>
       <button
         onClick={() => onIndex((safeIndex + 1) % bundles.length)}
         className={`${arrowClass} ${compact ? "right-1" : "right-2"}`}
         aria-label="Next bundle"
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
       </button>
       {!compact && (
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
@@ -627,23 +746,36 @@ function AccessoryCard({ offer, lookup }) {
     <div className="rounded-lg border border-border bg-base-700/50 overflow-hidden flex flex-col">
       <div className="aspect-square w-full flex items-center justify-center p-3 bg-base-800/40 relative">
         {meta?.image ? (
-          <img src={meta.image} alt={meta.name} className="max-h-full max-w-full object-contain" loading="lazy" draggable={false} />
+          <img
+            src={meta.image}
+            alt={meta.name}
+            className="max-h-full max-w-full object-contain"
+            loading="lazy"
+            draggable={false}
+          />
         ) : meta?.kind === "title" && meta?.name ? (
           <p className="text-center text-sm font-display text-text-primary px-2">"{meta.name}"</p>
         ) : (
           <div className="text-text-muted text-xs">No preview</div>
         )}
         {extra > 0 && (
-          <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-base-900/80 text-[10px] font-mono text-text-secondary">+{extra}</span>
+          <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-base-900/80 text-[10px] font-mono text-text-secondary">
+            +{extra}
+          </span>
         )}
       </div>
       <div className="p-2.5 border-t border-border space-y-0.5">
-        <p className="text-xs font-display font-semibold text-text-primary truncate">{meta?.name || "Unknown"}</p>
+        <p className="text-xs font-display font-semibold text-text-primary truncate">
+          {meta?.name || "Unknown"}
+        </p>
         <div className="flex items-center justify-between">
-          <span className="text-[10px] uppercase tracking-wider text-text-muted">{meta?.kind || ""}</span>
+          <span className="text-[10px] uppercase tracking-wider text-text-muted">
+            {meta?.kind || ""}
+          </span>
           {offer.cost && (
             <span className="text-xs font-display font-semibold tabular-nums text-text-primary">
-              {offer.cost.amount.toLocaleString()} <span className="text-[9px] text-text-muted">{offer.cost.currency}</span>
+              {offer.cost.amount.toLocaleString()}{" "}
+              <span className="text-[9px] text-text-muted">{offer.cost.currency}</span>
             </span>
           )}
         </div>
@@ -655,13 +787,15 @@ function AccessoryCard({ offer, lookup }) {
 function WishlistModal({ open, wishlistedIds, levelLookup, onClose, onRemove }) {
   useEffect(() => {
     if (!open) return;
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
   if (!open) return null;
   const rows = wishlistedIds
-    .map(id => ({ id: id.toLowerCase(), meta: levelLookup[id.toLowerCase()] }))
+    .map((id) => ({ id: id.toLowerCase(), meta: levelLookup[id.toLowerCase()] }))
     .sort((a, b) => (a.meta?.name || "").localeCompare(b.meta?.name || ""));
   return (
     <div
@@ -669,15 +803,31 @@ function WishlistModal({ open, wishlistedIds, levelLookup, onClose, onRemove }) 
       onClick={onClose}
     >
       <motion.div
-        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={noAnim() ? T0 : { duration: 0.15 }}
         className="w-[480px] max-w-[90vw] max-h-[80vh] rounded-xl border border-border bg-base-800 overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h2 className="text-sm font-display font-bold text-text-primary">Wishlist ({rows.length})</h2>
-          <button onClick={onClose} className="text-text-muted hover:text-text-primary" aria-label="Close">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          <h2 className="text-sm font-display font-bold text-text-primary">
+            Wishlist ({rows.length})
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-text-muted hover:text-text-primary"
+            aria-label="Close"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
           </button>
         </header>
         <div className="flex-1 overflow-y-auto p-2">
@@ -688,17 +838,29 @@ function WishlistModal({ open, wishlistedIds, levelLookup, onClose, onRemove }) 
           ) : (
             <ul className="space-y-1">
               {rows.map(({ id, meta }) => (
-                <li key={id} className="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-base-700">
+                <li
+                  key={id}
+                  className="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-base-700"
+                >
                   <div className="w-12 h-8 shrink-0 bg-base-900/50 rounded flex items-center justify-center">
                     {meta?.icon ? (
-                      <img src={meta.icon} alt="" className="max-h-full max-w-full object-contain" loading="lazy" />
+                      <img
+                        src={meta.icon}
+                        alt=""
+                        className="max-h-full max-w-full object-contain"
+                        loading="lazy"
+                      />
                     ) : (
                       <span className="text-[9px] text-text-muted">—</span>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-display font-semibold text-text-primary truncate">{meta?.name || "Unknown skin"}</p>
-                    <p className="text-[10px] uppercase tracking-wider text-text-muted">{meta?.weapon || ""}</p>
+                    <p className="text-xs font-display font-semibold text-text-primary truncate">
+                      {meta?.name || "Unknown skin"}
+                    </p>
+                    <p className="text-[10px] uppercase tracking-wider text-text-muted">
+                      {meta?.weapon || ""}
+                    </p>
                   </div>
                   <button
                     onClick={() => onRemove(id)}

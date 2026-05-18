@@ -8,14 +8,14 @@ import { noAnim, T0 } from "../utils/animation";
 
 const MENU_VIDEO_SUBPATH = "ShooterGame\\Content\\Movies\\Menu";
 const MENU_VIDEO_FILE_REGEX = /\.(mp4|webm)$/i;
-const MENU_VIDEO_EXCLUDED_FILES = new Set([
-  "battle pass glitches.webm",
-  "contract glitches.webm",
-]);
+const MENU_VIDEO_EXCLUDED_FILES = new Set(["battle pass glitches.webm", "contract glitches.webm"]);
 const MENU_VIDEO_CONFIG_KEY = "menu_video_config";
 
 const trimSlashes = (value) => String(value || "").replace(/[\\/]+$/g, "");
-const normalizeFileName = (value) => String(value || "").trim().toLowerCase();
+const normalizeFileName = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase();
 const sanitizeBackupName = (value) => String(value || "video").replace(/[^a-z0-9._-]+/gi, "_");
 const joinWinPath = (...parts) =>
   parts
@@ -87,8 +87,7 @@ function normalizeVideoConfig(config) {
 function getReplaceableMenuFiles(entries) {
   return (entries || []).filter(
     (name) =>
-      MENU_VIDEO_FILE_REGEX.test(name) &&
-      !MENU_VIDEO_EXCLUDED_FILES.has(normalizeFileName(name))
+      MENU_VIDEO_FILE_REGEX.test(name) && !MENU_VIDEO_EXCLUDED_FILES.has(normalizeFileName(name))
   );
 }
 
@@ -102,10 +101,18 @@ function getBackupPaths(baseDir, name, sourceExt = ".mp4") {
 
 async function fileExists(path) {
   if (!path) return false;
-  return invoke("compute_file_hash", { path }).then(() => true).catch(() => false);
+  return invoke("compute_file_hash", { path })
+    .then(() => true)
+    .catch(() => false);
 }
 
-export default function MiscPage({ connected, autoUnqueue, onAutoUnqueueChange, autoRequeue, onAutoRequeueChange }) {
+export default function MiscPage({
+  connected,
+  autoUnqueue,
+  onAutoUnqueueChange,
+  autoRequeue,
+  onAutoRequeueChange,
+}) {
   const [isLeader, setIsLeader] = useState(false);
   const [loading, setLoading] = useState(true);
   const [videoStatus, setVideoStatus] = useState("");
@@ -115,7 +122,9 @@ export default function MiscPage({ connected, autoUnqueue, onAutoUnqueueChange, 
   const [videoSrc, setVideoSrc] = useState(null);
 
   useEffect(() => {
-    invoke("find_valorant_path").then(setValorantPath).catch(() => {});
+    invoke("find_valorant_path")
+      .then(setValorantPath)
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -159,7 +168,9 @@ export default function MiscPage({ connected, autoUnqueue, onAutoUnqueueChange, 
 
         let restoredAny = false;
         for (const file of nextFiles) {
-          const currentHash = await invoke("compute_file_hash", { path: file.destPath }).catch(() => "");
+          const currentHash = await invoke("compute_file_hash", { path: file.destPath }).catch(
+            () => ""
+          );
           if (!currentHash || currentHash === file.hash) continue;
 
           await invoke("force_copy_file", { source: sourceBackupPath, dest: file.destPath });
@@ -176,9 +187,13 @@ export default function MiscPage({ connected, autoUnqueue, onAutoUnqueueChange, 
         setVideoConfigStorage(nextConfig);
         setVideoConfig(nextConfig);
         if (restoredAny) {
-          setVideoStatus(`Restored custom menu video across ${nextFiles.length} file${nextFiles.length === 1 ? "" : "s"}.`);
+          setVideoStatus(
+            `Restored custom menu video across ${nextFiles.length} file${nextFiles.length === 1 ? "" : "s"}.`
+          );
         }
-      } catch {}
+      } catch (e) {
+        console.warn("[Misc] suppressed:", e);
+      }
     };
 
     sync();
@@ -253,7 +268,8 @@ export default function MiscPage({ connected, autoUnqueue, onAutoUnqueueChange, 
       for (const name of replaceableFiles) {
         const destPath = joinWinPath(menuDir, name);
         const existing = existingFiles.get(normalizeFileName(name));
-        const originalPath = existing?.originalPath || getBackupPaths(backupRoot, name).originalPath;
+        const originalPath =
+          existing?.originalPath || getBackupPaths(backupRoot, name).originalPath;
 
         if (!(await fileExists(originalPath))) {
           await invoke("force_copy_file", { source: destPath, dest: originalPath });
@@ -280,7 +296,9 @@ export default function MiscPage({ connected, autoUnqueue, onAutoUnqueueChange, 
 
       setVideoConfigStorage(nextConfig);
       setVideoConfig(nextConfig);
-      setVideoStatus(`Replaced ${replacedFiles.length} menu video file${replacedFiles.length === 1 ? "" : "s"}.`);
+      setVideoStatus(
+        `Replaced ${replacedFiles.length} menu video file${replacedFiles.length === 1 ? "" : "s"}.`
+      );
     } catch (err) {
       setVideoStatus(`Error: ${err.message || err}`);
     } finally {
@@ -318,46 +336,93 @@ export default function MiscPage({ connected, autoUnqueue, onAutoUnqueueChange, 
 
   return (
     <div className="flex-1 flex flex-col min-h-0 p-5 gap-4 overflow-y-auto">
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="flex items-center gap-2">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-muted">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+        className="flex items-center gap-2"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          className="text-text-muted"
+        >
           <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
         </svg>
         <h2 className="text-sm font-display font-semibold text-text-primary">Misc</h2>
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.2, delay: 0.05 }} className="p-4 rounded-xl bg-base-700 border border-border space-y-4">
-        <h3 className="text-xs font-display font-medium text-text-secondary uppercase tracking-wider">Queue Automation</h3>
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={noAnim() ? T0 : { duration: 0.2, delay: 0.05 }}
+        className="p-4 rounded-xl bg-base-700 border border-border space-y-4"
+      >
+        <h3 className="text-xs font-display font-medium text-text-secondary uppercase tracking-wider">
+          Queue Automation
+        </h3>
 
         {disabled && connected && !loading && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-status-yellow/10 border border-status-yellow/20">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-status-yellow shrink-0">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="text-status-yellow shrink-0"
+            >
               <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01" />
             </svg>
-            <span className="text-[11px] font-body text-status-yellow">You must be party leader to use queue automation</span>
+            <span className="text-[11px] font-body text-status-yellow">
+              You must be party leader to use queue automation
+            </span>
           </div>
         )}
 
-        <div className={`flex items-center justify-between ${disabled ? "opacity-40 pointer-events-none" : ""}`}>
+        <div
+          className={`flex items-center justify-between ${disabled ? "opacity-40 pointer-events-none" : ""}`}
+        >
           <div>
-            <p className="text-sm font-display font-medium text-text-primary">Auto Unqueue on Dodge</p>
-            <p className="text-xs font-body text-text-muted mt-0.5">Leave queue when someone dodges your match</p>
+            <p className="text-sm font-display font-medium text-text-primary">
+              Auto Unqueue on Dodge
+            </p>
+            <p className="text-xs font-body text-text-muted mt-0.5">
+              Leave queue when someone dodges your match
+            </p>
           </div>
           <Toggle enabled={autoUnqueue} onChange={onAutoUnqueueChange} />
         </div>
 
-        <div className={`flex items-center justify-between ${disabled ? "opacity-40 pointer-events-none" : ""}`}>
+        <div
+          className={`flex items-center justify-between ${disabled ? "opacity-40 pointer-events-none" : ""}`}
+        >
           <div>
             <p className="text-sm font-display font-medium text-text-primary">Auto Requeue</p>
-            <p className="text-xs font-body text-text-muted mt-0.5">Automatically requeue when a match ends</p>
+            <p className="text-xs font-body text-text-muted mt-0.5">
+              Automatically requeue when a match ends
+            </p>
           </div>
           <Toggle enabled={autoRequeue} onChange={onAutoRequeueChange} />
         </div>
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.2, delay: 0.08 }} className="p-4 rounded-xl bg-base-700 border border-border space-y-4">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={noAnim() ? T0 : { duration: 0.2, delay: 0.08 }}
+        className="p-4 rounded-xl bg-base-700 border border-border space-y-4"
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <h3 className="text-xs font-display font-medium text-text-secondary uppercase tracking-wider">Menu Video</h3>
+            <h3 className="text-xs font-display font-medium text-text-secondary uppercase tracking-wider">
+              Menu Video
+            </h3>
             <Tooltip text="This feature can be finicky, and some videos may not display correctly in game.">
               <div className="w-3.5 h-3.5 rounded-full bg-base-500 flex items-center justify-center cursor-help">
                 <span className="text-[9px] font-display font-bold text-text-muted">?</span>
@@ -397,7 +462,15 @@ export default function MiscPage({ connected, autoUnqueue, onAutoUnqueueChange, 
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-8 rounded-lg border border-dashed border-border bg-base-800/50 gap-2">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-muted/30">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              className="text-text-muted/30"
+            >
               <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
               <path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5" />
             </svg>
@@ -406,15 +479,29 @@ export default function MiscPage({ connected, autoUnqueue, onAutoUnqueueChange, 
         )}
 
         {videoStatus && (
-          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${videoStatus.startsWith("Error") ? "bg-status-red/10 border border-status-red/20" : "bg-status-green/10 border border-status-green/20"}`}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`shrink-0 ${videoStatus.startsWith("Error") ? "text-status-red" : "text-status-green"}`}>
+          <div
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg ${videoStatus.startsWith("Error") ? "bg-status-red/10 border border-status-red/20" : "bg-status-green/10 border border-status-green/20"}`}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className={`shrink-0 ${videoStatus.startsWith("Error") ? "text-status-red" : "text-status-green"}`}
+            >
               {videoStatus.startsWith("Error") ? (
                 <path d="M18 6L6 18M6 6l12 12" />
               ) : (
                 <path d="M20 6L9 17l-5-5" />
               )}
             </svg>
-            <span className={`text-[11px] font-body ${videoStatus.startsWith("Error") ? "text-status-red" : "text-status-green"}`}>{videoStatus}</span>
+            <span
+              className={`text-[11px] font-body ${videoStatus.startsWith("Error") ? "text-status-red" : "text-status-green"}`}
+            >
+              {videoStatus}
+            </span>
           </div>
         )}
       </motion.div>
@@ -428,7 +515,9 @@ function Toggle({ enabled, onChange }) {
       onClick={() => onChange(!enabled)}
       className={`w-9 h-5 rounded-full transition-colors duration-200 relative shrink-0 ${enabled ? "bg-val-red" : "bg-base-500"}`}
     >
-      <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-200 ${enabled ? "left-[18px]" : "left-0.5"}`} />
+      <div
+        className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-200 ${enabled ? "left-[18px]" : "left-0.5"}`}
+      />
     </button>
   );
 }

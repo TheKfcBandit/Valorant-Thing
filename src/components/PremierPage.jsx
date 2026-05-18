@@ -66,26 +66,42 @@ function normalizeStandings(divisionJson) {
 
 function normalizeMatches(conferenceJson) {
   if (!conferenceJson) return [];
-  const rows = pick(conferenceJson, "matches", "Matches", "schedule", "Schedule", "events", "Events") || [];
+  const rows =
+    pick(conferenceJson, "matches", "Matches", "schedule", "Schedule", "events", "Events") || [];
   if (!Array.isArray(rows)) return [];
-  return rows.map((m, idx) => {
-    const startRaw = pick(m, "startTime", "StartTime", "scheduledTime", "ScheduledTime", "start", "Start");
-    const startMs = startRaw ? new Date(startRaw).getTime() : 0;
-    return {
-      id: pick(m, "id", "ID", "matchId", "MatchID") || `m-${idx}`,
-      startMs: Number.isFinite(startMs) ? startMs : 0,
-      map: pick(m, "map", "Map", "mapId", "MapID") || "",
-      status: pick(m, "status", "Status", "state", "State") || "",
-      opponent: pick(m, "opponent", "Opponent", "opponentName", "OpponentName") || "",
-      score: pick(m, "score", "Score") || "",
-    };
-  }).sort((a, b) => a.startMs - b.startMs);
+  return rows
+    .map((m, idx) => {
+      const startRaw = pick(
+        m,
+        "startTime",
+        "StartTime",
+        "scheduledTime",
+        "ScheduledTime",
+        "start",
+        "Start"
+      );
+      const startMs = startRaw ? new Date(startRaw).getTime() : 0;
+      return {
+        id: pick(m, "id", "ID", "matchId", "MatchID") || `m-${idx}`,
+        startMs: Number.isFinite(startMs) ? startMs : 0,
+        map: pick(m, "map", "Map", "mapId", "MapID") || "",
+        status: pick(m, "status", "Status", "state", "State") || "",
+        opponent: pick(m, "opponent", "Opponent", "opponentName", "OpponentName") || "",
+        score: pick(m, "score", "Score") || "",
+      };
+    })
+    .sort((a, b) => a.startMs - b.startMs);
 }
 
 function fmtMatchDate(ms) {
   if (!ms) return "TBD";
   const d = new Date(ms);
-  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 export default function PremierPage({ connected, player, playerIsStale }) {
@@ -109,10 +125,16 @@ export default function PremierPage({ connected, player, playerIsStale }) {
     } catch {
       setTeam(null);
     }
-    try { setStandings(divisionRaw ? normalizeStandings(JSON.parse(divisionRaw)) : []); }
-    catch { setStandings([]); }
-    try { setMatches(conferenceRaw ? normalizeMatches(JSON.parse(conferenceRaw)) : []); }
-    catch { setMatches([]); }
+    try {
+      setStandings(divisionRaw ? normalizeStandings(JSON.parse(divisionRaw)) : []);
+    } catch {
+      setStandings([]);
+    }
+    try {
+      setMatches(conferenceRaw ? normalizeMatches(JSON.parse(conferenceRaw)) : []);
+    } catch {
+      setMatches([]);
+    }
   }, []);
 
   const fetchLive = useCallback(async () => {
@@ -135,8 +157,12 @@ export default function PremierPage({ connected, player, playerIsStale }) {
       let divisionRaw = "";
       let conferenceRaw = "";
       const [divisionRes, conferenceRes] = await Promise.allSettled([
-        t.divisionId ? invoke("get_premier_division", { divisionId: t.divisionId }) : Promise.resolve(""),
-        t.conferenceId ? invoke("get_premier_conference", { conferenceId: t.conferenceId }) : Promise.resolve(""),
+        t.divisionId
+          ? invoke("get_premier_division", { divisionId: t.divisionId })
+          : Promise.resolve(""),
+        t.conferenceId
+          ? invoke("get_premier_conference", { conferenceId: t.conferenceId })
+          : Promise.resolve(""),
       ]);
       if (divisionRes.status === "fulfilled") {
         divisionRaw = divisionRes.value || "";
@@ -151,7 +177,8 @@ export default function PremierPage({ connected, player, playerIsStale }) {
       // Only persist when the full bundle landed cleanly — a partial write
       // would atomically clobber a previously-valid snapshot, leaving the
       // next cold load with a fresh timestamp but blank standings/schedule.
-      const bundleComplete = divisionRes.status === "fulfilled" && conferenceRes.status === "fulfilled";
+      const bundleComplete =
+        divisionRes.status === "fulfilled" && conferenceRes.status === "fulfilled";
       if (bundleComplete) {
         try {
           await invoke("cache_premier_bundle", {
@@ -159,10 +186,12 @@ export default function PremierPage({ connected, player, playerIsStale }) {
             division: divisionRaw,
             conference: conferenceRaw,
           });
-        } catch { /* non-fatal */ }
+        } catch {
+          /* non-fatal */
+        }
       }
     } catch (e) {
-      setError(typeof e === "string" ? e : (e?.message || "Failed to load Premier data"));
+      setError(typeof e === "string" ? e : e?.message || "Failed to load Premier data");
     } finally {
       setLoading(false);
     }
@@ -181,14 +210,18 @@ export default function PremierPage({ connected, player, playerIsStale }) {
           setFromCache(true);
           setCacheTs(snap.saved_at_ms || 0);
         }
-      } catch { /* no cache yet — fine */ }
+      } catch {
+        /* no cache yet — fine */
+      }
       if (connected) {
         await fetchLive();
       } else if (!cancelled) {
         setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [connected, fetchLive, hydrateFromBundle]);
 
   // Per-member MMR — fired in parallel, tolerant of individual failures so one
@@ -210,11 +243,15 @@ export default function PremierPage({ connected, player, playerIsStale }) {
             tier: parsed.currenttier ?? 0,
             rr: parsed.ranking_in_tier ?? 0,
           };
-        } catch { /* skip bad payload */ }
+        } catch {
+          /* skip bad payload */
+        }
       });
       setMemberMmr(next);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [connected, team?.id, team?.members?.length]);
 
   const myPlacement = useMemo(() => {
@@ -225,13 +262,17 @@ export default function PremierPage({ connected, player, playerIsStale }) {
   }, [team, standings]);
 
   const upcoming = matches.filter((m) => m.startMs >= Date.now());
-  const recent = matches.filter((m) => m.startMs < Date.now()).slice(-5).reverse();
+  const recent = matches
+    .filter((m) => m.startMs < Date.now())
+    .slice(-5)
+    .reverse();
 
   // Not connected and nothing cached → guide the user.
   if (!connected && !team && !fromCache) {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={noAnim() ? T0 : { duration: 0.2 }}
         className="flex-1 flex items-center justify-center p-5"
       >
@@ -248,7 +289,9 @@ export default function PremierPage({ connected, player, playerIsStale }) {
   if (loading && !team) {
     return (
       <motion.div
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={noAnim() ? T0 : { duration: 0.15 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={noAnim() ? T0 : { duration: 0.15 }}
         className="flex-1 flex items-center justify-center p-5"
       >
         <p className="text-sm font-body text-text-muted">Loading Premier data…</p>
@@ -259,7 +302,8 @@ export default function PremierPage({ connected, player, playerIsStale }) {
   if (error && !team) {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={noAnim() ? T0 : { duration: 0.2 }}
         className="flex-1 flex items-center justify-center p-5"
       >
@@ -275,17 +319,28 @@ export default function PremierPage({ connected, player, playerIsStale }) {
   if (!team) {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={noAnim() ? T0 : { duration: 0.2 }}
         className="flex-1 flex items-center justify-center p-5"
       >
         <div className="max-w-md text-center space-y-3">
           <div className="w-12 h-12 mx-auto rounded-full bg-val-red/10 border border-val-red/20 flex items-center justify-center">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-val-red">
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              className="text-val-red"
+            >
               <polygon points="12 2 15 8.5 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 9 8.5 12 2" />
             </svg>
           </div>
-          <h1 className="text-xl font-display font-bold text-text-primary">Not on a Premier team</h1>
+          <h1 className="text-xl font-display font-bold text-text-primary">
+            Not on a Premier team
+          </h1>
           <p className="text-sm font-body text-text-muted">
             Join or create a Premier team in Valorant — it'll show up here once you're enrolled.
           </p>
@@ -296,7 +351,8 @@ export default function PremierPage({ connected, player, playerIsStale }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={noAnim() ? T0 : { duration: 0.2 }}
       className="flex-1 overflow-y-auto p-5 space-y-5"
     >
@@ -308,7 +364,9 @@ export default function PremierPage({ connected, player, playerIsStale }) {
           <div>
             <h1 className="text-2xl font-display font-bold text-text-primary leading-tight">
               {team.name || "Premier Team"}
-              {team.tag && <span className="text-text-muted text-base ml-2 font-body">#{team.tag}</span>}
+              {team.tag && (
+                <span className="text-text-muted text-base ml-2 font-body">#{team.tag}</span>
+              )}
             </h1>
             <p className="text-xs font-body text-text-muted mt-0.5">
               {team.wins}W / {team.losses}L · {team.points} pts
@@ -324,13 +382,18 @@ export default function PremierPage({ connected, player, playerIsStale }) {
       </header>
 
       <section>
-        <h2 className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider mb-2">Roster</h2>
+        <h2 className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider mb-2">
+          Roster
+        </h2>
         <div className="grid grid-cols-2 gap-2">
           {team.members.map((m) => {
             const mm = memberMmr[m.puuid];
             const tier = mm?.tier ?? 0;
             return (
-              <div key={m.puuid || `${m.name}#${m.tag}`} className="flex items-center gap-2.5 rounded-lg border border-border bg-base-700/60 px-3 py-2">
+              <div
+                key={m.puuid || `${m.name}#${m.tag}`}
+                className="flex items-center gap-2.5 rounded-lg border border-border bg-base-700/60 px-3 py-2"
+              >
                 <img src={rankIcon(tier)} alt="" className="w-9 h-9 shrink-0" />
                 <div className="min-w-0">
                   <p className="text-sm font-body text-text-primary truncate">
@@ -338,21 +401,26 @@ export default function PremierPage({ connected, player, playerIsStale }) {
                     {m.tag && <span className="text-text-muted ml-1">#{m.tag}</span>}
                   </p>
                   <p className="text-xs font-body text-text-muted">
-                    {rankName(tier)}{mm?.rr ? ` · ${mm.rr} RR` : ""}
+                    {rankName(tier)}
+                    {mm?.rr ? ` · ${mm.rr} RR` : ""}
                   </p>
                 </div>
               </div>
             );
           })}
           {!team.members.length && (
-            <p className="col-span-2 text-xs font-body text-text-muted italic">No roster members returned.</p>
+            <p className="col-span-2 text-xs font-body text-text-muted italic">
+              No roster members returned.
+            </p>
           )}
         </div>
       </section>
 
       {standings.length > 0 && (
         <section>
-          <h2 className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider mb-2">Division standings</h2>
+          <h2 className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider mb-2">
+            Division standings
+          </h2>
           <div className="rounded-lg border border-border bg-base-700/60 overflow-hidden">
             {standings.map((row) => {
               const isMe = row.id === team.id;
@@ -366,7 +434,9 @@ export default function PremierPage({ connected, player, playerIsStale }) {
                     {row.name || "—"}
                     {row.tag && <span className="text-text-muted ml-1">#{row.tag}</span>}
                   </span>
-                  <span className="text-xs text-text-muted tabular-nums">{row.wins}W / {row.losses}L</span>
+                  <span className="text-xs text-text-muted tabular-nums">
+                    {row.wins}W / {row.losses}L
+                  </span>
                   <span className="w-12 text-right tabular-nums">{row.points}</span>
                 </div>
               );
@@ -377,21 +447,40 @@ export default function PremierPage({ connected, player, playerIsStale }) {
 
       {(upcoming.length > 0 || recent.length > 0) && (
         <section>
-          <h2 className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider mb-2">Schedule</h2>
+          <h2 className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider mb-2">
+            Schedule
+          </h2>
           <div className="rounded-lg border border-border bg-base-700/60 overflow-hidden">
             {upcoming.map((m) => (
-              <div key={m.id} className="flex items-center gap-3 px-3 py-2 text-sm font-body border-b border-border last:border-b-0">
-                <span className="text-xs font-display text-accent-blue uppercase tracking-wider w-16">Upcoming</span>
-                <span className="flex-1 text-text-secondary truncate">{m.map || m.opponent || "Match"}</span>
-                <span className="text-xs text-text-muted tabular-nums">{fmtMatchDate(m.startMs)}</span>
+              <div
+                key={m.id}
+                className="flex items-center gap-3 px-3 py-2 text-sm font-body border-b border-border last:border-b-0"
+              >
+                <span className="text-xs font-display text-accent-blue uppercase tracking-wider w-16">
+                  Upcoming
+                </span>
+                <span className="flex-1 text-text-secondary truncate">
+                  {m.map || m.opponent || "Match"}
+                </span>
+                <span className="text-xs text-text-muted tabular-nums">
+                  {fmtMatchDate(m.startMs)}
+                </span>
               </div>
             ))}
             {recent.map((m) => (
-              <div key={m.id} className="flex items-center gap-3 px-3 py-2 text-sm font-body border-b border-border last:border-b-0">
-                <span className="text-xs font-display text-text-muted uppercase tracking-wider w-16">Past</span>
-                <span className="flex-1 text-text-secondary truncate">{m.map || m.opponent || "Match"}</span>
+              <div
+                key={m.id}
+                className="flex items-center gap-3 px-3 py-2 text-sm font-body border-b border-border last:border-b-0"
+              >
+                <span className="text-xs font-display text-text-muted uppercase tracking-wider w-16">
+                  Past
+                </span>
+                <span className="flex-1 text-text-secondary truncate">
+                  {m.map || m.opponent || "Match"}
+                </span>
                 <span className="text-xs text-text-muted tabular-nums">
-                  {m.score ? `${m.score} · ` : ""}{fmtMatchDate(m.startMs)}
+                  {m.score ? `${m.score} · ` : ""}
+                  {fmtMatchDate(m.startMs)}
                 </span>
               </div>
             ))}

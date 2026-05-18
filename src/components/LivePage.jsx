@@ -6,16 +6,31 @@ import PartyPage from "./PartyPage";
 // party view) under a single tab with pill switching. Each child component
 // keeps its own state, polling, and rendering — we just expose them in one
 // place so the sidebar isn't split.
-export default function LivePage({ splooshimaApiKey, splooshimaAvailable, player, connected, addLog, onRefresh }) {
+export default function LivePage({
+  splooshimaApiKey,
+  splooshimaAvailable,
+  player,
+  connected,
+  addLog,
+  onRefresh,
+}) {
   const [view, setView] = useState("match");
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="px-4 pt-3 pb-2 flex items-center gap-1.5 border-b border-border">
-        <PillButton active={view === "match"} onClick={() => setView("match")} activeColor="text-accent-blue">
+        <PillButton
+          active={view === "match"}
+          onClick={() => setView("match")}
+          activeColor="text-accent-blue"
+        >
           Active Match
         </PillButton>
-        <PillButton active={view === "party"} onClick={() => setView("party")} activeColor="text-val-red">
+        <PillButton
+          active={view === "party"}
+          onClick={() => setView("party")}
+          activeColor="text-val-red"
+        >
           Party
         </PillButton>
       </div>

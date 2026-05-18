@@ -26,7 +26,9 @@ extern "system" {
 #[cfg(target_os = "windows")]
 fn is_red_at(hdc: isize, x: i32, y: i32) -> bool {
     let color = unsafe { GetPixel(hdc, x, y) };
-    if color == 0xFFFFFFFF { return false; }
+    if color == 0xFFFFFFFF {
+        return false;
+    }
     let r = (color & 0xFF) as u8;
     let g = ((color >> 8) & 0xFF) as u8;
     let b = ((color >> 16) & 0xFF) as u8;
@@ -37,7 +39,9 @@ fn is_red_at(hdc: isize, x: i32, y: i32) -> bool {
 fn scan_spike_region(mx: i32, my: i32, mw: u32, mh: u32) -> bool {
     unsafe {
         let hdc = GetDC(0);
-        if hdc == 0 { return false; }
+        if hdc == 0 {
+            return false;
+        }
         let mut hits = 0u32;
         let x_offsets: [f64; 3] = [0.49, 0.50, 0.51];
         let y_offsets: [f64; 5] = [0.03, 0.06, 0.09, 0.12, 0.16];
@@ -96,7 +100,9 @@ pub fn start_bomb_tracker(app: tauri::AppHandle) -> Result<(), String> {
                 continue;
             }
 
-            if now.duration_since(monitor_fetched_at).as_millis() as u64 >= MONITOR_CACHE_MS || cached_monitor.is_none() {
+            if now.duration_since(monitor_fetched_at).as_millis() as u64 >= MONITOR_CACHE_MS
+                || cached_monitor.is_none()
+            {
                 cached_monitor = crate::riot::get_valorant_monitor().ok();
                 monitor_fetched_at = now;
             }
@@ -109,10 +115,13 @@ pub fn start_bomb_tracker(app: tauri::AppHandle) -> Result<(), String> {
             };
 
             if scan_spike_region(mx, my, mw, mh) {
-                let _ = app.emit("bomb-planted", serde_json::json!({
-                    "epochMs": now_ms(),
-                    "monitor": { "x": mx, "y": my, "w": mw, "h": mh },
-                }));
+                let _ = app.emit(
+                    "bomb-planted",
+                    serde_json::json!({
+                        "epochMs": now_ms(),
+                        "monitor": { "x": mx, "y": my, "w": mw, "h": mh },
+                    }),
+                );
 
                 cooldown_until = Some(Instant::now() + Duration::from_secs(COOLDOWN_SECS));
             }

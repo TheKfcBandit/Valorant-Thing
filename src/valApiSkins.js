@@ -20,7 +20,9 @@ let levelLookup = null;
 
 async function getWeapons() {
   if (!weaponsPromise) {
-    weaponsPromise = fetch(`${VAL_API}/weapons`).then(r => r.json()).then(d => d.data);
+    weaponsPromise = fetch(`${VAL_API}/weapons`)
+      .then((r) => r.json())
+      .then((d) => d.data);
   }
   return weaponsPromise;
 }
@@ -74,7 +76,9 @@ let mapLookup = null;
 
 export async function getMaps() {
   if (!mapsPromise) {
-    mapsPromise = fetch(`${VAL_API}/maps`).then(r => r.json()).then(d => d.data || []);
+    mapsPromise = fetch(`${VAL_API}/maps`)
+      .then((r) => r.json())
+      .then((d) => d.data || []);
   }
   return mapsPromise;
 }
@@ -102,11 +106,11 @@ let agentLookup = null;
 export async function getAgents() {
   if (!agentsPromise) {
     agentsPromise = fetch(`${VAL_API}/agents?isPlayableCharacter=true`)
-      .then(r => r.json())
-      .then(d => {
+      .then((r) => r.json())
+      .then((d) => {
         const apiAgents = d.data || [];
-        const existing = new Set(apiAgents.map(a => a.uuid.toLowerCase()));
-        const extras = CUSTOM_AGENTS.filter(c => !existing.has(c.uuid.toLowerCase()));
+        const existing = new Set(apiAgents.map((a) => a.uuid.toLowerCase()));
+        const extras = CUSTOM_AGENTS.filter((c) => !existing.has(c.uuid.toLowerCase()));
         return [...apiAgents, ...extras];
       });
   }
@@ -134,7 +138,9 @@ let tierLookup = null;
 export async function getTierLookup() {
   if (tierLookup) return tierLookup;
   if (!tiersPromise) {
-    tiersPromise = fetch(`${VAL_API}/competitivetiers`).then(r => r.json()).then(d => d.data || []);
+    tiersPromise = fetch(`${VAL_API}/competitivetiers`)
+      .then((r) => r.json())
+      .then((d) => d.data || []);
   }
   const episodes = await tiersPromise;
   const out = {};
@@ -156,7 +162,9 @@ let gameModeLookup = null;
 
 export async function getGameModes() {
   if (!gameModesPromise) {
-    gameModesPromise = fetch(`${VAL_API}/gamemodes`).then(r => r.json()).then(d => d.data || []);
+    gameModesPromise = fetch(`${VAL_API}/gamemodes`)
+      .then((r) => r.json())
+      .then((d) => d.data || []);
   }
   return gameModesPromise;
 }
@@ -186,7 +194,9 @@ let bundlesPromise = null;
 export async function getBundleLookup() {
   if (bundleLookup) return bundleLookup;
   if (!bundlesPromise) {
-    bundlesPromise = fetch(`${VAL_API}/bundles`).then(r => r.json()).then(d => d.data);
+    bundlesPromise = fetch(`${VAL_API}/bundles`)
+      .then((r) => r.json())
+      .then((d) => d.data);
   }
   const bundles = await bundlesPromise;
   const out = {};
@@ -217,14 +227,14 @@ export async function getAccessoryLookup() {
     // allSettled rather than all so one 5xx endpoint doesn't kill the whole
     // catalog — accessory cards for the surviving kinds still resolve.
     accessoryPromise = Promise.allSettled([
-      fetch(`${VAL_API}/buddies`).then(r => r.json()),
-      fetch(`${VAL_API}/sprays`).then(r => r.json()),
-      fetch(`${VAL_API}/playercards`).then(r => r.json()),
-      fetch(`${VAL_API}/playertitles`).then(r => r.json()),
+      fetch(`${VAL_API}/buddies`).then((r) => r.json()),
+      fetch(`${VAL_API}/sprays`).then((r) => r.json()),
+      fetch(`${VAL_API}/playercards`).then((r) => r.json()),
+      fetch(`${VAL_API}/playertitles`).then((r) => r.json()),
     ]);
   }
   const [buddiesR, spraysR, cardsR, titlesR] = await accessoryPromise;
-  const ok = (r) => r.status === "fulfilled" ? r.value : null;
+  const ok = (r) => (r.status === "fulfilled" ? r.value : null);
   const buddies = ok(buddiesR);
   const sprays = ok(spraysR);
   const cards = ok(cardsR);

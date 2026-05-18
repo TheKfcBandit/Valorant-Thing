@@ -35,12 +35,25 @@ const MODE_NAMES = {
   skirmishascension2v2: "Skirmish: Ascension 2v2",
 };
 
-const normalizeModeKey = (mode) => String(mode || "").split("/").pop()?.split(".")[0]?.toLowerCase() || "";
+const normalizeModeKey = (mode) =>
+  String(mode || "")
+    .split("/")
+    .pop()
+    ?.split(".")[0]
+    ?.toLowerCase() || "";
 
 const POLL_INTERVAL = 3000;
 
 const UsersIcon = ({ size = 16, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={className}>
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    className={className}
+  >
     <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" />
     <circle cx="9" cy="7" r="4" />
     <path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
@@ -48,7 +61,13 @@ const UsersIcon = ({ size = 16, className = "" }) => (
 );
 
 const CrownIcon = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className="text-val-red shrink-0">
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className="text-val-red shrink-0"
+  >
     <path d="M2 4l3 12h14l3-12-5 4-5-4-5 4-5-4z" />
     <rect x="4" y="18" width="16" height="2" rx="1" />
   </svg>
@@ -88,12 +107,15 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
 
   useEffect(() => {
     if (!showQueuePicker) return;
-    const handler = (e) => { if (queuePickerRef.current && !queuePickerRef.current.contains(e.target)) setShowQueuePicker(false); };
+    const handler = (e) => {
+      if (queuePickerRef.current && !queuePickerRef.current.contains(e.target))
+        setShowQueuePicker(false);
+    };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [showQueuePicker]);
 
-  const isLeader = party?.members?.some(m => m.puuid === party.my_puuid && m.is_owner);
+  const isLeader = party?.members?.some((m) => m.puuid === party.my_puuid && m.is_owner);
 
   const fetchParty = async () => {
     try {
@@ -132,11 +154,19 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
     }
     fetchParty();
     const interval = setInterval(fetchParty, POLL_INTERVAL);
-    return () => { cancelledRef.current = true; clearInterval(interval); };
+    return () => {
+      cancelledRef.current = true;
+      clearInterval(interval);
+    };
   }, [connected]);
 
   const handleKick = async (puuid) => {
-    try { await invoke("kick_from_party", { targetPuuid: puuid }); fetchParty(); } catch {}
+    try {
+      await invoke("kick_from_party", { targetPuuid: puuid });
+      fetchParty();
+    } catch (e) {
+      console.warn("[Party] suppressed:", e);
+    }
   };
 
   const handleGenerateCode = async () => {
@@ -145,7 +175,9 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
       const data = JSON.parse(raw);
       const code = data?.InviteCode || data?.inviteCode || "";
       setPartyCode(code);
-    } catch {}
+    } catch (e) {
+      console.warn("[Party] suppressed:", e);
+    }
   };
 
   const handleJoin = async () => {
@@ -154,7 +186,9 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
       addLog?.("info", `[Party] Joining by code: ${joinCode.trim()}`);
       await invoke("join_party_by_code", { code: joinCode.trim() });
       addLog?.("info", "[Party] Join by code succeeded");
-      setShowJoin(false); setJoinCode(""); fetchParty();
+      setShowJoin(false);
+      setJoinCode("");
+      fetchParty();
     } catch (e) {
       addLog?.("error", `[Party] Join by code failed: ${e}`);
     }
@@ -166,17 +200,23 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
       const raw = await invoke("get_friends");
       const data = JSON.parse(raw);
       setFriends(data || []);
-      const online = (data || []).filter(f => f.status && f.status !== "offline");
-      const withCard = online.filter(f => f.player_card_url);
-      addLog?.("info", `[Friends] Loaded ${(data || []).length} friends — ${online.length} online, ${withCard.length} with card`);
-      online.slice(0, 10).forEach(f => {
-        addLog?.("info", `[Friends] ${f.game_name}#${f.game_tag} status=${f.status} lv=${f.account_level} card=${!!f.player_card_url} product=${f.product}`);
+      const online = (data || []).filter((f) => f.status && f.status !== "offline");
+      const withCard = online.filter((f) => f.player_card_url);
+      addLog?.(
+        "info",
+        `[Friends] Loaded ${(data || []).length} friends — ${online.length} online, ${withCard.length} with card`
+      );
+      online.slice(0, 10).forEach((f) => {
+        addLog?.(
+          "info",
+          `[Friends] ${f.game_name}#${f.game_tag} status=${f.status} lv=${f.account_level} card=${!!f.player_card_url} product=${f.product}`
+        );
       });
       // Compute fitness from local match cache.
       try {
         const history = await invoke("match_history_list", { limit: 200 });
         const matches = history?.matches || [];
-        const puuids = (data || []).map(f => f.puuid).filter(Boolean);
+        const puuids = (data || []).map((f) => f.puuid).filter(Boolean);
         setFitness(computeFitness(matches, puuids));
       } catch (e) {
         // Cache may not have any entries yet — that's fine.
@@ -196,19 +236,17 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
     fetchFriends();
   };
 
-
   const handleInvite = async (friend) => {
     setInvitingPuuid(friend.puuid);
     try {
       await invoke("invite_to_party", { name: friend.game_name, tag: friend.game_tag });
-      setInvitedPuuids(prev => new Set([...prev, friend.puuid]));
+      setInvitedPuuids((prev) => new Set([...prev, friend.puuid]));
       addLog?.("info", `[Party] Invited ${friend.game_name}#${friend.game_tag}`);
     } catch (e) {
       addLog?.("error", `[Party] Invite failed: ${e}`);
     }
     setInvitingPuuid(null);
   };
-
 
   const handleCopyCode = () => {
     if (!partyCode) return;
@@ -265,35 +303,52 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
   };
 
   const isCustom = party?.state === "CUSTOM_GAME_SETUP";
-  const currentQueueLabel = isCustom ? "Custom" : (QUEUES.find(q => q.id === normalizeModeKey(party?.queue_id))?.label || QUEUES.find(q => q.id === party?.queue_id)?.label || party?.queue_id || "Unknown");
+  const currentQueueLabel = isCustom
+    ? "Custom"
+    : QUEUES.find((q) => q.id === normalizeModeKey(party?.queue_id))?.label ||
+      QUEUES.find((q) => q.id === party?.queue_id)?.label ||
+      party?.queue_id ||
+      "Unknown";
 
   useEffect(() => {
     if (isCustom && !customConfigs) fetchCustomConfigs();
     if (isCustom && !apiMaps) {
-      getMapLookup().then(setApiMaps).catch(() => {});
+      getMapLookup()
+        .then(setApiMaps)
+        .catch(() => {});
     }
     if (isCustom && !apiModes) {
-      getGameModeLookup().then(setApiModes).catch(() => {});
+      getGameModeLookup()
+        .then(setApiModes)
+        .catch(() => {});
     }
   }, [isCustom]);
 
   useEffect(() => {
     if (!showMapPicker) return;
-    const h = (e) => { if (mapPickerRef.current && !mapPickerRef.current.contains(e.target)) setShowMapPicker(false); };
+    const h = (e) => {
+      if (mapPickerRef.current && !mapPickerRef.current.contains(e.target)) setShowMapPicker(false);
+    };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [showMapPicker]);
 
   useEffect(() => {
     if (!showModePicker) return;
-    const h = (e) => { if (modePickerRef.current && !modePickerRef.current.contains(e.target)) setShowModePicker(false); };
+    const h = (e) => {
+      if (modePickerRef.current && !modePickerRef.current.contains(e.target))
+        setShowModePicker(false);
+    };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [showModePicker]);
 
   useEffect(() => {
     if (!showServerPicker) return;
-    const h = (e) => { if (serverPickerRef.current && !serverPickerRef.current.contains(e.target)) setShowServerPicker(false); };
+    const h = (e) => {
+      if (serverPickerRef.current && !serverPickerRef.current.contains(e.target))
+        setShowServerPicker(false);
+    };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [showServerPicker]);
@@ -302,7 +357,17 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
     return (
       <div className="flex-1 flex items-center justify-center p-5">
         <div className="text-center space-y-2">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-muted mx-auto">
+          <svg
+            width="32"
+            height="32"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-text-muted mx-auto"
+          >
             <path d="M1 1l22 22" />
             <path d="M16.72 11.06A10.94 10.94 0 0119 12.55" />
             <path d="M5 12.55a10.94 10.94 0 015.17-2.39" />
@@ -312,7 +377,9 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
             <line x1="12" y1="20" x2="12.01" y2="20" />
           </svg>
           <p className="text-sm font-display text-text-muted">Waiting for Valorant</p>
-          <p className="text-[11px] font-body text-text-muted/60">Open Valorant and it will connect automatically</p>
+          <p className="text-[11px] font-body text-text-muted/60">
+            Open Valorant and it will connect automatically
+          </p>
         </div>
       </div>
     );
@@ -331,7 +398,10 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
         </div>
         <div className="space-y-2">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-base-700 border border-border">
+            <div
+              key={i}
+              className="flex items-center gap-3 p-3 rounded-xl bg-base-700 border border-border"
+            >
               <div className="w-10 h-10 rounded-lg bg-base-600 shrink-0" />
               <div className="flex-1 space-y-1.5">
                 <div className="h-3.5 w-28 rounded bg-base-600" />
@@ -349,7 +419,15 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
     return (
       <div className="flex-1 flex items-center justify-center p-5">
         <div className="text-center space-y-2">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-muted mx-auto">
+          <svg
+            width="32"
+            height="32"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            className="text-text-muted mx-auto"
+          >
             <circle cx="12" cy="12" r="10" />
             <path d="M12 8v4M12 16h.01" />
           </svg>
@@ -363,8 +441,17 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
   if (!party?.members?.length) return null;
 
   return (
-    <motion.div initial="hidden" animate="show" variants={{ hidden: {}, show: { transition: { staggerChildren: noAnim() ? 0 : 0.04 } } }} className="flex-1 flex flex-col min-h-0 p-5 gap-3 overflow-y-auto">
-      <motion.div variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }} transition={noAnim() ? T0 : { duration: 0.2 }} className="flex items-center justify-between">
+    <motion.div
+      initial="hidden"
+      animate="show"
+      variants={{ hidden: {}, show: { transition: { staggerChildren: noAnim() ? 0 : 0.04 } } }}
+      className="flex-1 flex flex-col min-h-0 p-5 gap-3 overflow-y-auto"
+    >
+      <motion.div
+        variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
+        transition={noAnim() ? T0 : { duration: 0.2 }}
+        className="flex items-center justify-between"
+      >
         <div className="flex items-center gap-2">
           <UsersIcon size={16} className="text-text-muted" />
           <h2 className="text-sm font-display font-semibold text-text-primary">Party</h2>
@@ -373,37 +460,95 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
         <div className="flex items-center gap-1.5">
           {isLeader ? (
             <button
-              onClick={async () => { try { await invoke("set_party_accessibility", { open: party.accessibility !== "OPEN" }); fetchParty(); } catch {} }}
+              onClick={async () => {
+                try {
+                  await invoke("set_party_accessibility", { open: party.accessibility !== "OPEN" });
+                  fetchParty();
+                } catch (e) {
+                  console.warn("[Party] suppressed:", e);
+                }
+              }}
               className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-body transition-colors ${
-                party.accessibility === "OPEN" ? "text-status-green bg-status-green/10 hover:bg-status-green/20" : "text-status-red bg-status-red/10 hover:bg-status-red/20"
+                party.accessibility === "OPEN"
+                  ? "text-status-green bg-status-green/10 hover:bg-status-green/20"
+                  : "text-status-red bg-status-red/10 hover:bg-status-red/20"
               }`}
             >
-              <div className={`w-1.5 h-1.5 rounded-full ${party.accessibility === "OPEN" ? "bg-status-green" : "bg-status-red"}`} />
+              <div
+                className={`w-1.5 h-1.5 rounded-full ${party.accessibility === "OPEN" ? "bg-status-green" : "bg-status-red"}`}
+              />
               {party.accessibility === "OPEN" ? "Open" : "Closed"}
             </button>
           ) : (
             <>
-              <div className={`w-1.5 h-1.5 rounded-full ${party.accessibility === "OPEN" ? "bg-status-green" : "bg-status-red"}`} />
-              <span className="text-xs font-body text-text-muted">{party.accessibility === "OPEN" ? "Open" : "Closed"}</span>
+              <div
+                className={`w-1.5 h-1.5 rounded-full ${party.accessibility === "OPEN" ? "bg-status-green" : "bg-status-red"}`}
+              />
+              <span className="text-xs font-body text-text-muted">
+                {party.accessibility === "OPEN" ? "Open" : "Closed"}
+              </span>
             </>
           )}
         </div>
       </motion.div>
 
-      <motion.div variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }} transition={noAnim() ? T0 : { duration: 0.2 }} className="relative" ref={queuePickerRef}>
+      <motion.div
+        variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
+        transition={noAnim() ? T0 : { duration: 0.2 }}
+        className="relative"
+        ref={queuePickerRef}
+      >
         {isLeader ? (
           <button
-            onClick={() => setShowQueuePicker(p => !p)}
+            onClick={() => setShowQueuePicker((p) => !p)}
             disabled={changingQueue}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-base-700 border border-border text-xs font-body text-text-primary hover:bg-base-600 transition-colors w-full"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-text-muted shrink-0"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
-            <span className="font-display font-medium">{changingQueue ? "..." : currentQueueLabel}</span>
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-text-muted ml-auto shrink-0"><polyline points="6 9 12 15 18 9" /></svg>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="text-text-muted shrink-0"
+            >
+              <rect x="3" y="3" width="7" height="7" />
+              <rect x="14" y="3" width="7" height="7" />
+              <rect x="3" y="14" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" />
+            </svg>
+            <span className="font-display font-medium">
+              {changingQueue ? "..." : currentQueueLabel}
+            </span>
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="text-text-muted ml-auto shrink-0"
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
           </button>
         ) : (
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-base-700/50 border border-border text-xs font-body text-text-muted">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              className="shrink-0"
+            >
+              <rect x="3" y="3" width="7" height="7" />
+              <rect x="14" y="3" width="7" height="7" />
+              <rect x="3" y="14" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" />
+            </svg>
             <span>{currentQueueLabel}</span>
           </div>
         )}
@@ -416,7 +561,7 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
               transition={{ duration: 0.12 }}
               className="absolute z-40 top-full left-0 mt-1 w-48 bg-base-700 border border-border rounded-lg shadow-xl overflow-hidden"
             >
-              {QUEUES.map(q => (
+              {QUEUES.map((q) => (
                 <button
                   key={q.id}
                   onClick={() => handleChangeQueue(q.id)}
@@ -434,7 +579,11 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
         </AnimatePresence>
       </motion.div>
 
-      <motion.div variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }} transition={noAnim() ? T0 : { duration: 0.2 }} className="flex items-center gap-2 flex-wrap">
+      <motion.div
+        variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
+        transition={noAnim() ? T0 : { duration: 0.2 }}
+        className="flex items-center gap-2 flex-wrap"
+      >
         {isLeader && (
           <button
             disabled={queueing}
@@ -447,9 +596,16 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
                 fetchParty();
               } catch (e) {
                 const msg = typeof e === "string" ? e : e?.message || "";
-                if (msg.includes("QUEUE_RESTRICTED")) setQueueError("You are currently queue restricted (banned). Wait for your penalty to expire.");
-                else if (msg.includes("403")) setQueueError("Unable to join queue — you may be restricted.");
-                else setQueueError(msg || isCustom ? "Failed to start custom game." : "Failed to join queue.");
+                if (msg.includes("QUEUE_RESTRICTED"))
+                  setQueueError(
+                    "You are currently queue restricted (banned). Wait for your penalty to expire."
+                  );
+                else if (msg.includes("403"))
+                  setQueueError("Unable to join queue — you may be restricted.");
+                else
+                  setQueueError(
+                    msg || isCustom ? "Failed to start custom game." : "Failed to join queue."
+                  );
               }
               setQueueing(false);
             }}
@@ -460,9 +616,33 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
             }`}
           >
             {party.state === "MATCHMAKING" ? (
-              <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>{queueing ? "..." : "Leave Queue"}</>
+              <>
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+                {queueing ? "..." : "Leave Queue"}
+              </>
             ) : (
-              <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3" /></svg>{queueing ? "..." : isCustom ? "Start" : "Queue"}</>
+              <>
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+                {queueing ? "..." : isCustom ? "Start" : "Queue"}
+              </>
             )}
           </button>
         )}
@@ -470,21 +650,52 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
           onClick={openInviteModal}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" /></svg>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <line x1="19" y1="8" x2="19" y2="14" />
+            <line x1="22" y1="11" x2="16" y2="11" />
+          </svg>
           Invite
         </button>
         <button
           onClick={() => setShowJoin(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3" /></svg>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3" />
+          </svg>
           Join Code
         </button>
         <button
           onClick={handleGenerateCode}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" /></svg>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+            <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+          </svg>
           Get Code
         </button>
       </motion.div>
@@ -492,323 +703,699 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
       {partyCode && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-base-700 border border-border">
           <span className="text-xs font-body text-text-muted">Party Code:</span>
-          <code className="text-xs font-body text-text-primary font-medium tracking-wider">{partyCode}</code>
-          <button onClick={handleCopyCode} className="text-xs font-body text-val-red hover:text-val-red/80 transition-colors">
+          <code className="text-xs font-body text-text-primary font-medium tracking-wider">
+            {partyCode}
+          </code>
+          <button
+            onClick={handleCopyCode}
+            className="text-xs font-body text-val-red hover:text-val-red/80 transition-colors"
+          >
             {codeCopied ? "Copied!" : "Copy"}
           </button>
           <button
-            onClick={async () => { try { await invoke("disable_party_code"); setPartyCode(""); } catch {} }}
+            onClick={async () => {
+              try {
+                await invoke("disable_party_code");
+                setPartyCode("");
+              } catch (e) {
+                console.warn("[Party] suppressed:", e);
+              }
+            }}
             className="ml-auto w-5 h-5 rounded flex items-center justify-center text-text-muted hover:text-status-red hover:bg-status-red/10 transition-colors"
             title="Delete code"
           >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
           </button>
         </div>
       )}
 
-      {isCustom && isLeader && customConfigs && (() => {
-        const MAP_NAMES = {
-          Duality: "Bind", Triad: "Haven", Bonsai: "Split", Port: "Icebox", Foxtrot: "Breeze",
-          Canyon: "Fracture", Pitt: "Pearl", Jam: "Lotus", Juliett: "Sunset", Infinity: "Abyss",
-          HURM_Yard: "District", HURM_Alley: "Kasbah", HURM_Bowl: "Piazza", HURM_Helix: "Drift",
-          HURM_ShipLong: "Glitch",
-        };
-        const MODE_PRIORITY = ["Swiftplay", "Standard", "Deathmatch", "Spike Rush", "Escalation", "Replication", "Team Deathmatch"];
-        const SERVER_NAMES = { dallas: "US Central (Texas)", atlanta: "US Central (Georgia)", chicago: "US Central (Illinois)", ashburn: "US East (N. Virginia)", norcal: "US West (N. California)", oregon: "US West (Oregon)" };
+      {isCustom &&
+        isLeader &&
+        customConfigs &&
+        (() => {
+          const MAP_NAMES = {
+            Duality: "Bind",
+            Triad: "Haven",
+            Bonsai: "Split",
+            Port: "Icebox",
+            Foxtrot: "Breeze",
+            Canyon: "Fracture",
+            Pitt: "Pearl",
+            Jam: "Lotus",
+            Juliett: "Sunset",
+            Infinity: "Abyss",
+            HURM_Yard: "District",
+            HURM_Alley: "Kasbah",
+            HURM_Bowl: "Piazza",
+            HURM_Helix: "Drift",
+            HURM_ShipLong: "Glitch",
+          };
+          const MODE_PRIORITY = [
+            "Swiftplay",
+            "Standard",
+            "Deathmatch",
+            "Spike Rush",
+            "Escalation",
+            "Replication",
+            "Team Deathmatch",
+          ];
+          const SERVER_NAMES = {
+            dallas: "US Central (Texas)",
+            atlanta: "US Central (Georgia)",
+            chicago: "US Central (Illinois)",
+            ashburn: "US East (N. Virginia)",
+            norcal: "US West (N. California)",
+            oregon: "US West (Oregon)",
+          };
 
-        const getModeName = (m) => { const f = normalizeModeKey(m); if (MODE_NAMES[f]) return MODE_NAMES[f]; if (f.includes("hurm")) return "Team Deathmatch"; return f.replace(/_gamemode|gamemode/gi, "").replace(/_/g, " ").trim(); };
-        const getModeIcon = (m) => { const cls = (m.split("/").pop()?.split(".")[0] || "").toLowerCase(); return apiModes?.[cls]?.displayIcon || null; };
-        const getModeBg = (m) => { const cls = (m.split("/").pop()?.split(".")[0] || "").toLowerCase(); return apiModes?.[cls]?.listViewIconTall || null; };
-        const getMapName = (m) => { const raw = m.split("/").pop() || m; return apiMaps?.[m.toLowerCase()]?.displayName || MAP_NAMES[raw] || raw; };
-        const getMapImg = (m) => apiMaps?.[m.toLowerCase()]?.listViewIcon || null;
-        const getMapSplash = (m) => apiMaps?.[m.toLowerCase()]?.splash || null;
+          const getModeName = (m) => {
+            const f = normalizeModeKey(m);
+            if (MODE_NAMES[f]) return MODE_NAMES[f];
+            if (f.includes("hurm")) return "Team Deathmatch";
+            return f
+              .replace(/_gamemode|gamemode/gi, "")
+              .replace(/_/g, " ")
+              .trim();
+          };
+          const getModeIcon = (m) => {
+            const cls = (m.split("/").pop()?.split(".")[0] || "").toLowerCase();
+            return apiModes?.[cls]?.displayIcon || null;
+          };
+          const getModeBg = (m) => {
+            const cls = (m.split("/").pop()?.split(".")[0] || "").toLowerCase();
+            return apiModes?.[cls]?.listViewIconTall || null;
+          };
+          const getMapName = (m) => {
+            const raw = m.split("/").pop() || m;
+            return apiMaps?.[m.toLowerCase()]?.displayName || MAP_NAMES[raw] || raw;
+          };
+          const getMapImg = (m) => apiMaps?.[m.toLowerCase()]?.listViewIcon || null;
+          const getMapSplash = (m) => apiMaps?.[m.toLowerCase()]?.splash || null;
 
-        const curMode = party.custom_mode || "";
-        const isHURM = curMode.includes("HURM");
-        const isSkirmish = curMode.includes("Skirmish");
-        const filteredMaps = customConfigs.maps.filter(m => {
-          if (isSkirmish) return m.includes("Duel") || m.includes("Skirmish");
-          if (isHURM) return m.includes("HURM");
-          return !m.includes("HURM") && !m.includes("Duel") && !m.includes("Skirmish");
-        });
-        const seen = new Set();
-        const sortedModes = [...customConfigs.modes].sort((a, b) => {
-          const ai = MODE_PRIORITY.indexOf(getModeName(a));
-          const bi = MODE_PRIORITY.indexOf(getModeName(b));
-          return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-        }).filter(m => { const n = getModeName(m); if (seen.has(n)) return false; seen.add(n); return true; });
+          const curMode = party.custom_mode || "";
+          const isHURM = curMode.includes("HURM");
+          const isSkirmish = curMode.includes("Skirmish");
+          const filteredMaps = customConfigs.maps.filter((m) => {
+            if (isSkirmish) return m.includes("Duel") || m.includes("Skirmish");
+            if (isHURM) return m.includes("HURM");
+            return !m.includes("HURM") && !m.includes("Duel") && !m.includes("Skirmish");
+          });
+          const seen = new Set();
+          const sortedModes = [...customConfigs.modes]
+            .sort((a, b) => {
+              const ai = MODE_PRIORITY.indexOf(getModeName(a));
+              const bi = MODE_PRIORITY.indexOf(getModeName(b));
+              return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+            })
+            .filter((m) => {
+              const n = getModeName(m);
+              if (seen.has(n)) return false;
+              seen.add(n);
+              return true;
+            });
 
-        const curMapSplash = getMapSplash(party.custom_map);
+          const curMapSplash = getMapSplash(party.custom_map);
 
-        return (
-        <div className="rounded-lg bg-base-700 border border-border overflow-hidden">
-          {curMapSplash && (
-            <div className="relative h-20 overflow-hidden">
-              <img src={curMapSplash} alt="" className="w-full h-full object-cover opacity-40" />
-              <div className="absolute inset-0 bg-gradient-to-t from-base-700 via-base-700/60 to-transparent" />
-              <div className="absolute bottom-2 left-3 flex items-center gap-2">
-                {getModeIcon(curMode) && <img src={getModeIcon(curMode)} alt="" className="w-5 h-5 brightness-0 invert opacity-60" />}
-                <span className="text-[13px] font-display font-bold text-white drop-shadow">{getMapName(party.custom_map)}</span>
-                <span className="text-[10px] font-body text-white/50">— {getModeName(curMode)}</span>
-              </div>
-              {savingCustom && <div className="absolute top-2 right-3"><span className="text-[10px] text-white/60 animate-pulse">Saving...</span></div>}
-            </div>
-          )}
-          <div className="p-3 space-y-2.5">
-            {!curMapSplash && (
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-display font-semibold text-text-primary">Custom Game Settings</span>
-                {savingCustom && <span className="text-[10px] text-text-muted animate-pulse">Saving...</span>}
-              </div>
-            )}
-
-            <div className="relative" ref={modePickerRef}>
-              <label className="text-[10px] font-body text-text-muted mb-0.5 block">Mode</label>
-              <button onClick={() => { setShowModePicker(v => !v); setShowMapPicker(false); }} disabled={savingCustom}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 bg-base-600 border border-border rounded-lg text-[11px] font-body text-text-primary hover:border-val-red/40 transition-colors disabled:opacity-50 relative overflow-hidden">
-                {getModeBg(curMode) && <img src={getModeBg(curMode)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-[0.08]" />}
-                <span className="relative flex items-center gap-2 flex-1">
-                  {getModeIcon(curMode) && <img src={getModeIcon(curMode)} alt="" className="w-4 h-4 brightness-0 invert opacity-70" />}
-                  {getModeName(curMode)}
-                </span>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`text-text-muted transition-transform shrink-0 relative ${showModePicker ? "rotate-180" : ""}`}><path d="M6 9l6 6 6-6" /></svg>
-              </button>
-              {showModePicker && (
-                <div className="absolute z-50 mt-1 left-0 right-0 bg-base-800 border border-border rounded-lg shadow-xl max-h-64 overflow-y-auto">
-                  {sortedModes.map(m => {
-                    const active = m === curMode;
-                    return (
-                      <button key={m} onClick={() => { handleCustomSetting({ mode: m }); setShowModePicker(false); }}
-                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-[11px] font-body hover:bg-base-600 transition-colors relative overflow-hidden ${active ? "bg-base-600 text-text-primary" : "text-text-secondary"}`}>
-                        {getModeBg(m) && <img src={getModeBg(m)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-[0.06]" />}
-                        {getModeIcon(m) && <img src={getModeIcon(m)} alt="" className="w-4 h-4 brightness-0 invert opacity-60 relative" />}
-                        <span className="relative">{getModeName(m)}</span>
-                        {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-val-red relative" />}
-                      </button>
-                    );
-                  })}
+          return (
+            <div className="rounded-lg bg-base-700 border border-border overflow-hidden">
+              {curMapSplash && (
+                <div className="relative h-20 overflow-hidden">
+                  <img
+                    src={curMapSplash}
+                    alt=""
+                    className="w-full h-full object-cover opacity-40"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-base-700 via-base-700/60 to-transparent" />
+                  <div className="absolute bottom-2 left-3 flex items-center gap-2">
+                    {getModeIcon(curMode) && (
+                      <img
+                        src={getModeIcon(curMode)}
+                        alt=""
+                        className="w-5 h-5 brightness-0 invert opacity-60"
+                      />
+                    )}
+                    <span className="text-[13px] font-display font-bold text-white drop-shadow">
+                      {getMapName(party.custom_map)}
+                    </span>
+                    <span className="text-[10px] font-body text-white/50">
+                      — {getModeName(curMode)}
+                    </span>
+                  </div>
+                  {savingCustom && (
+                    <div className="absolute top-2 right-3">
+                      <span className="text-[10px] text-white/60 animate-pulse">Saving...</span>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
+              <div className="p-3 space-y-2.5">
+                {!curMapSplash && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-display font-semibold text-text-primary">
+                      Custom Game Settings
+                    </span>
+                    {savingCustom && (
+                      <span className="text-[10px] text-text-muted animate-pulse">Saving...</span>
+                    )}
+                  </div>
+                )}
 
-            <div className="relative" ref={mapPickerRef}>
-              <label className="text-[10px] font-body text-text-muted mb-0.5 block">Map</label>
-              <button onClick={() => { setShowMapPicker(v => !v); setShowModePicker(false); }} disabled={savingCustom}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 bg-base-600 border border-border rounded-lg text-[11px] font-body text-text-primary hover:border-val-red/40 transition-colors disabled:opacity-50 overflow-hidden relative">
-                {getMapImg(party.custom_map) && <img src={getMapImg(party.custom_map)} alt="" className="w-8 h-5 object-cover rounded shrink-0" />}
-                <span className="flex-1 text-left">{getMapName(party.custom_map)}</span>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`text-text-muted transition-transform shrink-0 ${showMapPicker ? "rotate-180" : ""}`}><path d="M6 9l6 6 6-6" /></svg>
-              </button>
-              {showMapPicker && (
-                <div className="absolute z-50 mt-1 left-0 right-0 bg-base-800 border border-border rounded-lg shadow-xl max-h-64 overflow-y-auto">
-                  {filteredMaps.map(m => {
-                    const active = m === party.custom_map;
-                    const img = getMapImg(m);
-                    return (
-                      <button key={m} onClick={() => { handleCustomSetting({ map: m }); setShowMapPicker(false); }}
-                        className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 text-[11px] font-body hover:bg-base-600 transition-colors ${active ? "bg-base-600 text-text-primary" : "text-text-secondary"}`}>
-                        {img ? <img src={img} alt="" className="w-8 h-5 object-cover rounded shrink-0" />
-                             : <div className="w-8 h-5 bg-base-600 rounded shrink-0" />}
-                        <span className="flex-1 text-left">{getMapName(m)}</span>
-                        {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-val-red" />}
-                      </button>
-                    );
-                  })}
+                <div className="relative" ref={modePickerRef}>
+                  <label className="text-[10px] font-body text-text-muted mb-0.5 block">Mode</label>
+                  <button
+                    onClick={() => {
+                      setShowModePicker((v) => !v);
+                      setShowMapPicker(false);
+                    }}
+                    disabled={savingCustom}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 bg-base-600 border border-border rounded-lg text-[11px] font-body text-text-primary hover:border-val-red/40 transition-colors disabled:opacity-50 relative overflow-hidden"
+                  >
+                    {getModeBg(curMode) && (
+                      <img
+                        src={getModeBg(curMode)}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover opacity-[0.08]"
+                      />
+                    )}
+                    <span className="relative flex items-center gap-2 flex-1">
+                      {getModeIcon(curMode) && (
+                        <img
+                          src={getModeIcon(curMode)}
+                          alt=""
+                          className="w-4 h-4 brightness-0 invert opacity-70"
+                        />
+                      )}
+                      {getModeName(curMode)}
+                    </span>
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className={`text-text-muted transition-transform shrink-0 relative ${showModePicker ? "rotate-180" : ""}`}
+                    >
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
+                  {showModePicker && (
+                    <div className="absolute z-50 mt-1 left-0 right-0 bg-base-800 border border-border rounded-lg shadow-xl max-h-64 overflow-y-auto">
+                      {sortedModes.map((m) => {
+                        const active = m === curMode;
+                        return (
+                          <button
+                            key={m}
+                            onClick={() => {
+                              handleCustomSetting({ mode: m });
+                              setShowModePicker(false);
+                            }}
+                            className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-[11px] font-body hover:bg-base-600 transition-colors relative overflow-hidden ${active ? "bg-base-600 text-text-primary" : "text-text-secondary"}`}
+                          >
+                            {getModeBg(m) && (
+                              <img
+                                src={getModeBg(m)}
+                                alt=""
+                                className="absolute inset-0 w-full h-full object-cover opacity-[0.06]"
+                              />
+                            )}
+                            {getModeIcon(m) && (
+                              <img
+                                src={getModeIcon(m)}
+                                alt=""
+                                className="w-4 h-4 brightness-0 invert opacity-60 relative"
+                              />
+                            )}
+                            <span className="relative">{getModeName(m)}</span>
+                            {active && (
+                              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-val-red relative" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div className="relative" ref={serverPickerRef}>
-              <label className="text-[10px] font-body text-text-muted mb-0.5 block">Server</label>
-              <button onClick={() => { setShowServerPicker(v => !v); setShowMapPicker(false); setShowModePicker(false); }} disabled={savingCustom}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 bg-base-600 border border-border rounded-lg text-[11px] font-body text-text-primary hover:border-val-red/40 transition-colors disabled:opacity-50">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-muted shrink-0"><circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" /></svg>
-                <span className="flex-1 text-left">{(() => { const pts = (party.custom_pod || "").toLowerCase().split(/[.\-]/); const c = pts.find(s => SERVER_NAMES[s]); return c ? SERVER_NAMES[c] : party.custom_pod || ""; })()}</span>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`text-text-muted transition-transform shrink-0 ${showServerPicker ? "rotate-180" : ""}`}><path d="M6 9l6 6 6-6" /></svg>
-              </button>
-              {showServerPicker && (
-                <div className="absolute z-50 mt-1 left-0 right-0 bg-base-800 border border-border rounded-lg shadow-xl max-h-64 overflow-y-auto">
-                  {customConfigs.pods.map(p => {
-                    const active = p === party.custom_pod;
-                    const pts = p.toLowerCase().split(/[.\-]/);
-                    const city = pts.find(s => SERVER_NAMES[s]);
-                    return (
-                      <button key={p} onClick={() => { handleCustomSetting({ pod: p }); setShowServerPicker(false); }}
-                        className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 text-[11px] font-body hover:bg-base-600 transition-colors ${active ? "bg-base-600 text-text-primary" : "text-text-secondary"}`}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-muted shrink-0"><circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" /></svg>
-                        <span className="flex-1 text-left">{city ? SERVER_NAMES[city] : p}</span>
-                        {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-val-red" />}
-                      </button>
-                    );
-                  })}
+                <div className="relative" ref={mapPickerRef}>
+                  <label className="text-[10px] font-body text-text-muted mb-0.5 block">Map</label>
+                  <button
+                    onClick={() => {
+                      setShowMapPicker((v) => !v);
+                      setShowModePicker(false);
+                    }}
+                    disabled={savingCustom}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 bg-base-600 border border-border rounded-lg text-[11px] font-body text-text-primary hover:border-val-red/40 transition-colors disabled:opacity-50 overflow-hidden relative"
+                  >
+                    {getMapImg(party.custom_map) && (
+                      <img
+                        src={getMapImg(party.custom_map)}
+                        alt=""
+                        className="w-8 h-5 object-cover rounded shrink-0"
+                      />
+                    )}
+                    <span className="flex-1 text-left">{getMapName(party.custom_map)}</span>
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className={`text-text-muted transition-transform shrink-0 ${showMapPicker ? "rotate-180" : ""}`}
+                    >
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
+                  {showMapPicker && (
+                    <div className="absolute z-50 mt-1 left-0 right-0 bg-base-800 border border-border rounded-lg shadow-xl max-h-64 overflow-y-auto">
+                      {filteredMaps.map((m) => {
+                        const active = m === party.custom_map;
+                        const img = getMapImg(m);
+                        return (
+                          <button
+                            key={m}
+                            onClick={() => {
+                              handleCustomSetting({ map: m });
+                              setShowMapPicker(false);
+                            }}
+                            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 text-[11px] font-body hover:bg-base-600 transition-colors ${active ? "bg-base-600 text-text-primary" : "text-text-secondary"}`}
+                          >
+                            {img ? (
+                              <img
+                                src={img}
+                                alt=""
+                                className="w-8 h-5 object-cover rounded shrink-0"
+                              />
+                            ) : (
+                              <div className="w-8 h-5 bg-base-600 rounded shrink-0" />
+                            )}
+                            <span className="flex-1 text-left">{getMapName(m)}</span>
+                            {active && (
+                              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-val-red" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div className="border-t border-border pt-2 space-y-1.5">
-              <span className="text-[10px] font-display font-semibold text-text-muted">Game Rules</span>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                {[
-                  { key: "allowCheats", label: "Allow Cheats", val: party.custom_allow_cheats },
-                  { key: "tournamentMode", label: "Tournament Mode", val: party.custom_tournament_mode },
-                  { key: "overtimeWinByTwo", label: "Overtime Win By Two", val: party.custom_overtime_win_by_two },
-                  { key: "playOutAllRounds", label: "Play Out All Rounds", val: party.custom_play_out_all_rounds },
-                  { key: "skipMatchHistory", label: "Skip Match History", val: party.custom_skip_match_history },
-                ].map(({ key, label, val }) => (
-                  <label key={key} className="flex items-center gap-2 cursor-pointer group">
-                    <button onClick={() => handleCustomSetting({ [key]: !val })} disabled={savingCustom}
-                      className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors disabled:opacity-50 ${val ? "bg-val-red border-val-red" : "bg-base-600 border-border group-hover:border-text-muted"}`}>
-                      {val && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>}
-                    </button>
-                    <span className="text-[11px] font-body text-text-primary select-none">{label}</span>
+                <div className="relative" ref={serverPickerRef}>
+                  <label className="text-[10px] font-body text-text-muted mb-0.5 block">
+                    Server
                   </label>
-                ))}
+                  <button
+                    onClick={() => {
+                      setShowServerPicker((v) => !v);
+                      setShowMapPicker(false);
+                      setShowModePicker(false);
+                    }}
+                    disabled={savingCustom}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 bg-base-600 border border-border rounded-lg text-[11px] font-body text-text-primary hover:border-val-red/40 transition-colors disabled:opacity-50"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      className="text-text-muted shrink-0"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+                    </svg>
+                    <span className="flex-1 text-left">
+                      {(() => {
+                        const pts = (party.custom_pod || "").toLowerCase().split(/[.\-]/);
+                        const c = pts.find((s) => SERVER_NAMES[s]);
+                        return c ? SERVER_NAMES[c] : party.custom_pod || "";
+                      })()}
+                    </span>
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className={`text-text-muted transition-transform shrink-0 ${showServerPicker ? "rotate-180" : ""}`}
+                    >
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
+                  {showServerPicker && (
+                    <div className="absolute z-50 mt-1 left-0 right-0 bg-base-800 border border-border rounded-lg shadow-xl max-h-64 overflow-y-auto">
+                      {customConfigs.pods.map((p) => {
+                        const active = p === party.custom_pod;
+                        const pts = p.toLowerCase().split(/[.\-]/);
+                        const city = pts.find((s) => SERVER_NAMES[s]);
+                        return (
+                          <button
+                            key={p}
+                            onClick={() => {
+                              handleCustomSetting({ pod: p });
+                              setShowServerPicker(false);
+                            }}
+                            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 text-[11px] font-body hover:bg-base-600 transition-colors ${active ? "bg-base-600 text-text-primary" : "text-text-secondary"}`}
+                          >
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              className="text-text-muted shrink-0"
+                            >
+                              <circle cx="12" cy="12" r="10" />
+                              <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+                            </svg>
+                            <span className="flex-1 text-left">
+                              {city ? SERVER_NAMES[city] : p}
+                            </span>
+                            {active && (
+                              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-val-red" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t border-border pt-2 space-y-1.5">
+                  <span className="text-[10px] font-display font-semibold text-text-muted">
+                    Game Rules
+                  </span>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                    {[
+                      { key: "allowCheats", label: "Allow Cheats", val: party.custom_allow_cheats },
+                      {
+                        key: "tournamentMode",
+                        label: "Tournament Mode",
+                        val: party.custom_tournament_mode,
+                      },
+                      {
+                        key: "overtimeWinByTwo",
+                        label: "Overtime Win By Two",
+                        val: party.custom_overtime_win_by_two,
+                      },
+                      {
+                        key: "playOutAllRounds",
+                        label: "Play Out All Rounds",
+                        val: party.custom_play_out_all_rounds,
+                      },
+                      {
+                        key: "skipMatchHistory",
+                        label: "Skip Match History",
+                        val: party.custom_skip_match_history,
+                      },
+                    ].map(({ key, label, val }) => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer group">
+                        <button
+                          onClick={() => handleCustomSetting({ [key]: !val })}
+                          disabled={savingCustom}
+                          className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors disabled:opacity-50 ${val ? "bg-val-red border-val-red" : "bg-base-600 border-border group-hover:border-text-muted"}`}
+                        >
+                          {val && (
+                            <svg
+                              width="8"
+                              height="8"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="white"
+                              strokeWidth="3"
+                            >
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          )}
+                        </button>
+                        <span className="text-[11px] font-body text-text-primary select-none">
+                          {label}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-        );
-      })()}
+          );
+        })()}
 
       <div className="space-y-1.5">
         {party.members.map((member, i) => (
-          <motion.div key={member.puuid} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.2, delay: i * 0.05 }}>
-          <MemberCard
-            member={member}
-            isLeader={isLeader}
-            isMe={member.puuid === party.my_puuid}
-            onKick={() => handleKick(member.puuid)}
-          />
+          <motion.div
+            key={member.puuid}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={noAnim() ? T0 : { duration: 0.2, delay: i * 0.05 }}
+          >
+            <MemberCard
+              member={member}
+              isLeader={isLeader}
+              isMe={member.puuid === party.my_puuid}
+              onKick={() => handleKick(member.puuid)}
+            />
           </motion.div>
         ))}
       </div>
 
       <AnimatePresence>
-      {queueError && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setQueueError(null)} onKeyDown={(e) => e.key === "Escape" && setQueueError(null)}>
-          <motion.div initial={{ opacity: 0, scale: 0.95, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 8 }} transition={{ duration: 0.15 }} className="bg-base-700 border border-border rounded-2xl p-5 w-80 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2 mb-3">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-status-red shrink-0">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 8v4M12 16h.01" />
-              </svg>
-              <h3 className="text-sm font-display font-bold text-text-primary">Queue Error</h3>
-            </div>
-            <p className="text-xs font-body text-text-secondary mb-4">{queueError}</p>
-            <button
-              onClick={() => setQueueError(null)}
-              className="w-full py-1.5 rounded-lg bg-val-red/20 border border-val-red/40 text-xs font-display font-semibold text-val-red hover:bg-val-red/30 transition-colors"
+        {queueError && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+            onClick={() => setQueueError(null)}
+            onKeyDown={(e) => e.key === "Escape" && setQueueError(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 8 }}
+              transition={{ duration: 0.15 }}
+              className="bg-base-700 border border-border rounded-2xl p-5 w-80 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
             >
-              OK
-            </button>
-          </motion.div>
-        </motion.div>
-      )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-      {showJoin && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { setShowJoin(false); setJoinCode(""); }}>
-          <motion.div initial={{ opacity: 0, scale: 0.95, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 8 }} transition={{ duration: 0.15 }} className="bg-base-700 border border-border rounded-xl p-5 w-80 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-display font-semibold text-text-primary mb-3">Join Party</h3>
-            <input
-              type="text"
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleJoin()}
-              placeholder="Enter party code"
-              autoFocus
-              className="w-full px-3 py-2 bg-base-600 border border-border rounded-lg text-sm font-body text-text-primary placeholder:text-text-muted/50 outline-none focus:border-val-red/60 transition-colors tracking-wider"
-            />
-            <div className="flex gap-2 mt-3">
-              <button onClick={() => { setShowJoin(false); setJoinCode(""); }} className="flex-1 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-secondary hover:bg-base-500 transition-colors">Cancel</button>
-              <button onClick={handleJoin} className="flex-1 py-1.5 rounded-lg bg-val-red/20 border border-val-red/40 text-xs font-display font-semibold text-val-red hover:bg-val-red/30 transition-colors">Join</button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-      {showInvite && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowInvite(false)}>
-          <motion.div initial={{ opacity: 0, scale: 0.95, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 8 }} transition={{ duration: 0.15 }} className="bg-base-700 border border-border rounded-xl w-80 max-h-[420px] shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="px-4 pt-3.5 pb-3 border-b border-border shrink-0">
-              <div className="flex items-center justify-between mb-2.5">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xs font-display font-semibold text-text-primary">Invite to Party</h3>
-                  {!friendsLoading && friends.length > 0 && (
-                    <span className="text-[10px] font-body text-text-muted">{friends.length}</span>
-                  )}
-                </div>
-                <button onClick={() => setShowInvite(false)} className="w-5 h-5 rounded flex items-center justify-center text-text-muted hover:text-text-primary transition-colors">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12" /></svg>
-                </button>
+              <div className="flex items-center gap-2 mb-3">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="text-status-red shrink-0"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 8v4M12 16h.01" />
+                </svg>
+                <h3 className="text-sm font-display font-bold text-text-primary">Queue Error</h3>
               </div>
+              <p className="text-xs font-body text-text-secondary mb-4">{queueError}</p>
+              <button
+                onClick={() => setQueueError(null)}
+                className="w-full py-1.5 rounded-lg bg-val-red/20 border border-val-red/40 text-xs font-display font-semibold text-val-red hover:bg-val-red/30 transition-colors"
+              >
+                OK
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showJoin && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={() => {
+              setShowJoin(false);
+              setJoinCode("");
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 8 }}
+              transition={{ duration: 0.15 }}
+              className="bg-base-700 border border-border rounded-xl p-5 w-80 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-sm font-display font-semibold text-text-primary mb-3">
+                Join Party
+              </h3>
               <input
                 type="text"
-                value={friendSearch}
-                onChange={(e) => setFriendSearch(e.target.value)}
-                placeholder="Search..."
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleJoin()}
+                placeholder="Enter party code"
                 autoFocus
-                className="w-full px-2.5 py-1.5 bg-base-600 border border-border rounded-lg text-[11px] font-body text-text-primary placeholder:text-text-muted/40 outline-none focus:border-val-red/60 transition-colors"
+                className="w-full px-3 py-2 bg-base-600 border border-border rounded-lg text-sm font-body text-text-primary placeholder:text-text-muted/50 outline-none focus:border-val-red/60 transition-colors tracking-wider"
               />
-            </div>
-            <div className="flex-1 overflow-y-auto py-1 min-h-0">
-              {friendsLoading ? (
-                <div className="px-2 space-y-0.5">
-                  {[0, 1, 2, 3, 4, 5].map(i => (
-                    <div key={i} className="flex items-center gap-2.5 px-2 py-2 animate-pulse">
-                      <div className="w-6 h-6 rounded-full bg-base-500 shrink-0" />
-                      <div className="h-3 w-28 rounded bg-base-500" />
-                    </div>
-                  ))}
-                </div>
-              ) : friends.length === 0 ? (
-                <div className="flex items-center justify-center py-10 text-text-muted">
-                  <p className="text-[11px] font-body">No friends found</p>
-                </div>
-              ) : (
-                friends
-                  .filter(f => {
-                    if (!friendSearch.trim()) return true;
-                    const q = friendSearch.toLowerCase();
-                    return f.game_name?.toLowerCase().includes(q) || f.game_tag?.toLowerCase().includes(q);
-                  })
-                  .slice()
-                  .sort((a, b) => {
-                    const fa = fitness[(a.puuid || "").toLowerCase()]?.fitness ?? -1;
-                    const fb = fitness[(b.puuid || "").toLowerCase()]?.fitness ?? -1;
-                    return fb - fa;
-                  })
-                  .map((friend, i) => (
-                    <FriendInviteCard
-                      key={friend.puuid}
-                      friend={friend}
-                      fitness={fitness[(friend.puuid || "").toLowerCase()]}
-                      onInvite={() => handleInvite(friend)}
-                      inviting={invitingPuuid === friend.puuid}
-                      invited={invitedPuuids.has(friend.puuid)}
-                      index={i}
-                    />
-                  ))
-              )}
-            </div>
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={() => {
+                    setShowJoin(false);
+                    setJoinCode("");
+                  }}
+                  className="flex-1 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-secondary hover:bg-base-500 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleJoin}
+                  className="flex-1 py-1.5 rounded-lg bg-val-red/20 border border-val-red/40 text-xs font-display font-semibold text-val-red hover:bg-val-red/30 transition-colors"
+                >
+                  Join
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      )}
+        )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {showInvite && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowInvite(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 8 }}
+              transition={{ duration: 0.15 }}
+              className="bg-base-700 border border-border rounded-xl w-80 max-h-[420px] shadow-2xl flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-4 pt-3.5 pb-3 border-b border-border shrink-0">
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-display font-semibold text-text-primary">
+                      Invite to Party
+                    </h3>
+                    {!friendsLoading && friends.length > 0 && (
+                      <span className="text-[10px] font-body text-text-muted">
+                        {friends.length}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowInvite(false)}
+                    className="w-5 h-5 rounded flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+                  >
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
+                      <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={friendSearch}
+                  onChange={(e) => setFriendSearch(e.target.value)}
+                  placeholder="Search..."
+                  autoFocus
+                  className="w-full px-2.5 py-1.5 bg-base-600 border border-border rounded-lg text-[11px] font-body text-text-primary placeholder:text-text-muted/40 outline-none focus:border-val-red/60 transition-colors"
+                />
+              </div>
+              <div className="flex-1 overflow-y-auto py-1 min-h-0">
+                {friendsLoading ? (
+                  <div className="px-2 space-y-0.5">
+                    {[0, 1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} className="flex items-center gap-2.5 px-2 py-2 animate-pulse">
+                        <div className="w-6 h-6 rounded-full bg-base-500 shrink-0" />
+                        <div className="h-3 w-28 rounded bg-base-500" />
+                      </div>
+                    ))}
+                  </div>
+                ) : friends.length === 0 ? (
+                  <div className="flex items-center justify-center py-10 text-text-muted">
+                    <p className="text-[11px] font-body">No friends found</p>
+                  </div>
+                ) : (
+                  friends
+                    .filter((f) => {
+                      if (!friendSearch.trim()) return true;
+                      const q = friendSearch.toLowerCase();
+                      return (
+                        f.game_name?.toLowerCase().includes(q) ||
+                        f.game_tag?.toLowerCase().includes(q)
+                      );
+                    })
+                    .slice()
+                    .sort((a, b) => {
+                      const fa = fitness[(a.puuid || "").toLowerCase()]?.fitness ?? -1;
+                      const fb = fitness[(b.puuid || "").toLowerCase()]?.fitness ?? -1;
+                      return fb - fa;
+                    })
+                    .map((friend, i) => (
+                      <FriendInviteCard
+                        key={friend.puuid}
+                        friend={friend}
+                        fitness={fitness[(friend.puuid || "").toLowerCase()]}
+                        onInvite={() => handleInvite(friend)}
+                        inviting={invitingPuuid === friend.puuid}
+                        invited={invitedPuuids.has(friend.puuid)}
+                        index={i}
+                      />
+                    ))
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
 
-function FriendInviteCard({ friend, fitness, onInvite, inviting, invited, index, actionLabel = "Invite", doneLabel = "Sent" }) {
+function FriendInviteCard({
+  friend,
+  fitness,
+  onInvite,
+  inviting,
+  invited,
+  index,
+  actionLabel = "Invite",
+  doneLabel = "Sent",
+}) {
   const showFitness = fitness && fitness.games >= 2;
-  const fitColor = !showFitness ? "text-text-muted/40"
-    : fitness.fitness >= 60 ? "text-green-400"
-    : fitness.fitness <= 40 ? "text-red-400"
-    : "text-text-muted";
+  const fitColor = !showFitness
+    ? "text-text-muted/40"
+    : fitness.fitness >= 60
+      ? "text-green-400"
+      : fitness.fitness <= 40
+        ? "text-red-400"
+        : "text-text-muted";
   return (
     <motion.div
       initial={{ opacity: 0, x: -4 }}
@@ -817,12 +1404,22 @@ function FriendInviteCard({ friend, fitness, onInvite, inviting, invited, index,
       className="flex items-center gap-2 mx-1 px-2.5 py-1.5 rounded-lg hover:bg-base-600/60 transition-colors group"
     >
       <div className="w-6 h-6 rounded-full bg-base-500/60 shrink-0 flex items-center justify-center">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-muted/60">
-          <circle cx="12" cy="8" r="4" /><path d="M5 20c0-3.87 3.13-7 7-7s7 3.13 7 7" />
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          className="text-text-muted/60"
+        >
+          <circle cx="12" cy="8" r="4" />
+          <path d="M5 20c0-3.87 3.13-7 7-7s7 3.13 7 7" />
         </svg>
       </div>
       <p className="text-[11px] font-display font-medium text-text-primary truncate flex-1 min-w-0">
-        {friend.game_name}<span className="text-text-muted font-body font-normal ml-0.5">#{friend.game_tag}</span>
+        {friend.game_name}
+        <span className="text-text-muted font-body font-normal ml-0.5">#{friend.game_tag}</span>
       </p>
       {showFitness && (
         <span
@@ -864,7 +1461,15 @@ function MemberCard({ member, isLeader, isMe, onKick }) {
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-muted">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              className="text-text-muted"
+            >
               <circle cx="12" cy="8" r="4" />
               <path d="M5 20c0-3.87 3.13-7 7-7s7 3.13 7 7" />
             </svg>
@@ -898,7 +1503,14 @@ function MemberCard({ member, isLeader, isMe, onKick }) {
           title="Kick"
           className="w-7 h-7 rounded-lg flex items-center justify-center text-text-muted hover:text-status-red hover:bg-status-red/10 transition-colors opacity-0 group-hover:opacity-100 shrink-0"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M18 6L6 18M6 6l12 12" />
           </svg>
         </button>

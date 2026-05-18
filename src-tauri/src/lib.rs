@@ -5,20 +5,20 @@ use tauri::{
     Manager,
 };
 
-mod riot;
-mod discord;
+mod bomb_tracker;
 mod cloud;
-mod store;
+mod coach;
+mod discord;
+mod identity_cache;
+mod loadout_presets;
 mod match_cache;
+mod oauth;
+mod premier_cache;
+mod riot;
 mod rr_cache;
 mod spend_tracker;
-mod coach;
-mod identity_cache;
-mod oauth;
-mod loadout_presets;
+mod store;
 mod util;
-mod bomb_tracker;
-mod premier_cache;
 
 type SharedState = Arc<Mutex<riot::ConnectionState>>;
 type DiscordShared = Arc<Mutex<discord::DiscordState>>;
@@ -87,8 +87,8 @@ fn find_valorant_path() -> Result<String, String> {
 
 #[tauri::command]
 fn compute_file_hash(path: String) -> Result<String, String> {
-    use std::hash::{Hash, Hasher};
     use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
     let data = std::fs::read(&path).map_err(|e| format!("read {}: {}", path, e))?;
     let mut hasher = DefaultHasher::new();
     data.hash(&mut hasher);
@@ -98,7 +98,8 @@ fn compute_file_hash(path: String) -> Result<String, String> {
 #[tauri::command]
 fn force_copy_file(source: String, dest: String) -> Result<(), String> {
     if let Some(parent) = std::path::Path::new(&dest).parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("mkdir {}: {}", parent.display(), e))?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("mkdir {}: {}", parent.display(), e))?;
     }
     std::fs::copy(&source, &dest).map_err(|e| format!("copy {} -> {}: {}", source, dest, e))?;
     Ok(())
@@ -115,7 +116,9 @@ fn remove_file(path: String) -> Result<(), String> {
 #[tauri::command]
 fn list_dir(path: String) -> Result<Vec<String>, String> {
     let dir = std::path::Path::new(&path);
-    if !dir.is_dir() { return Ok(vec![]); }
+    if !dir.is_dir() {
+        return Ok(vec![]);
+    }
     let mut entries = vec![];
     for entry in std::fs::read_dir(dir).map_err(|e| format!("readdir {}: {}", path, e))? {
         if let Ok(e) = entry {
@@ -135,7 +138,15 @@ fn show_window_no_focus(app: tauri::AppHandle, label: String) -> Result<(), Stri
             fn GetForegroundWindow() -> isize;
             fn SetForegroundWindow(hwnd: isize) -> i32;
             fn ShowWindow(hwnd: isize, cmd: i32) -> i32;
-            fn SetWindowPos(hwnd: isize, insert_after: isize, x: i32, y: i32, cx: i32, cy: i32, flags: u32) -> i32;
+            fn SetWindowPos(
+                hwnd: isize,
+                insert_after: isize,
+                x: i32,
+                y: i32,
+                cx: i32,
+                cy: i32,
+                flags: u32,
+            ) -> i32;
         }
         const SW_SHOWNOACTIVATE: i32 = 4;
         const HWND_TOPMOST: isize = -1;
@@ -148,7 +159,15 @@ fn show_window_no_focus(app: tauri::AppHandle, label: String) -> Result<(), Stri
             unsafe {
                 let prev_fg = GetForegroundWindow();
                 ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-                SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                SetWindowPos(
+                    hwnd,
+                    HWND_TOPMOST,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                );
                 if prev_fg != 0 && prev_fg != hwnd {
                     SetForegroundWindow(prev_fg);
                 }
@@ -183,13 +202,10 @@ fn toggle_devtools(app: tauri::AppHandle) {
 fn read_game_log(offset: u64) -> Result<serde_json::Value, String> {
     let local_app_data =
         std::env::var("LOCALAPPDATA").map_err(|_| "LOCALAPPDATA not found".to_string())?;
-    let path = format!(
-        "{}\\VALORANT\\Saved\\Logs\\ShooterGame.log",
-        local_app_data
-    );
+    let path = format!("{}\\VALORANT\\Saved\\Logs\\ShooterGame.log", local_app_data);
 
-    let file = std::fs::File::open(&path)
-        .map_err(|e| format!("Could not open ShooterGame.log: {}", e))?;
+    let file =
+        std::fs::File::open(&path).map_err(|e| format!("Could not open ShooterGame.log: {}", e))?;
     let file_len = file.metadata().map_err(|e| e.to_string())?.len();
 
     let actual_offset = if offset > file_len { 0 } else { offset };
@@ -209,7 +225,8 @@ fn read_game_log(offset: u64) -> Result<serde_json::Value, String> {
 
     use std::io::{Read, Seek, SeekFrom};
     let mut file = file;
-    file.seek(SeekFrom::Start(read_from)).map_err(|e| e.to_string())?;
+    file.seek(SeekFrom::Start(read_from))
+        .map_err(|e| e.to_string())?;
     let mut buf = vec![0u8; read_len as usize];
     file.read_exact(&mut buf).map_err(|e| e.to_string())?;
 
@@ -235,7 +252,9 @@ fn check_node_installed() -> bool {
 }
 
 #[tauri::command]
-async fn health_check(state: tauri::State<'_, SharedState>) -> Result<Option<riot::PlayerInfo>, String> {
+async fn health_check(
+    state: tauri::State<'_, SharedState>,
+) -> Result<Option<riot::PlayerInfo>, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || Ok(riot::health_check(&state)))
         .await
@@ -251,15 +270,25 @@ async fn check_current_game(state: tauri::State<'_, SharedState>) -> Result<Stri
 }
 
 #[tauri::command]
-async fn get_match_loadouts(state: tauri::State<'_, SharedState>, match_id: String, phase: String) -> Result<String, String> {
+async fn get_match_loadouts(
+    state: tauri::State<'_, SharedState>,
+    match_id: String,
+    phase: String,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
-    tauri::async_runtime::spawn_blocking(move || riot::get_match_loadouts(&state, &match_id, &phase))
-        .await
-        .map_err(|e| format!("Task failed: {}", e))?
+    tauri::async_runtime::spawn_blocking(move || {
+        riot::get_match_loadouts(&state, &match_id, &phase)
+    })
+    .await
+    .map_err(|e| format!("Task failed: {}", e))?
 }
 
 #[tauri::command]
-async fn select_agent(state: tauri::State<'_, SharedState>, match_id: String, agent_id: String) -> Result<String, String> {
+async fn select_agent(
+    state: tauri::State<'_, SharedState>,
+    match_id: String,
+    agent_id: String,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::select_agent(&state, &match_id, &agent_id))
         .await
@@ -267,7 +296,11 @@ async fn select_agent(state: tauri::State<'_, SharedState>, match_id: String, ag
 }
 
 #[tauri::command]
-async fn lock_agent(state: tauri::State<'_, SharedState>, match_id: String, agent_id: String) -> Result<String, String> {
+async fn lock_agent(
+    state: tauri::State<'_, SharedState>,
+    match_id: String,
+    agent_id: String,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::lock_agent(&state, &match_id, &agent_id))
         .await
@@ -275,7 +308,10 @@ async fn lock_agent(state: tauri::State<'_, SharedState>, match_id: String, agen
 }
 
 #[tauri::command]
-async fn pregame_quit(state: tauri::State<'_, SharedState>, match_id: String) -> Result<String, String> {
+async fn pregame_quit(
+    state: tauri::State<'_, SharedState>,
+    match_id: String,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::pregame_quit(&state, &match_id))
         .await
@@ -283,7 +319,10 @@ async fn pregame_quit(state: tauri::State<'_, SharedState>, match_id: String) ->
 }
 
 #[tauri::command]
-async fn coregame_quit(state: tauri::State<'_, SharedState>, match_id: String) -> Result<String, String> {
+async fn coregame_quit(
+    state: tauri::State<'_, SharedState>,
+    match_id: String,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::coregame_quit(&state, &match_id))
         .await
@@ -291,7 +330,10 @@ async fn coregame_quit(state: tauri::State<'_, SharedState>, match_id: String) -
 }
 
 #[tauri::command]
-async fn get_home_stats(state: tauri::State<'_, SharedState>, queue_filter: String) -> Result<String, String> {
+async fn get_home_stats(
+    state: tauri::State<'_, SharedState>,
+    queue_filter: String,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::get_home_stats(&state, &queue_filter))
         .await
@@ -307,7 +349,11 @@ async fn check_loadout(state: tauri::State<'_, SharedState>) -> Result<String, S
 }
 
 #[tauri::command]
-async fn get_match_page(state: tauri::State<'_, SharedState>, page: u64, page_size: u64) -> Result<String, String> {
+async fn get_match_page(
+    state: tauri::State<'_, SharedState>,
+    page: u64,
+    page_size: u64,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::get_match_page(&state, page, page_size))
         .await
@@ -347,7 +393,10 @@ async fn get_penalties(state: tauri::State<'_, SharedState>) -> Result<String, S
 }
 
 #[tauri::command]
-async fn set_party_accessibility(state: tauri::State<'_, SharedState>, open: bool) -> Result<String, String> {
+async fn set_party_accessibility(
+    state: tauri::State<'_, SharedState>,
+    open: bool,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::set_party_accessibility(&state, open))
         .await
@@ -363,7 +412,10 @@ async fn disable_party_code(state: tauri::State<'_, SharedState>) -> Result<Stri
 }
 
 #[tauri::command]
-async fn kick_from_party(state: tauri::State<'_, SharedState>, target_puuid: String) -> Result<String, String> {
+async fn kick_from_party(
+    state: tauri::State<'_, SharedState>,
+    target_puuid: String,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::kick_from_party(&state, &target_puuid))
         .await
@@ -371,7 +423,11 @@ async fn kick_from_party(state: tauri::State<'_, SharedState>, target_puuid: Str
 }
 
 #[tauri::command]
-async fn invite_to_party(state: tauri::State<'_, SharedState>, name: String, tag: String) -> Result<String, String> {
+async fn invite_to_party(
+    state: tauri::State<'_, SharedState>,
+    name: String,
+    tag: String,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::invite_to_party(&state, &name, &tag))
         .await
@@ -379,7 +435,10 @@ async fn invite_to_party(state: tauri::State<'_, SharedState>, name: String, tag
 }
 
 #[tauri::command]
-async fn request_to_join_party(state: tauri::State<'_, SharedState>, target_puuid: String) -> Result<String, String> {
+async fn request_to_join_party(
+    state: tauri::State<'_, SharedState>,
+    target_puuid: String,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::request_to_join_party(&state, &target_puuid))
         .await
@@ -395,7 +454,10 @@ async fn generate_party_code(state: tauri::State<'_, SharedState>) -> Result<Str
 }
 
 #[tauri::command]
-async fn join_party_by_code(state: tauri::State<'_, SharedState>, code: String) -> Result<String, String> {
+async fn join_party_by_code(
+    state: tauri::State<'_, SharedState>,
+    code: String,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::join_party_by_code(&state, &code))
         .await
@@ -403,7 +465,10 @@ async fn join_party_by_code(state: tauri::State<'_, SharedState>, code: String) 
 }
 
 #[tauri::command]
-async fn change_queue(state: tauri::State<'_, SharedState>, queue_id: String) -> Result<String, String> {
+async fn change_queue(
+    state: tauri::State<'_, SharedState>,
+    queue_id: String,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::change_queue(&state, &queue_id))
         .await
@@ -421,14 +486,28 @@ async fn get_custom_configs(state: tauri::State<'_, SharedState>) -> Result<Stri
 #[tauri::command]
 async fn set_custom_settings(
     state: tauri::State<'_, SharedState>,
-    map: String, mode: String, pod: String,
-    allow_cheats: bool, play_out_all_rounds: bool,
-    skip_match_history: bool, tournament_mode: bool,
+    map: String,
+    mode: String,
+    pod: String,
+    allow_cheats: bool,
+    play_out_all_rounds: bool,
+    skip_match_history: bool,
+    tournament_mode: bool,
     overtime_win_by_two: bool,
 ) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || {
-        riot::set_custom_settings(&state, &map, &mode, &pod, allow_cheats, play_out_all_rounds, skip_match_history, tournament_mode, overtime_win_by_two)
+        riot::set_custom_settings(
+            &state,
+            &map,
+            &mode,
+            &pod,
+            allow_cheats,
+            play_out_all_rounds,
+            skip_match_history,
+            tournament_mode,
+            overtime_win_by_two,
+        )
     })
     .await
     .map_err(|e| format!("Task failed: {}", e))?
@@ -443,7 +522,10 @@ async fn get_chat_conversations(state: tauri::State<'_, SharedState>) -> Result<
 }
 
 #[tauri::command]
-async fn get_chat_messages(state: tauri::State<'_, SharedState>, cid: String) -> Result<String, String> {
+async fn get_chat_messages(
+    state: tauri::State<'_, SharedState>,
+    cid: String,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::get_chat_messages(&state, &cid))
         .await
@@ -451,16 +533,26 @@ async fn get_chat_messages(state: tauri::State<'_, SharedState>, cid: String) ->
 }
 
 #[tauri::command]
-async fn send_chat_message(state: tauri::State<'_, SharedState>, cid: String, message: String, msg_type: Option<String>) -> Result<String, String> {
+async fn send_chat_message(
+    state: tauri::State<'_, SharedState>,
+    cid: String,
+    message: String,
+    msg_type: Option<String>,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     let t = msg_type.unwrap_or_default();
-    tauri::async_runtime::spawn_blocking(move || riot::send_chat_message(&state, &cid, &message, &t))
-        .await
-        .map_err(|e| format!("Task failed: {}", e))?
+    tauri::async_runtime::spawn_blocking(move || {
+        riot::send_chat_message(&state, &cid, &message, &t)
+    })
+    .await
+    .map_err(|e| format!("Task failed: {}", e))?
 }
 
 #[tauri::command]
-async fn get_chat_participants(state: tauri::State<'_, SharedState>, cid: String) -> Result<String, String> {
+async fn get_chat_participants(
+    state: tauri::State<'_, SharedState>,
+    cid: String,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::get_chat_participants(&state, &cid))
         .await
@@ -476,7 +568,10 @@ async fn get_loadout(state: tauri::State<'_, SharedState>) -> Result<String, Str
 }
 
 #[tauri::command]
-async fn set_loadout(state: tauri::State<'_, SharedState>, loadout_json: String) -> Result<String, String> {
+async fn set_loadout(
+    state: tauri::State<'_, SharedState>,
+    loadout_json: String,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::set_loadout(&state, &loadout_json))
         .await
@@ -484,13 +579,15 @@ async fn set_loadout(state: tauri::State<'_, SharedState>, loadout_json: String)
 }
 
 #[tauri::command]
-async fn get_owned_items(state: tauri::State<'_, SharedState>, item_type_id: String) -> Result<String, String> {
+async fn get_owned_items(
+    state: tauri::State<'_, SharedState>,
+    item_type_id: String,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::get_owned_items(&state, &item_type_id))
         .await
         .map_err(|e| format!("Task failed: {}", e))?
 }
-
 
 #[tauri::command]
 async fn start_custom_game_match(state: tauri::State<'_, SharedState>) -> Result<String, String> {
@@ -533,15 +630,36 @@ async fn stop_discord_rpc(state: tauri::State<'_, DiscordShared>) -> Result<(), 
 }
 
 #[tauri::command]
-async fn update_discord_rpc(state: tauri::State<'_, DiscordShared>, details: String, rpc_state: String, large_image: String, large_text: String, small_image: String, small_text: String) -> Result<(), String> {
+async fn update_discord_rpc(
+    state: tauri::State<'_, DiscordShared>,
+    details: String,
+    rpc_state: String,
+    large_image: String,
+    large_text: String,
+    small_image: String,
+    small_text: String,
+) -> Result<(), String> {
     let state = Arc::clone(&state);
-    tauri::async_runtime::spawn_blocking(move || discord::update_rpc(&state, &details, &rpc_state, &large_image, &large_text, &small_image, &small_text))
-        .await
-        .map_err(|e| format!("Task failed: {}", e))?
+    tauri::async_runtime::spawn_blocking(move || {
+        discord::update_rpc(
+            &state,
+            &details,
+            &rpc_state,
+            &large_image,
+            &large_text,
+            &small_image,
+            &small_text,
+        )
+    })
+    .await
+    .map_err(|e| format!("Task failed: {}", e))?
 }
 
 #[tauri::command]
-async fn xmpp_connect(xmpp: tauri::State<'_, XmppShared>, riot: tauri::State<'_, SharedState>) -> Result<String, String> {
+async fn xmpp_connect(
+    xmpp: tauri::State<'_, XmppShared>,
+    riot: tauri::State<'_, SharedState>,
+) -> Result<String, String> {
     let xmpp = Arc::clone(&xmpp);
     let riot = Arc::clone(&riot);
     tauri::async_runtime::spawn_blocking(move || riot::xmpp::xmpp_connect(&xmpp, &riot))
@@ -576,12 +694,18 @@ fn xmpp_get_logs(state: tauri::State<'_, XmppShared>) -> String {
 }
 
 #[tauri::command]
-async fn xmpp_send_fake_presence(state: tauri::State<'_, XmppShared>, riot: tauri::State<'_, SharedState>, presence_json: String) -> Result<(), String> {
+async fn xmpp_send_fake_presence(
+    state: tauri::State<'_, XmppShared>,
+    riot: tauri::State<'_, SharedState>,
+    presence_json: String,
+) -> Result<(), String> {
     let state = Arc::clone(&state);
     let riot = Arc::clone(&riot);
-    tauri::async_runtime::spawn_blocking(move || riot::xmpp::xmpp_send_fake_presence(&state, &riot, &presence_json))
-        .await
-        .map_err(|e| format!("Task failed: {}", e))?
+    tauri::async_runtime::spawn_blocking(move || {
+        riot::xmpp::xmpp_send_fake_presence(&state, &riot, &presence_json)
+    })
+    .await
+    .map_err(|e| format!("Task failed: {}", e))?
 }
 
 #[tauri::command]
@@ -668,12 +792,19 @@ async fn check_for_update() -> Result<String, String> {
 }
 
 #[tauri::command]
-async fn download_and_install_update(app: tauri::AppHandle, url: String, filename: String) -> Result<(), String> {
+async fn download_and_install_update(
+    app: tauri::AppHandle,
+    url: String,
+    filename: String,
+) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        if !url.starts_with("https://github.com/") && !url.starts_with("https://objects.githubusercontent.com/") {
+        if !url.starts_with("https://github.com/")
+            && !url.starts_with("https://objects.githubusercontent.com/")
+        {
             return Err("Update URL must point to a GitHub release asset".to_string());
         }
-        let filename = std::path::Path::new(&filename).file_name()
+        let filename = std::path::Path::new(&filename)
+            .file_name()
             .and_then(|n| n.to_str())
             .filter(|n| n.ends_with(".exe"))
             .ok_or_else(|| "Invalid installer filename".to_string())?
@@ -685,15 +816,30 @@ async fn download_and_install_update(app: tauri::AppHandle, url: String, filenam
         let bat_str = bat_path.to_string_lossy().to_string();
 
         let mut cmd = std::process::Command::new("curl");
-        cmd.args(["-L", "-o", &installer_str, "-A", "ValorantThing", "--fail", "--silent", "--show-error", &url]);
+        cmd.args([
+            "-L",
+            "-o",
+            &installer_str,
+            "-A",
+            "ValorantThing",
+            "--fail",
+            "--silent",
+            "--show-error",
+            &url,
+        ]);
         #[cfg(target_os = "windows")]
         {
             use std::os::windows::process::CommandExt;
             cmd.creation_flags(0x08000000);
         }
-        let output = cmd.output().map_err(|e| format!("download failed: {}", e))?;
+        let output = cmd
+            .output()
+            .map_err(|e| format!("download failed: {}", e))?;
         if !output.status.success() {
-            return Err(format!("Download failed: {}", String::from_utf8_lossy(&output.stderr).trim()));
+            return Err(format!(
+                "Download failed: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
         }
 
         let bat_content = format!(
@@ -727,7 +873,10 @@ fn get_token_age(state: tauri::State<'_, SharedState>) -> u64 {
 }
 
 #[tauri::command]
-async fn get_player_mmr(state: tauri::State<'_, SharedState>, target_puuid: String) -> Result<String, String> {
+async fn get_player_mmr(
+    state: tauri::State<'_, SharedState>,
+    target_puuid: String,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::get_player_mmr(&state, &target_puuid))
         .await
@@ -735,7 +884,11 @@ async fn get_player_mmr(state: tauri::State<'_, SharedState>, target_puuid: Stri
 }
 
 #[tauri::command]
-async fn get_rr_history(state: tauri::State<'_, SharedState>, start: u64, end: u64) -> Result<String, String> {
+async fn get_rr_history(
+    state: tauri::State<'_, SharedState>,
+    start: u64,
+    end: u64,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::get_rr_history(&state, start, end))
         .await
@@ -743,7 +896,10 @@ async fn get_rr_history(state: tauri::State<'_, SharedState>, start: u64, end: u
 }
 
 #[tauri::command]
-async fn get_match_details(state: tauri::State<'_, SharedState>, match_id: String) -> Result<String, String> {
+async fn get_match_details(
+    state: tauri::State<'_, SharedState>,
+    match_id: String,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::get_match_details(&state, &match_id))
         .await
@@ -751,7 +907,10 @@ async fn get_match_details(state: tauri::State<'_, SharedState>, match_id: Strin
 }
 
 #[tauri::command]
-async fn resolve_player_names(state: tauri::State<'_, SharedState>, puuids: Vec<String>) -> Result<String, String> {
+async fn resolve_player_names(
+    state: tauri::State<'_, SharedState>,
+    puuids: Vec<String>,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
     tauri::async_runtime::spawn_blocking(move || riot::resolve_player_names(&state, puuids))
         .await
@@ -759,11 +918,16 @@ async fn resolve_player_names(state: tauri::State<'_, SharedState>, puuids: Vec<
 }
 
 #[tauri::command]
-async fn get_player_level_from_history(state: tauri::State<'_, SharedState>, target_puuid: String) -> Result<String, String> {
+async fn get_player_level_from_history(
+    state: tauri::State<'_, SharedState>,
+    target_puuid: String,
+) -> Result<String, String> {
     let state = Arc::clone(&state);
-    tauri::async_runtime::spawn_blocking(move || riot::get_player_level_from_history(&state, &target_puuid))
-        .await
-        .map_err(|e| format!("Task failed: {}", e))?
+    tauri::async_runtime::spawn_blocking(move || {
+        riot::get_player_level_from_history(&state, &target_puuid)
+    })
+    .await
+    .map_err(|e| format!("Task failed: {}", e))?
 }
 
 // #23 Premier roster + standing view. Three pass-through commands that hit
@@ -800,9 +964,11 @@ async fn get_premier_conference(
     conference_id: String,
 ) -> Result<String, String> {
     let state = Arc::clone(&state);
-    tauri::async_runtime::spawn_blocking(move || riot::get_premier_conference(&state, &conference_id))
-        .await
-        .map_err(|e| format!("Task failed: {}", e))?
+    tauri::async_runtime::spawn_blocking(move || {
+        riot::get_premier_conference(&state, &conference_id)
+    })
+    .await
+    .map_err(|e| format!("Task failed: {}", e))?
 }
 
 // Best-effort persist: a disk failure here logs but does not surface to the
@@ -857,7 +1023,9 @@ pub fn run() {
             fn SetCurrentProcessExplicitAppUserModelID(app_id: *const u16) -> i32;
         }
         let id: Vec<u16> = "com.valorantthing.app\0".encode_utf16().collect();
-        unsafe { SetCurrentProcessExplicitAppUserModelID(id.as_ptr()); }
+        unsafe {
+            SetCurrentProcessExplicitAppUserModelID(id.as_ptr());
+        }
     }
 
     tauri::Builder::default()
@@ -899,19 +1067,17 @@ pub fn run() {
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("Valorant Thing")
                 .menu(&menu)
-                .on_menu_event(|app, event| {
-                    match event.id().as_ref() {
-                        "show" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
+                .on_menu_event(|app, event| match event.id().as_ref() {
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
                         }
-                        "quit" => {
-                            app.exit(0);
-                        }
-                        _ => {}
                     }
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
                     if let TrayIconEvent::Click {

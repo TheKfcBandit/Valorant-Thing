@@ -26,7 +26,9 @@ fn cache_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 fn ensure_loaded(app: &AppHandle, state: &Mutex<RrCacheState>) -> Result<(), String> {
     {
         let s = state.lock().map_err(|e| e.to_string())?;
-        if s.loaded { return Ok(()); }
+        if s.loaded {
+            return Ok(());
+        }
     }
     let path = cache_path(app)?;
     let map = if path.exists() {
@@ -99,13 +101,19 @@ pub async fn rr_history_put_many(
         let mut s = state.lock().map_err(|e| e.to_string())?;
         for entry in entries {
             if let Some(mid) = entry["MatchID"].as_str() {
-                if mid.is_empty() { continue; }
-                if !s.by_id.contains_key(mid) { new_count += 1; }
+                if mid.is_empty() {
+                    continue;
+                }
+                if !s.by_id.contains_key(mid) {
+                    new_count += 1;
+                }
                 s.by_id.insert(mid.to_string(), entry);
             }
         }
     }
-    if new_count > 0 { persist(&app, &state)?; }
+    if new_count > 0 {
+        persist(&app, &state)?;
+    }
     Ok(new_count)
 }
 
@@ -119,7 +127,9 @@ pub async fn rr_history_list(
     let s = state.lock().map_err(|e| e.to_string())?;
     // Skip entries with missing/non-numeric MatchStartTime rather than mixing them
     // into the head of the sort (where 0 would land them).
-    let mut items: Vec<&Value> = s.by_id.values()
+    let mut items: Vec<&Value> = s
+        .by_id
+        .values()
         .filter(|v| v.get("MatchStartTime").and_then(|d| d.as_i64()).is_some())
         .collect();
     items.sort_by(|a, b| {
@@ -167,9 +177,18 @@ mod tests {
     #[test]
     fn sorting_by_match_start_time_descending() {
         let mut by_id: HashMap<String, Value> = HashMap::new();
-        by_id.insert("a".into(), serde_json::json!({"MatchID":"a","MatchStartTime":100i64}));
-        by_id.insert("b".into(), serde_json::json!({"MatchID":"b","MatchStartTime":300i64}));
-        by_id.insert("c".into(), serde_json::json!({"MatchID":"c","MatchStartTime":200i64}));
+        by_id.insert(
+            "a".into(),
+            serde_json::json!({"MatchID":"a","MatchStartTime":100i64}),
+        );
+        by_id.insert(
+            "b".into(),
+            serde_json::json!({"MatchID":"b","MatchStartTime":300i64}),
+        );
+        by_id.insert(
+            "c".into(),
+            serde_json::json!({"MatchID":"c","MatchStartTime":200i64}),
+        );
         let mut items: Vec<&Value> = by_id.values().collect();
         items.sort_by(|a, b| {
             let da = a["MatchStartTime"].as_i64().unwrap_or(0);

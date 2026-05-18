@@ -38,7 +38,9 @@ fn cache_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 fn ensure_loaded(app: &AppHandle, state: &Mutex<PremierCacheState>) -> Result<(), String> {
     {
         let s = state.lock().map_err(|e| e.to_string())?;
-        if s.loaded { return Ok(()); }
+        if s.loaded {
+            return Ok(());
+        }
     }
     let path = cache_path(app)?;
     let snap: Option<PremierSnapshot> = if path.exists() {

@@ -35,8 +35,7 @@ function mergeMatches(priority, fallback) {
     if (m?.matchId) map.set(m.matchId, m);
     else if (m) noId.push(m);
   }
-  return [...noId, ...Array.from(map.values())]
-    .sort((a, b) => (b.dateMs || 0) - (a.dateMs || 0));
+  return [...noId, ...Array.from(map.values())].sort((a, b) => (b.dateMs || 0) - (a.dateMs || 0));
 }
 
 let mapCache = null;
@@ -72,7 +71,9 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
   const lastAutoRefresh = useRef(0);
   const backfilledRef = useRef(false);
 
-  useEffect(() => { getMapData().then(setMaps); }, []);
+  useEffect(() => {
+    getMapData().then(setMaps);
+  }, []);
 
   const fetchStats = useCallback(async () => {
     if (!connected) return;
@@ -97,57 +98,60 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
     setLoading(false);
   }, [connected, onRefresh]);
 
-  const fetchMatches = useCallback(async (retry = false) => {
-    if (!connected) return;
-    setMatchLoading(true);
-    try {
-      const raw = await invoke("get_match_page", { page: 0, pageSize: 25 });
-      const data = JSON.parse(raw);
-      const list = data.matches || [];
-      if (list.length === 0 && !retry) {
-        setTimeout(() => fetchMatches(true), 3000);
-        return;
-      }
-      // Merge live into the existing (cache-seeded) list. Live wins on
-      // matchId conflict so corrected/updated fields propagate.
-      setMatches(prev => mergeMatches(list, prev));
-      // Ingest into persistent history cache (only entries with a matchId survive).
-      const withIds = list.filter(m => m && m.matchId);
-      if (withIds.length > 0) {
-        try {
-          await invoke("match_history_put_many", { entries: withIds });
-        } catch (e) {
-          console.warn("[History] cache put failed:", e);
+  const fetchMatches = useCallback(
+    async (retry = false) => {
+      if (!connected) return;
+      setMatchLoading(true);
+      try {
+        const raw = await invoke("get_match_page", { page: 0, pageSize: 25 });
+        const data = JSON.parse(raw);
+        const list = data.matches || [];
+        if (list.length === 0 && !retry) {
+          setTimeout(() => fetchMatches(true), 3000);
+          return;
+        }
+        // Merge live into the existing (cache-seeded) list. Live wins on
+        // matchId conflict so corrected/updated fields propagate.
+        setMatches((prev) => mergeMatches(list, prev));
+        // Ingest into persistent history cache (only entries with a matchId survive).
+        const withIds = list.filter((m) => m && m.matchId);
+        if (withIds.length > 0) {
+          try {
+            await invoke("match_history_put_many", { entries: withIds });
+          } catch (e) {
+            console.warn("[History] cache put failed:", e);
+          }
+        }
+        // One-shot per-session backfill of older pages so first-install users
+        // get a meaningful history depth instead of the live API's 25-entry cap.
+        if (!backfilledRef.current) {
+          backfilledRef.current = true;
+          void (async () => {
+            for (let page = 1; page <= 3; page++) {
+              try {
+                const r = await invoke("get_match_page", { page, pageSize: 25 });
+                const d = JSON.parse(r);
+                const older = (d.matches || []).filter((m) => m && m.matchId);
+                if (older.length === 0) break;
+                await invoke("match_history_put_many", { entries: older });
+                setMatches((prev) => mergeMatches(prev || [], older));
+              } catch (e) {
+                console.warn("[History] backfill page", page, "failed:", e);
+                break;
+              }
+            }
+          })();
+        }
+      } catch (e) {
+        if (!retry) {
+          setTimeout(() => fetchMatches(true), 3000);
+          return;
         }
       }
-      // One-shot per-session backfill of older pages so first-install users
-      // get a meaningful history depth instead of the live API's 25-entry cap.
-      if (!backfilledRef.current) {
-        backfilledRef.current = true;
-        void (async () => {
-          for (let page = 1; page <= 3; page++) {
-            try {
-              const r = await invoke("get_match_page", { page, pageSize: 25 });
-              const d = JSON.parse(r);
-              const older = (d.matches || []).filter(m => m && m.matchId);
-              if (older.length === 0) break;
-              await invoke("match_history_put_many", { entries: older });
-              setMatches(prev => mergeMatches(prev || [], older));
-            } catch (e) {
-              console.warn("[History] backfill page", page, "failed:", e);
-              break;
-            }
-          }
-        })();
-      }
-    } catch (e) {
-      if (!retry) {
-        setTimeout(() => fetchMatches(true), 3000);
-        return;
-      }
-    }
-    setMatchLoading(false);
-  }, [connected]);
+      setMatchLoading(false);
+    },
+    [connected]
+  );
 
   // Seed match history from the file-backed cache so Home renders something
   // even when Valorant isn't running. fetchMatches will merge live entries
@@ -159,13 +163,15 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
         const res = await invoke("match_history_list", { limit: 100 });
         const cached = res?.matches || [];
         if (!cancelled && cached.length > 0) {
-          setMatches(prev => mergeMatches(prev || [], cached));
+          setMatches((prev) => mergeMatches(prev || [], cached));
         }
       } catch (e) {
         console.warn("[History] cache load failed:", e);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Same pattern as the match-history seed above — render the RR chart from
@@ -183,7 +189,9 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
         console.warn("[RR] cache load failed:", e);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const fetchPenalties = useCallback(async () => {
@@ -218,7 +226,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
       const json = JSON.parse(raw);
       const matches = Array.isArray(json?.Matches) ? json.Matches : [];
       // Filter out placement-tier-zero entries: they collapse the y-axis to 0.
-      const usable = matches.filter(m => (m?.TierAfterUpdate || 0) > 0);
+      const usable = matches.filter((m) => (m?.TierAfterUpdate || 0) > 0);
       try {
         await invoke("rr_history_put_many", { entries: usable });
       } catch (e) {
@@ -271,7 +279,17 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
     return (
       <div className="flex-1 flex items-center justify-center p-5">
         <div className="text-center space-y-2">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-muted mx-auto">
+          <svg
+            width="32"
+            height="32"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-text-muted mx-auto"
+          >
             <path d="M1 1l22 22" />
             <path d="M16.72 11.06A10.94 10.94 0 0119 12.55" />
             <path d="M5 12.55a10.94 10.94 0 015.17-2.39" />
@@ -281,15 +299,21 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
             <line x1="12" y1="20" x2="12.01" y2="20" />
           </svg>
           <p className="text-sm font-display text-text-muted">Waiting for Valorant</p>
-          <p className="text-[11px] font-body text-text-muted/60">Open Valorant and it will connect automatically</p>
+          <p className="text-[11px] font-body text-text-muted/60">
+            Open Valorant and it will connect automatically
+          </p>
         </div>
       </div>
     );
   }
   const showOfflineBadge = playerIsStale;
 
-  const cardSmall = stats?.cardId ? `https://media.valorant-api.com/playercards/${stats.cardId}/smallart.png` : player?.player_card_url;
-  const cardWide = stats?.cardId ? `https://media.valorant-api.com/playercards/${stats.cardId}/wideart.png` : null;
+  const cardSmall = stats?.cardId
+    ? `https://media.valorant-api.com/playercards/${stats.cardId}/smallart.png`
+    : player?.player_card_url;
+  const cardWide = stats?.cardId
+    ? `https://media.valorant-api.com/playercards/${stats.cardId}/wideart.png`
+    : null;
   const level = stats?.level || 0;
   const gameName = player?.game_name || "Player";
   const gameTag = player?.game_tag || "0000";
@@ -313,35 +337,69 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
 
         <div className="absolute top-3 right-3 flex items-center gap-2">
           {showOfflineBadge && (
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-yellow-500/20 backdrop-blur-sm border border-yellow-500/40" title={`Last seen on ${new Date(player.saved_at_ms).toLocaleString()} (cached)`}>
+            <div
+              className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-yellow-500/20 backdrop-blur-sm border border-yellow-500/40"
+              title={`Last seen on ${new Date(player.saved_at_ms).toLocaleString()} (cached)`}
+            >
               <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
-              <span className="text-[10px] font-display font-semibold text-yellow-400 uppercase tracking-wider">Offline</span>
+              <span className="text-[10px] font-display font-semibold text-yellow-400 uppercase tracking-wider">
+                Offline
+              </span>
             </div>
           )}
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-black/40 backdrop-blur-sm">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-text-muted">
-              <circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" />
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="text-text-muted"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 6v6l4 2" />
             </svg>
-            <span className="text-[10px] font-mono text-text-muted tabular-nums">{formatTimer(timeLeft)}</span>
+            <span className="text-[10px] font-mono text-text-muted tabular-nums">
+              {formatTimer(timeLeft)}
+            </span>
           </div>
           <button
-            onClick={() => { fetchStats(); fetchMatches(); }}
+            onClick={() => {
+              fetchStats();
+              fetchMatches();
+            }}
             disabled={loading}
             className="p-1.5 rounded-md bg-black/40 backdrop-blur-sm text-text-muted hover:text-text-primary transition-colors disabled:opacity-50"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={loading ? "animate-spin" : ""}>
-              <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className={loading ? "animate-spin" : ""}
+            >
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
             </svg>
           </button>
         </div>
 
         <div className="absolute bottom-3 left-4 flex items-end gap-3">
           {cardSmall && (
-            <img src={cardSmall} alt="" className="w-14 h-14 rounded-lg border border-white/10 shadow-lg object-cover" />
+            <img
+              src={cardSmall}
+              alt=""
+              className="w-14 h-14 rounded-lg border border-white/10 shadow-lg object-cover"
+            />
           )}
           <div className="pb-0.5">
             <div className="flex items-baseline gap-0.5">
-              <span className="text-lg font-display font-bold text-white drop-shadow-md">{gameName}</span>
+              <span className="text-lg font-display font-bold text-white drop-shadow-md">
+                {gameName}
+              </span>
               <span className="text-xs font-display text-white/50">#{gameTag}</span>
             </div>
             <p className="text-xs font-body text-white/40">Level {level}</p>
@@ -351,7 +409,9 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
 
       <div className="p-4 space-y-3">
         {error && (
-          <div className="px-3 py-2 rounded-lg bg-status-red/10 border border-status-red/20 text-xs font-body text-status-red">{error}</div>
+          <div className="px-3 py-2 rounded-lg bg-status-red/10 border border-status-red/20 text-xs font-body text-status-red">
+            {error}
+          </div>
         )}
 
         {loading && !stats && (
@@ -372,12 +432,19 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
         )}
 
         {stats && (
-          <motion.div initial="hidden" animate="show" variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }} className="grid grid-cols-4 gap-3">
+          <motion.div
+            initial="hidden"
+            animate="show"
+            variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}
+            className="grid grid-cols-4 gap-3"
+          >
             <StatCard label="Current Rank" loading={loading}>
               <div className="flex items-center gap-2.5">
                 <img src={rankIcon(currentTier)} alt="" className="w-10 h-10" />
                 <div>
-                  <p className="text-base font-display font-bold text-text-primary leading-tight">{rankName(currentTier)}</p>
+                  <p className="text-base font-display font-bold text-text-primary leading-tight">
+                    {rankName(currentTier)}
+                  </p>
                   <p className="text-xs font-body text-text-muted">{currentRR} RR</p>
                 </div>
               </div>
@@ -386,13 +453,17 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
             <StatCard label="Peak Rank" loading={loading}>
               <div className="flex items-center gap-2.5">
                 <img src={rankIcon(peakTier)} alt="" className="w-10 h-10" />
-                <p className="text-base font-display font-bold text-text-primary">{rankName(peakTier)}</p>
+                <p className="text-base font-display font-bold text-text-primary">
+                  {rankName(peakTier)}
+                </p>
               </div>
             </StatCard>
 
             <StatCard label="Win Rate" loading={loading}>
               <p className="text-xl font-display font-bold text-text-primary">{winRate}%</p>
-              <p className="text-xs font-body text-text-muted">{wins}W / {losses}L</p>
+              <p className="text-xs font-body text-text-muted">
+                {wins}W / {losses}L
+              </p>
             </StatCard>
 
             <StatCard label="Total Games" loading={loading}>
@@ -402,28 +473,40 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
           </motion.div>
         )}
 
-        {rrHistory && rrHistory.length >= 2 && (
-          <RRChart matches={rrHistory} />
-        )}
+        {rrHistory && rrHistory.length >= 2 && <RRChart matches={rrHistory} />}
 
         {spend && (spend.thisMonthVp > 0 || spend.vpSpent > 0) && (
           <motion.div
-            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.2 }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={noAnim() ? T0 : { duration: 0.2 }}
             className="rounded-xl border border-border bg-base-700/60 p-3"
-            title={spend.trackingSinceMs ? `Tracking since ${new Date(spend.trackingSinceMs).toLocaleDateString()}` : ""}
+            title={
+              spend.trackingSinceMs
+                ? `Tracking since ${new Date(spend.trackingSinceMs).toLocaleDateString()}`
+                : ""
+            }
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">Spent (last 30 days)</p>
+                <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
+                  Spent (last 30 days)
+                </p>
                 <p className="text-base font-display font-bold text-text-primary tabular-nums mt-0.5">
-                  {Number(spend.thisMonthVp || 0).toLocaleString()} <span className="text-xs text-text-muted">VP</span>
+                  {Number(spend.thisMonthVp || 0).toLocaleString()}{" "}
+                  <span className="text-xs text-text-muted">VP</span>
                   {spend.thisMonthRp > 0 && (
-                    <span className="ml-2">{Number(spend.thisMonthRp).toLocaleString()} <span className="text-xs text-text-muted">RP</span></span>
+                    <span className="ml-2">
+                      {Number(spend.thisMonthRp).toLocaleString()}{" "}
+                      <span className="text-xs text-text-muted">RP</span>
+                    </span>
                   )}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-[10px] font-display text-text-muted uppercase tracking-wider">All-time</p>
+                <p className="text-[10px] font-display text-text-muted uppercase tracking-wider">
+                  All-time
+                </p>
                 <p className="text-xs font-mono text-text-secondary tabular-nums mt-0.5">
                   {Number(spend.vpSpent || 0).toLocaleString()} VP
                 </p>
@@ -434,15 +517,28 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
 
         {penalties.length > 0 && (
           <motion.div
-            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.2 }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={noAnim() ? T0 : { duration: 0.2 }}
             className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-3 space-y-2"
           >
             <div className="flex items-center gap-2">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-yellow-400">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="text-yellow-400"
+              >
                 <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
               </svg>
-              <p className="text-xs font-display font-bold text-yellow-400 uppercase tracking-wider">Account Status</p>
+              <p className="text-xs font-display font-bold text-yellow-400 uppercase tracking-wider">
+                Account Status
+              </p>
             </div>
             <div className="space-y-1">
               {penalties.map((p, idx) => {
@@ -459,9 +555,14 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
                 }
                 const type = String(p.Type || "RESTRICTION").replace(/_/g, " ");
                 return (
-                  <div key={idx} className="flex items-center justify-between text-[11px] font-body">
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between text-[11px] font-body"
+                  >
                     <span className="text-text-primary">{type}</span>
-                    {remainingText && <span className="text-yellow-400 tabular-nums">{remainingText}</span>}
+                    {remainingText && (
+                      <span className="text-yellow-400 tabular-nums">{remainingText}</span>
+                    )}
                   </div>
                 );
               })}
@@ -469,12 +570,17 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
           </motion.div>
         )}
 
-        <h3 className="text-xs font-display font-semibold text-text-primary uppercase tracking-wider">Match History</h3>
+        <h3 className="text-xs font-display font-semibold text-text-primary uppercase tracking-wider">
+          Match History
+        </h3>
 
         {matchLoading && !matches && (
           <div className="space-y-1.5 animate-pulse">
             {[0, 1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-14 rounded-lg bg-base-700 border border-border flex items-center px-3 gap-3">
+              <div
+                key={i}
+                className="h-14 rounded-lg bg-base-700 border border-border flex items-center px-3 gap-3"
+              >
                 <div className="w-8 h-8 rounded-full bg-base-600 shrink-0" />
                 <div className="w-14 space-y-1">
                   <div className="h-2.5 w-12 rounded bg-base-600" />
@@ -496,12 +602,16 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
             const mapData = maps[m.map];
             const mapName = mapData?.name || m.map;
             const mapImg = mapData?.listIcon || mapData?.splash;
-            const agentIcon = m.agent ? (CUSTOM_AGENT_ICONS[m.agent.toLowerCase()] || `https://media.valorant-api.com/agents/${m.agent}/displayicon.png`) : null;
+            const agentIcon = m.agent
+              ? CUSTOM_AGENT_ICONS[m.agent.toLowerCase()] ||
+                `https://media.valorant-api.com/agents/${m.agent}/displayicon.png`
+              : null;
             const kdaVal = m.deaths > 0 ? ((m.kills + m.assists) / m.deaths).toFixed(1) : null;
             const kdaText = kdaVal ? `${kdaVal} KDA` : "Perfect KDA";
 
             const q = m.queueId || "";
-            const modeName = MODE_NAMES[q] || (q ? q.charAt(0).toUpperCase() + q.slice(1) : "Custom");
+            const modeName =
+              MODE_NAMES[q] || (q ? q.charAt(0).toUpperCase() + q.slice(1) : "Custom");
             const isDeathmatch = q === "deathmatch";
             const isEscalation = q === "ggteam" || q === "dodgeball";
 
@@ -541,23 +651,41 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
             return (
               <motion.div
                 key={m.matchId || `idx-${i}`}
-                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.2, delay }}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={noAnim() ? T0 : { duration: 0.2, delay }}
                 onClick={clickable ? () => setOpenMatch(m) : undefined}
                 className={`relative rounded-lg overflow-hidden border ${borderColor} h-14 group ${clickable ? "cursor-pointer hover:border-text-muted/40 transition-colors" : ""}`}
               >
                 {mapImg && (
-                  <img src={mapImg} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20 group-hover:opacity-30 transition-opacity" />
+                  <img
+                    src={mapImg}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover opacity-20 group-hover:opacity-30 transition-opacity"
+                  />
                 )}
                 <div className="absolute inset-0 bg-gradient-to-r from-base-900/90 via-base-900/70 to-base-900/50" />
 
                 <div className="relative h-full flex items-center px-3 gap-3">
                   {agentIcon && (
-                    <img src={agentIcon} alt="" className="w-8 h-8 rounded-full border border-white/10 shrink-0" />
+                    <img
+                      src={agentIcon}
+                      alt=""
+                      className="w-8 h-8 rounded-full border border-white/10 shrink-0"
+                    />
                   )}
 
                   <div className="w-16 shrink-0">
-                    <p className={`text-[10px] font-display font-bold uppercase tracking-wide ${resultColor}`}>{resultText}</p>
-                    <p className="text-xs font-mono text-text-muted">{isDeathmatch || isEscalation ? `${m.kills} kills` : `${m.roundsWon}-${m.roundsLost}`}</p>
+                    <p
+                      className={`text-[10px] font-display font-bold uppercase tracking-wide ${resultColor}`}
+                    >
+                      {resultText}
+                    </p>
+                    <p className="text-xs font-mono text-text-muted">
+                      {isDeathmatch || isEscalation
+                        ? `${m.kills} kills`
+                        : `${m.roundsWon}-${m.roundsLost}`}
+                    </p>
                   </div>
 
                   <div className="w-20 shrink-0">
@@ -566,7 +694,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
                   </div>
 
                   <div className="flex items-center gap-1 flex-wrap min-w-0">
-                    {computeHighlights(m).map(b => (
+                    {computeHighlights(m).map((b) => (
                       <span
                         key={b.id}
                         title={b.hint}
@@ -609,8 +737,14 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
 
 function StatCard({ label, children, loading }) {
   return (
-    <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }} transition={{ duration: 0.2 }} className={`p-3 rounded-xl bg-base-700 border border-border space-y-1.5 ${loading ? "opacity-60" : ""}`}>
-      <p className="text-[10px] font-display font-medium text-text-muted uppercase tracking-wider">{label}</p>
+    <motion.div
+      variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
+      transition={{ duration: 0.2 }}
+      className={`p-3 rounded-xl bg-base-700 border border-border space-y-1.5 ${loading ? "opacity-60" : ""}`}
+    >
+      <p className="text-[10px] font-display font-medium text-text-muted uppercase tracking-wider">
+        {label}
+      </p>
       {children}
     </motion.div>
   );
@@ -622,12 +756,12 @@ function StatCard({ label, children, loading }) {
 // across tier promotion/demotion boundaries.
 function RRChart({ matches }) {
   // Reverse so left = oldest, right = most recent.
-  const points = [...matches].reverse().map(m => {
+  const points = [...matches].reverse().map((m) => {
     const tier = m.TierAfterUpdate || 0;
     const rr = m.RankedRatingAfterUpdate || 0;
     return { y: tier * 100 + rr, rr, earned: m.RankedRatingEarned || 0 };
   });
-  const ys = points.map(p => p.y);
+  const ys = points.map((p) => p.y);
   const minY = Math.min(...ys);
   const maxY = Math.max(...ys);
   const span = Math.max(1, maxY - minY);
@@ -649,26 +783,56 @@ function RRChart({ matches }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.2 }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={noAnim() ? T0 : { duration: 0.2 }}
       className="rounded-xl border border-border bg-base-700/60 p-3"
     >
       <div className="flex items-baseline justify-between mb-2">
-        <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">RR Trend</p>
-        <p className={`text-[10px] font-mono tabular-nums ${totalDelta >= 0 ? "text-green-400" : "text-red-400"}`}>
-          {totalDelta >= 0 ? "+" : ""}{totalDelta} RR over {points.length} matches
+        <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
+          RR Trend
+        </p>
+        <p
+          className={`text-[10px] font-mono tabular-nums ${totalDelta >= 0 ? "text-green-400" : "text-red-400"}`}
+        >
+          {totalDelta >= 0 ? "+" : ""}
+          {totalDelta} RR over {points.length} matches
         </p>
       </div>
       <div className="relative w-full h-[140px]">
-        <svg viewBox={`0 0 ${w} ${h}`} className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
-          <path d={pathD} fill="none" stroke="rgb(var(--val-red))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        <svg
+          viewBox={`0 0 ${w} ${h}`}
+          className="absolute inset-0 w-full h-full"
+          preserveAspectRatio="none"
+        >
+          <path
+            d={pathD}
+            fill="none"
+            stroke="rgb(var(--val-red))"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
           {coords.map((c, i) => (
-            <circle key={i} cx={c.x} cy={c.y} r={i === coords.length - 1 ? 4 : 2.5} fill="rgb(var(--val-red))" vectorEffect="non-scaling-stroke" />
+            <circle
+              key={i}
+              cx={c.x}
+              cy={c.y}
+              r={i === coords.length - 1 ? 4 : 2.5}
+              fill="rgb(var(--val-red))"
+              vectorEffect="non-scaling-stroke"
+            />
           ))}
         </svg>
         {/* Labels as HTML overlays so preserveAspectRatio="none" doesn't
             horizontally smear the text along with the line. */}
-        <span className="absolute right-1.5 top-1 text-[9px] font-mono tabular-nums text-text-muted">{maxY}</span>
-        <span className="absolute right-1.5 bottom-1 text-[9px] font-mono tabular-nums text-text-muted">{minY}</span>
+        <span className="absolute right-1.5 top-1 text-[9px] font-mono tabular-nums text-text-muted">
+          {maxY}
+        </span>
+        <span className="absolute right-1.5 bottom-1 text-[9px] font-mono tabular-nums text-text-muted">
+          {minY}
+        </span>
         <span
           className="absolute right-2 text-[10px] font-mono tabular-nums text-text-primary"
           style={{ top: `${(last.y / h) * 100}%`, transform: "translateY(-130%)" }}
@@ -679,7 +843,6 @@ function RRChart({ matches }) {
     </motion.div>
   );
 }
-
 
 function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
   const [details, setDetails] = useState(null);
@@ -696,11 +859,15 @@ function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
         if (!cancelled) setError(typeof e === "string" ? e : e?.message || "Failed to load");
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [match.matchId]);
 
   useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -720,11 +887,11 @@ function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
   // detect that and fall back to one flat sorted list. Also fall back when
   // we don't know who "self" is (offline-cached identity with no puuid):
   // an empty "Your team" column would just be confusing.
-  const teamIds = new Set(players.map(p => String(p.teamId || "").toLowerCase()));
+  const teamIds = new Set(players.map((p) => String(p.teamId || "").toLowerCase()));
   const hasTeams = !!selfPuuid && teams.length >= 2 && teamIds.size >= 2;
   const sortedFlat = [...players].sort((a, b) => (b.stats?.score || 0) - (a.stats?.score || 0));
 
-  const selfPlayer = hasTeams ? players.find(p => p.subject === selfPuuid) : null;
+  const selfPlayer = hasTeams ? players.find((p) => p.subject === selfPuuid) : null;
   const selfTeam = String(selfPlayer?.teamId || "").toLowerCase();
 
   let leftTeam = [];
@@ -732,19 +899,27 @@ function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
   let leftWon = false;
   let rightWon = false;
   if (hasTeams) {
-    const otherTeam = teams.find(t => String(t.teamId).toLowerCase() !== selfTeam)?.teamId;
+    const otherTeam = teams.find((t) => String(t.teamId).toLowerCase() !== selfTeam)?.teamId;
     leftTeam = players
-      .filter(p => String(p.teamId || "").toLowerCase() === selfTeam)
+      .filter((p) => String(p.teamId || "").toLowerCase() === selfTeam)
       .sort((a, b) => (b.stats?.score || 0) - (a.stats?.score || 0));
     rightTeam = players
-      .filter(p => String(p.teamId || "").toLowerCase() !== selfTeam)
+      .filter((p) => String(p.teamId || "").toLowerCase() !== selfTeam)
       .sort((a, b) => (b.stats?.score || 0) - (a.stats?.score || 0));
-    leftWon = teams.find(t => String(t.teamId).toLowerCase() === selfTeam)?.won === true;
-    rightWon = teams.find(t => t.teamId === otherTeam)?.won === true;
+    leftWon = teams.find((t) => String(t.teamId).toLowerCase() === selfTeam)?.won === true;
+    rightWon = teams.find((t) => t.teamId === otherTeam)?.won === true;
   }
 
-  const resultText = match.won ? "VICTORY" : (match.roundsWon === match.roundsLost ? "DRAW" : "DEFEAT");
-  const resultColor = match.won ? "text-green-400" : (match.roundsWon === match.roundsLost ? "text-text-muted" : "text-red-400");
+  const resultText = match.won
+    ? "VICTORY"
+    : match.roundsWon === match.roundsLost
+      ? "DRAW"
+      : "DEFEAT";
+  const resultColor = match.won
+    ? "text-green-400"
+    : match.roundsWon === match.roundsLost
+      ? "text-text-muted"
+      : "text-red-400";
 
   return (
     <div
@@ -752,54 +927,103 @@ function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
       onClick={onClose}
     >
       <motion.div
-        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={noAnim() ? T0 : { duration: 0.15 }}
         className="relative w-full max-w-3xl max-h-[85vh] rounded-xl border border-border bg-base-800 overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="relative h-24 shrink-0 overflow-hidden border-b border-border">
           {mapData?.listIcon && (
-            <img src={mapData.listIcon} alt="" className="absolute inset-0 w-full h-full object-cover opacity-25" />
+            <img
+              src={mapData.listIcon}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover opacity-25"
+            />
           )}
           <div className="absolute inset-0 bg-gradient-to-r from-base-900/95 via-base-900/70 to-base-900/50" />
-          <button onClick={onClose} aria-label="Close" className="absolute top-3 right-3 text-text-muted hover:text-text-primary z-10">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute top-3 right-3 text-text-muted hover:text-text-primary z-10"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
           </button>
           <div className="relative h-full flex items-center px-5 gap-4">
             <div className="flex-1 min-w-0">
               <p className={`text-xl font-display font-bold ${resultColor}`}>{resultText}</p>
-              <p className="text-sm font-display text-text-primary">{mapName} <span className="text-text-muted">·</span> {modeName}</p>
+              <p className="text-sm font-display text-text-primary">
+                {mapName} <span className="text-text-muted">·</span> {modeName}
+              </p>
               <p className="text-[11px] font-body text-text-muted">{dateStr}</p>
             </div>
             <div className="text-right shrink-0">
-              <p className="text-2xl font-display font-bold text-text-primary tabular-nums">{match.roundsWon} <span className="text-text-muted">-</span> {match.roundsLost}</p>
-              <p className="text-[11px] font-mono text-text-muted">{match.kills}/{match.deaths}/{match.assists} K/D/A</p>
+              <p className="text-2xl font-display font-bold text-text-primary tabular-nums">
+                {match.roundsWon} <span className="text-text-muted">-</span> {match.roundsLost}
+              </p>
+              <p className="text-[11px] font-mono text-text-muted">
+                {match.kills}/{match.deaths}/{match.assists} K/D/A
+              </p>
             </div>
           </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-4">
           {error && (
-            <div className="px-3 py-2 rounded-md border border-val-red/40 bg-val-red/10 text-sm text-val-red">{error}</div>
+            <div className="px-3 py-2 rounded-md border border-val-red/40 bg-val-red/10 text-sm text-val-red">
+              {error}
+            </div>
           )}
           {!error && !details && (
             <div className="space-y-1.5 animate-pulse">
-              {[0,1,2,3,4,5,6,7,8,9].map(i => (
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
                 <div key={i} className="h-9 rounded bg-base-700 border border-border" />
               ))}
             </div>
           )}
           {details && hasTeams && selfTeam && roundResults.length > 0 && (
-            <RoundsStrip rounds={roundResults} selfTeam={selfTeam} players={players} queueId={match.queueId} />
+            <RoundsStrip
+              rounds={roundResults}
+              selfTeam={selfTeam}
+              players={players}
+              queueId={match.queueId}
+            />
           )}
           {details && hasTeams && (
             <div className="grid grid-cols-2 gap-4">
-              <ScoreboardColumn label={leftWon ? "Your team — won" : "Your team"} players={leftTeam} roundsPlayed={roundsPlayed} selfPuuid={selfPuuid} badges={scoreboardBadges} />
-              <ScoreboardColumn label={rightWon ? "Enemy team — won" : "Enemy team"} players={rightTeam} roundsPlayed={roundsPlayed} selfPuuid={selfPuuid} badges={scoreboardBadges} />
+              <ScoreboardColumn
+                label={leftWon ? "Your team — won" : "Your team"}
+                players={leftTeam}
+                roundsPlayed={roundsPlayed}
+                selfPuuid={selfPuuid}
+                badges={scoreboardBadges}
+              />
+              <ScoreboardColumn
+                label={rightWon ? "Enemy team — won" : "Enemy team"}
+                players={rightTeam}
+                roundsPlayed={roundsPlayed}
+                selfPuuid={selfPuuid}
+                badges={scoreboardBadges}
+              />
             </div>
           )}
           {details && !hasTeams && (
-            <ScoreboardColumn label={`${sortedFlat.length} players`} players={sortedFlat} roundsPlayed={roundsPlayed} selfPuuid={selfPuuid} badges={scoreboardBadges} />
+            <ScoreboardColumn
+              label={`${sortedFlat.length} players`}
+              players={sortedFlat}
+              roundsPlayed={roundsPlayed}
+              selfPuuid={selfPuuid}
+              badges={scoreboardBadges}
+            />
           )}
         </div>
       </motion.div>
@@ -810,7 +1034,9 @@ function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
 function ScoreboardColumn({ label, players, roundsPlayed, selfPuuid, badges }) {
   return (
     <div>
-      <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider mb-2">{label}</p>
+      <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider mb-2">
+        {label}
+      </p>
       <ul className="space-y-1">
         {players.map((p) => {
           const isSelf = p.subject === selfPuuid;
@@ -821,7 +1047,11 @@ function ScoreboardColumn({ label, players, roundsPlayed, selfPuuid, badges }) {
           const agentIcon = p.characterId
             ? `https://media.valorant-api.com/agents/${p.characterId}/displayicon.png`
             : null;
-          const name = p.gameName ? `${p.gameName}#${p.tagLine || ""}` : (p.subject ? p.subject.slice(0, 8) : "Unknown");
+          const name = p.gameName
+            ? `${p.gameName}#${p.tagLine || ""}`
+            : p.subject
+              ? p.subject.slice(0, 8)
+              : "Unknown";
           const rowBadges = badges?.get?.(p.subject) || [];
           return (
             <li
@@ -829,11 +1059,19 @@ function ScoreboardColumn({ label, players, roundsPlayed, selfPuuid, badges }) {
               className={`flex items-center gap-2.5 px-2 py-1.5 rounded ${isSelf ? "bg-val-red/15 border border-val-red/30" : "bg-base-700/40 border border-border"}`}
             >
               {agentIcon && (
-                <img src={agentIcon} alt="" className="w-7 h-7 rounded-full border border-white/10 shrink-0" />
+                <img
+                  src={agentIcon}
+                  alt=""
+                  className="w-7 h-7 rounded-full border border-white/10 shrink-0"
+                />
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <p className={`text-xs font-display ${isSelf ? "text-val-red font-semibold" : "text-text-primary"} truncate`}>{name}</p>
+                  <p
+                    className={`text-xs font-display ${isSelf ? "text-val-red font-semibold" : "text-text-primary"} truncate`}
+                  >
+                    {name}
+                  </p>
                   {rowBadges.map((b) => (
                     <span
                       key={b.id}
@@ -873,19 +1111,23 @@ function RoundsStrip({ rounds, selfTeam, players, queueId }) {
   }, [players]);
 
   // Side swap after round 12 for the standard 13-round-half modes only.
-  const showHalfSpacer = (queueId === "competitive" || queueId === "unrated") && rounds.length >= 13;
+  const showHalfSpacer =
+    (queueId === "competitive" || queueId === "unrated") && rounds.length >= 13;
 
   return (
     <div className="mb-4">
-      <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider mb-2">Rounds</p>
+      <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider mb-2">
+        Rounds
+      </p>
       <div className="flex flex-wrap gap-0.5 items-center">
         {rounds.map((r, idx) => {
           const outcome = getRoundOutcome(r, selfTeam);
-          const tone = outcome === "won"
-            ? "bg-green-500/15 border-green-500/40 text-green-300"
-            : outcome === "lost"
-              ? "bg-red-500/15 border-red-500/40 text-red-300"
-              : "bg-base-700/40 border-border text-text-muted";
+          const tone =
+            outcome === "won"
+              ? "bg-green-500/15 border-green-500/40 text-green-300"
+              : outcome === "lost"
+                ? "bg-red-500/15 border-red-500/40 text-red-300"
+                : "bg-base-700/40 border-border text-text-muted";
           const code = r?.roundResultCode;
           const glyph = code && ROUND_GLYPH[code];
           return (
@@ -899,7 +1141,9 @@ function RoundsStrip({ rounds, selfTeam, players, queueId }) {
               >
                 {idx + 1}
                 {glyph && (
-                  <span className="absolute bottom-0 right-0.5 text-[7px] font-display leading-none opacity-70">{glyph}</span>
+                  <span className="absolute bottom-0 right-0.5 text-[7px] font-display leading-none opacity-70">
+                    {glyph}
+                  </span>
                 )}
               </div>
             </Fragment>

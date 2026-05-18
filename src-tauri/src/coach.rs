@@ -53,54 +53,89 @@ fn build_user_prompt(matches: &[Value]) -> (String, usize) {
             m["assists"].as_u64().unwrap_or(0),
             m["roundsWon"].as_u64().unwrap_or(0),
             m["roundsLost"].as_u64().unwrap_or(0),
-            if m["won"].as_bool().unwrap_or(false) { "WIN" } else { "LOSS" },
+            if m["won"].as_bool().unwrap_or(false) {
+                "WIN"
+            } else {
+                "LOSS"
+            },
         ));
     }
     (s, skipped)
 }
 
-async fn call_anthropic(api_key: &str, model: &str, prompt: &str) -> Result<(String, Value), String> {
+async fn call_anthropic(
+    api_key: &str,
+    model: &str,
+    prompt: &str,
+) -> Result<(String, Value), String> {
     let client = reqwest::Client::new();
     let body = serde_json::json!({
         "model": model,
         "max_tokens": 1024,
         "messages": [{"role": "user", "content": prompt}],
     });
-    let res = client.post("https://api.anthropic.com/v1/messages")
+    let res = client
+        .post("https://api.anthropic.com/v1/messages")
         .header("x-api-key", api_key)
         .header("anthropic-version", "2023-06-01")
         .header("content-type", "application/json")
         .json(&body)
-        .send().await
+        .send()
+        .await
         .map_err(|e| format!("anthropic request: {}", e))?;
     let status = res.status();
-    let json: Value = res.json().await.map_err(|e| format!("anthropic parse: {}", e))?;
+    let json: Value = res
+        .json()
+        .await
+        .map_err(|e| format!("anthropic parse: {}", e))?;
     if !status.is_success() {
-        return Err(json["error"]["message"].as_str().unwrap_or("Anthropic error").to_string());
+        return Err(json["error"]["message"]
+            .as_str()
+            .unwrap_or("Anthropic error")
+            .to_string());
     }
-    let text = json["content"][0]["text"].as_str().unwrap_or("").to_string();
+    let text = json["content"][0]["text"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
     Ok((text, json))
 }
 
-async fn call_openai_like(api_key: &str, model: &str, base_url: &str, prompt: &str) -> Result<(String, Value), String> {
+async fn call_openai_like(
+    api_key: &str,
+    model: &str,
+    base_url: &str,
+    prompt: &str,
+) -> Result<(String, Value), String> {
     let client = reqwest::Client::new();
     let url = format!("{}/v1/chat/completions", base_url.trim_end_matches('/'));
     let body = serde_json::json!({
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
     });
-    let res = client.post(&url)
+    let res = client
+        .post(&url)
         .bearer_auth(api_key)
         .header("content-type", "application/json")
         .json(&body)
-        .send().await
+        .send()
+        .await
         .map_err(|e| format!("openai request: {}", e))?;
     let status = res.status();
-    let json: Value = res.json().await.map_err(|e| format!("openai parse: {}", e))?;
+    let json: Value = res
+        .json()
+        .await
+        .map_err(|e| format!("openai parse: {}", e))?;
     if !status.is_success() {
-        return Err(json["error"]["message"].as_str().unwrap_or("OpenAI error").to_string());
+        return Err(json["error"]["message"]
+            .as_str()
+            .unwrap_or("OpenAI error")
+            .to_string());
     }
-    let text = json["choices"][0]["message"]["content"].as_str().unwrap_or("").to_string();
+    let text = json["choices"][0]["message"]["content"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
     Ok((text, json))
 }
 
@@ -114,14 +149,21 @@ pub async fn coach_analyze(req: CoachRequest) -> Result<CoachResponse, String> {
     }
     let (prompt, skipped) = build_user_prompt(&req.recent_matches);
     if skipped > 0 {
-        eprintln!("[Coach] Skipped {} malformed match entries (missing K/D/A)", skipped);
+        eprintln!(
+            "[Coach] Skipped {} malformed match entries (missing K/D/A)",
+            skipped
+        );
     }
     if !prompt.contains("1. Map=") {
-        return Err("All recent matches were malformed (missing K/D/A). Try again later.".to_string());
+        return Err(
+            "All recent matches were malformed (missing K/D/A). Try again later.".to_string(),
+        );
     }
     let (tips, raw) = match req.provider.as_str() {
         "anthropic" => call_anthropic(&req.api_key, &req.model, &prompt).await?,
-        "openai" => call_openai_like(&req.api_key, &req.model, "https://api.openai.com", &prompt).await?,
+        "openai" => {
+            call_openai_like(&req.api_key, &req.model, "https://api.openai.com", &prompt).await?
+        }
         "openai-compat" => {
             let base = req.base_url.as_deref().unwrap_or("");
             if base.is_empty() {
@@ -131,5 +173,8 @@ pub async fn coach_analyze(req: CoachRequest) -> Result<CoachResponse, String> {
         }
         other => return Err(format!("Unknown provider: {}", other)),
     };
-    Ok(CoachResponse { tips, raw: Some(raw) })
+    Ok(CoachResponse {
+        tips,
+        raw: Some(raw),
+    })
 }

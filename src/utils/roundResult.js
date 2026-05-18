@@ -6,9 +6,9 @@
 // Single-character glyph for the round's win condition. Kept tiny so it
 // fits inside a 7×7 pill alongside the round number.
 export const ROUND_GLYPH = {
-  Detonate: "B",     // spike detonated
-  Defuse: "D",       // spike defused
-  Elimination: "E",  // all enemies dead
+  Detonate: "B", // spike detonated
+  Defuse: "D", // spike defused
+  Elimination: "E", // all enemies dead
   Surrendered: "S",
 };
 

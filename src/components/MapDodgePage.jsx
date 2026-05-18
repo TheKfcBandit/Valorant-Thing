@@ -9,7 +9,14 @@ const SKIRMISH_MAPS = new Set(["Skirmish A", "Skirmish B", "Skirmish C"]);
 const CONFIG_KEY = "mapdodge-config";
 
 const SEARCH_ICON = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+  >
     <circle cx="11" cy="11" r="8" />
     <path d="M21 21l-4.35-4.35" />
   </svg>
@@ -19,7 +26,9 @@ function loadConfig() {
   try {
     const raw = localStorage.getItem(CONFIG_KEY);
     return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function saveConfig(blacklist, active) {
@@ -118,19 +127,32 @@ export default function MapDodgePage({ onActiveChange, onBlacklistChange, connec
         </span>
 
         <div className="flex items-center gap-2 ml-1">
-          <span className={`text-xs font-display tracking-wide ${!connected ? "text-text-muted" : active ? "text-status-green" : "text-text-muted"}`}>
+          <span
+            className={`text-xs font-display tracking-wide ${!connected ? "text-text-muted" : active ? "text-status-green" : "text-text-muted"}`}
+          >
             {!connected ? "Off" : active ? "Active" : "Inactive"}
           </span>
           <button
             disabled={!connected}
-            onClick={() => { if (!connected) return; const next = !active; setActive(next); onActiveChange?.(next); }}
+            onClick={() => {
+              if (!connected) return;
+              const next = !active;
+              setActive(next);
+              onActiveChange?.(next);
+            }}
             className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${
-              !connected ? "bg-base-500 opacity-50 cursor-not-allowed" : active ? "bg-status-green" : "bg-base-500"
+              !connected
+                ? "bg-base-500 opacity-50 cursor-not-allowed"
+                : active
+                  ? "bg-status-green"
+                  : "bg-base-500"
             }`}
           >
-            <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
-              !connected ? "translate-x-0.5" : active ? "translate-x-[18px]" : "translate-x-0.5"
-            }`} />
+            <div
+              className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                !connected ? "translate-x-0.5" : active ? "translate-x-[18px]" : "translate-x-0.5"
+              }`}
+            />
           </button>
         </div>
       </div>
@@ -140,25 +162,51 @@ export default function MapDodgePage({ onActiveChange, onBlacklistChange, connec
           Click maps to blacklist — auto-dodge when matched
         </p>
         {(() => {
-          const standard = filteredMaps.filter(m => !DM_MAPS.has(m.displayName) && !SKIRMISH_MAPS.has(m.displayName));
-          const skirmish = filteredMaps.filter(m => SKIRMISH_MAPS.has(m.displayName));
-          const dm = filteredMaps.filter(m => DM_MAPS.has(m.displayName));
+          const standard = filteredMaps.filter(
+            (m) => !DM_MAPS.has(m.displayName) && !SKIRMISH_MAPS.has(m.displayName)
+          );
+          const skirmish = filteredMaps.filter((m) => SKIRMISH_MAPS.has(m.displayName));
+          const dm = filteredMaps.filter((m) => DM_MAPS.has(m.displayName));
           let idx = 0;
           return (
             <div className="space-y-4">
               {standard.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 mb-2">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-muted/60"><path d="M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3V7z" /><path d="M9 4v13M15 7v13" /></svg>
-                    <span className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">Standard Maps</span>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      className="text-text-muted/60"
+                    >
+                      <path d="M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3V7z" />
+                      <path d="M9 4v13M15 7v13" />
+                    </svg>
+                    <span className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
+                      Standard Maps
+                    </span>
                     <div className="flex-1 h-px bg-border/50" />
                   </div>
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2">
-                    {standard.map(map => {
+                    {standard.map((map) => {
                       const i = idx++;
                       return (
-                        <motion.div key={map.uuid} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.15, delay: Math.min(i * 0.03, 0.3) }}>
-                        <MapDodgeCard map={map} blacklisted={blacklist.has(map.mapUrl)} onClick={() => toggleMap(map.mapUrl)} />
+                        <motion.div
+                          key={map.uuid}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={
+                            noAnim() ? T0 : { duration: 0.15, delay: Math.min(i * 0.03, 0.3) }
+                          }
+                        >
+                          <MapDodgeCard
+                            map={map}
+                            blacklisted={blacklist.has(map.mapUrl)}
+                            onClick={() => toggleMap(map.mapUrl)}
+                          />
                         </motion.div>
                       );
                     })}
@@ -168,16 +216,40 @@ export default function MapDodgePage({ onActiveChange, onBlacklistChange, connec
               {skirmish.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 mb-2">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-muted/60"><path d="M12 2v20M2 12h20" /><circle cx="12" cy="12" r="4" /></svg>
-                    <span className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">Skirmish Maps</span>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      className="text-text-muted/60"
+                    >
+                      <path d="M12 2v20M2 12h20" />
+                      <circle cx="12" cy="12" r="4" />
+                    </svg>
+                    <span className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
+                      Skirmish Maps
+                    </span>
                     <div className="flex-1 h-px bg-border/50" />
                   </div>
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2">
-                    {skirmish.map(map => {
+                    {skirmish.map((map) => {
                       const i = idx++;
                       return (
-                        <motion.div key={map.uuid} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.15, delay: Math.min(i * 0.03, 0.3) }}>
-                        <MapDodgeCard map={map} blacklisted={blacklist.has(map.mapUrl)} onClick={() => toggleMap(map.mapUrl)} />
+                        <motion.div
+                          key={map.uuid}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={
+                            noAnim() ? T0 : { duration: 0.15, delay: Math.min(i * 0.03, 0.3) }
+                          }
+                        >
+                          <MapDodgeCard
+                            map={map}
+                            blacklisted={blacklist.has(map.mapUrl)}
+                            onClick={() => toggleMap(map.mapUrl)}
+                          />
                         </motion.div>
                       );
                     })}
@@ -187,16 +259,40 @@ export default function MapDodgePage({ onActiveChange, onBlacklistChange, connec
               {dm.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 mb-2">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-muted/60"><circle cx="12" cy="12" r="3" /><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" /></svg>
-                    <span className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">Deathmatch Maps</span>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      className="text-text-muted/60"
+                    >
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                    </svg>
+                    <span className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
+                      Deathmatch Maps
+                    </span>
                     <div className="flex-1 h-px bg-border/50" />
                   </div>
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2">
-                    {dm.map(map => {
+                    {dm.map((map) => {
                       const i = idx++;
                       return (
-                        <motion.div key={map.uuid} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.15, delay: Math.min(i * 0.03, 0.3) }}>
-                        <MapDodgeCard map={map} blacklisted={blacklist.has(map.mapUrl)} onClick={() => toggleMap(map.mapUrl)} />
+                        <motion.div
+                          key={map.uuid}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={
+                            noAnim() ? T0 : { duration: 0.15, delay: Math.min(i * 0.03, 0.3) }
+                          }
+                        >
+                          <MapDodgeCard
+                            map={map}
+                            blacklisted={blacklist.has(map.mapUrl)}
+                            onClick={() => toggleMap(map.mapUrl)}
+                          />
                         </motion.div>
                       );
                     })}
@@ -235,9 +331,11 @@ function MapDodgeCard({ map, blacklisted, onClick }) {
       </div>
       <div className={`absolute inset-0 ${blacklisted ? "bg-val-red/8" : "bg-base-900/50"}`} />
       <div className="relative h-full flex items-center justify-between px-4">
-        <p className={`text-sm font-display font-semibold leading-tight ${
-          blacklisted ? "text-val-red" : "text-text-primary"
-        }`}>
+        <p
+          className={`text-sm font-display font-semibold leading-tight ${
+            blacklisted ? "text-val-red" : "text-text-primary"
+          }`}
+        >
           {map.displayName}
         </p>
         {blacklisted && (

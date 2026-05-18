@@ -1,8 +1,11 @@
 use std::sync::Mutex;
 
-use super::types::ConnectionState;
-use super::http::{glz_get, glz_post, glz_post_body, glz_delete, local_get, local_post, pd_get, pd_put, pd_batch_get};
+use super::http::{
+    glz_delete, glz_get, glz_post, glz_post_body, local_get, local_post, pd_batch_get, pd_get,
+    pd_put,
+};
 use super::logging::log_info;
+use super::types::ConnectionState;
 
 fn get_local_creds(state: &Mutex<ConnectionState>) -> Result<(u16, String), String> {
     let s = state.lock().map_err(|e| e.to_string())?;
@@ -15,8 +18,9 @@ fn get_local_creds(state: &Mutex<ConnectionState>) -> Result<(u16, String), Stri
     ))
 }
 
-
-fn get_glz_creds(state: &Mutex<ConnectionState>) -> Result<(String, String, String, String, String, String), String> {
+fn get_glz_creds(
+    state: &Mutex<ConnectionState>,
+) -> Result<(String, String, String, String, String, String), String> {
     let s = state.lock().map_err(|e| e.to_string())?;
     if !s.connected {
         return Err("Not connected".to_string());
@@ -35,13 +39,27 @@ pub fn check_current_game(state: &Mutex<ConnectionState>) -> Result<String, Stri
     let (access_token, entitlements, puuid, region, shard, client_version) = get_glz_creds(state)?;
 
     let pregame_player_path = format!("/pregame/v1/players/{}", puuid);
-    if let Ok(pregame_raw) = glz_get(&region, &shard, &pregame_player_path, &access_token, &entitlements, &client_version) {
+    if let Ok(pregame_raw) = glz_get(
+        &region,
+        &shard,
+        &pregame_player_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    ) {
         if let Ok(pregame_json) = serde_json::from_str::<serde_json::Value>(&pregame_raw) {
             if let Some(match_id) = pregame_json["MatchID"].as_str().filter(|s| !s.is_empty()) {
                 let match_path = format!("/pregame/v1/matches/{}", match_id);
-                if let Ok(match_raw) = glz_get(&region, &shard, &match_path, &access_token, &entitlements, &client_version) {
-                    let mut result: serde_json::Value = serde_json::from_str(&match_raw)
-                        .unwrap_or(serde_json::json!({}));
+                if let Ok(match_raw) = glz_get(
+                    &region,
+                    &shard,
+                    &match_path,
+                    &access_token,
+                    &entitlements,
+                    &client_version,
+                ) {
+                    let mut result: serde_json::Value =
+                        serde_json::from_str(&match_raw).unwrap_or(serde_json::json!({}));
                     result["_phase"] = serde_json::json!("pregame");
                     return Ok(result.to_string());
                 }
@@ -50,13 +68,27 @@ pub fn check_current_game(state: &Mutex<ConnectionState>) -> Result<String, Stri
     }
 
     let coregame_player_path = format!("/core-game/v1/players/{}", puuid);
-    if let Ok(coregame_raw) = glz_get(&region, &shard, &coregame_player_path, &access_token, &entitlements, &client_version) {
+    if let Ok(coregame_raw) = glz_get(
+        &region,
+        &shard,
+        &coregame_player_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    ) {
         if let Ok(coregame_json) = serde_json::from_str::<serde_json::Value>(&coregame_raw) {
             if let Some(match_id) = coregame_json["MatchID"].as_str().filter(|s| !s.is_empty()) {
                 let match_path = format!("/core-game/v1/matches/{}", match_id);
-                if let Ok(match_raw) = glz_get(&region, &shard, &match_path, &access_token, &entitlements, &client_version) {
-                    let mut result: serde_json::Value = serde_json::from_str(&match_raw)
-                        .unwrap_or(serde_json::json!({}));
+                if let Ok(match_raw) = glz_get(
+                    &region,
+                    &shard,
+                    &match_path,
+                    &access_token,
+                    &entitlements,
+                    &client_version,
+                ) {
+                    let mut result: serde_json::Value =
+                        serde_json::from_str(&match_raw).unwrap_or(serde_json::json!({}));
                     result["_phase"] = serde_json::json!("ingame");
                     return Ok(result.to_string());
                 }
@@ -67,66 +99,146 @@ pub fn check_current_game(state: &Mutex<ConnectionState>) -> Result<String, Stri
     Err("Not in a match".to_string())
 }
 
-pub fn get_match_loadouts(state: &Mutex<ConnectionState>, match_id: &str, phase: &str) -> Result<String, String> {
+pub fn get_match_loadouts(
+    state: &Mutex<ConnectionState>,
+    match_id: &str,
+    phase: &str,
+) -> Result<String, String> {
     let (access_token, entitlements, _puuid, region, shard, client_version) = get_glz_creds(state)?;
     let path = match phase {
         "pregame" => format!("/pregame/v1/matches/{}/loadouts", match_id),
         "ingame" => format!("/core-game/v1/matches/{}/loadouts", match_id),
         _ => return Err(format!("Bad phase: {}", phase)),
     };
-    glz_get(&region, &shard, &path, &access_token, &entitlements, &client_version)
+    glz_get(
+        &region,
+        &shard,
+        &path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )
 }
 
-pub fn select_agent(state: &Mutex<ConnectionState>, match_id: &str, agent_id: &str) -> Result<String, String> {
+pub fn select_agent(
+    state: &Mutex<ConnectionState>,
+    match_id: &str,
+    agent_id: &str,
+) -> Result<String, String> {
     let (access_token, entitlements, _, region, shard, client_version) = get_glz_creds(state)?;
     let path = format!("/pregame/v1/matches/{}/select/{}", match_id, agent_id);
-    log_info(&format!("[Game] Selecting agent {} in match {}", agent_id, match_id));
-    glz_post(&region, &shard, &path, &access_token, &entitlements, &client_version)
+    log_info(&format!(
+        "[Game] Selecting agent {} in match {}",
+        agent_id, match_id
+    ));
+    glz_post(
+        &region,
+        &shard,
+        &path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )
 }
 
-pub fn lock_agent(state: &Mutex<ConnectionState>, match_id: &str, agent_id: &str) -> Result<String, String> {
+pub fn lock_agent(
+    state: &Mutex<ConnectionState>,
+    match_id: &str,
+    agent_id: &str,
+) -> Result<String, String> {
     let (access_token, entitlements, _, region, shard, client_version) = get_glz_creds(state)?;
     let path = format!("/pregame/v1/matches/{}/lock/{}", match_id, agent_id);
-    log_info(&format!("[Game] Locking agent {} in match {}", agent_id, match_id));
-    glz_post(&region, &shard, &path, &access_token, &entitlements, &client_version)
+    log_info(&format!(
+        "[Game] Locking agent {} in match {}",
+        agent_id, match_id
+    ));
+    glz_post(
+        &region,
+        &shard,
+        &path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )
 }
 
 pub fn pregame_quit(state: &Mutex<ConnectionState>, match_id: &str) -> Result<String, String> {
     let (access_token, entitlements, _, region, shard, client_version) = get_glz_creds(state)?;
     let quit_path = format!("/pregame/v1/matches/{}/quit", match_id);
     log_info(&format!("[Game] Dodging match {}", match_id));
-    glz_post(&region, &shard, &quit_path, &access_token, &entitlements, &client_version)
+    glz_post(
+        &region,
+        &shard,
+        &quit_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )
 }
 
 pub fn coregame_quit(state: &Mutex<ConnectionState>, match_id: &str) -> Result<String, String> {
     let (access_token, entitlements, puuid, region, shard, client_version) = get_glz_creds(state)?;
     let path = format!("/core-game/v1/players/{}/disassociate/{}", puuid, match_id);
     log_info(&format!("[Game] Leaving match {}", match_id));
-    glz_post(&region, &shard, &path, &access_token, &entitlements, &client_version)
+    glz_post(
+        &region,
+        &shard,
+        &path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )
 }
 
 pub fn get_party(state: &Mutex<ConnectionState>) -> Result<String, String> {
     let (access_token, entitlements, puuid, region, shard, client_version) = get_glz_creds(state)?;
 
     let player_path = format!("/parties/v1/players/{}", puuid);
-    let player_raw = glz_get(&region, &shard, &player_path, &access_token, &entitlements, &client_version)?;
-    let player_json: serde_json::Value = serde_json::from_str(&player_raw).map_err(|e| format!("Parse party player: {}", e))?;
-    let party_id = player_json["CurrentPartyID"].as_str().filter(|s| !s.is_empty())
+    let player_raw = glz_get(
+        &region,
+        &shard,
+        &player_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )?;
+    let player_json: serde_json::Value =
+        serde_json::from_str(&player_raw).map_err(|e| format!("Parse party player: {}", e))?;
+    let party_id = player_json["CurrentPartyID"]
+        .as_str()
+        .filter(|s| !s.is_empty())
         .ok_or("No party ID found")?;
 
     let party_path = format!("/parties/v1/parties/{}", party_id);
-    let party_raw = glz_get(&region, &shard, &party_path, &access_token, &entitlements, &client_version)?;
-    let party_json: serde_json::Value = serde_json::from_str(&party_raw).map_err(|e| format!("Parse party: {}", e))?;
+    let party_raw = glz_get(
+        &region,
+        &shard,
+        &party_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )?;
+    let party_json: serde_json::Value =
+        serde_json::from_str(&party_raw).map_err(|e| format!("Parse party: {}", e))?;
 
     let members = party_json["Members"].as_array().ok_or("No Members array")?;
-    let puuids: Vec<String> = members.iter()
+    let puuids: Vec<String> = members
+        .iter()
         .filter_map(|m| m["Subject"].as_str().map(|s| s.to_string()))
         .collect();
 
     let puuids_json = serde_json::to_string(&puuids).unwrap_or_default();
-    let mut name_map: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new();
+    let mut name_map: std::collections::HashMap<String, (String, String)> =
+        std::collections::HashMap::new();
 
-    if let Ok(names_raw) = pd_put(&shard, "/name-service/v2/players", &puuids_json, &access_token, &entitlements, &client_version) {
+    if let Ok(names_raw) = pd_put(
+        &shard,
+        "/name-service/v2/players",
+        &puuids_json,
+        &access_token,
+        &entitlements,
+        &client_version,
+    ) {
         if let Ok(names) = serde_json::from_str::<Vec<serde_json::Value>>(&names_raw) {
             for n in &names {
                 if let (Some(subject), Some(game_name), Some(tag)) = (
@@ -134,7 +246,10 @@ pub fn get_party(state: &Mutex<ConnectionState>) -> Result<String, String> {
                     n["GameName"].as_str(),
                     n["TagLine"].as_str(),
                 ) {
-                    name_map.insert(subject.to_string(), (game_name.to_string(), tag.to_string()));
+                    name_map.insert(
+                        subject.to_string(),
+                        (game_name.to_string(), tag.to_string()),
+                    );
                 }
             }
         }
@@ -143,13 +258,17 @@ pub fn get_party(state: &Mutex<ConnectionState>) -> Result<String, String> {
     let mut result_members = Vec::new();
     for m in members {
         let subject = m["Subject"].as_str().unwrap_or_default();
-        let (game_name, game_tag) = name_map.get(subject)
+        let (game_name, game_tag) = name_map
+            .get(subject)
             .map(|(n, t)| (n.as_str(), t.as_str()))
             .unwrap_or(("Unknown", "0000"));
         let identity = &m["PlayerIdentity"];
         let card_id = identity["PlayerCardID"].as_str().unwrap_or_default();
         let card_url = if !card_id.is_empty() {
-            format!("https://media.valorant-api.com/playercards/{}/smallart.png", card_id)
+            format!(
+                "https://media.valorant-api.com/playercards/{}/smallart.png",
+                card_id
+            )
         } else {
             String::new()
         };
@@ -168,7 +287,9 @@ pub fn get_party(state: &Mutex<ConnectionState>) -> Result<String, String> {
         }));
     }
 
-    let queue_id = party_json["MatchmakingData"]["QueueID"].as_str().unwrap_or("");
+    let queue_id = party_json["MatchmakingData"]["QueueID"]
+        .as_str()
+        .unwrap_or("");
     let party_state = party_json["State"].as_str().unwrap_or("");
 
     let settings = &party_json["CustomGameData"]["Settings"];
@@ -200,7 +321,8 @@ pub fn get_party(state: &Mutex<ConnectionState>) -> Result<String, String> {
 pub fn get_friends(state: &Mutex<ConnectionState>) -> Result<String, String> {
     let (port, auth) = get_local_creds(state)?;
     let raw = local_get(port, &auth, "/chat/v4/friends")?;
-    let json: serde_json::Value = serde_json::from_str(&raw).map_err(|e| format!("Parse friends: {}", e))?;
+    let json: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|e| format!("Parse friends: {}", e))?;
     let friends = json["friends"].as_array().cloned().unwrap_or_default();
 
     log_info(&format!("[Friends] Raw friends count: {}", friends.len()));
@@ -212,18 +334,26 @@ pub fn get_friends(state: &Mutex<ConnectionState>) -> Result<String, String> {
         account_level: u64,
     }
 
-    let mut presence_map: std::collections::HashMap<String, PresenceInfo> = std::collections::HashMap::new();
+    let mut presence_map: std::collections::HashMap<String, PresenceInfo> =
+        std::collections::HashMap::new();
     if let Ok(pres_raw) = local_get(port, &auth, "/chat/v4/presences") {
         if let Ok(pres_json) = serde_json::from_str::<serde_json::Value>(&pres_raw) {
-            let presences = pres_json["presences"].as_array().cloned().unwrap_or_default();
+            let presences = pres_json["presences"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
             log_info(&format!("[Friends] Presences count: {}", presences.len()));
 
-            let mut products_seen: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+            let mut products_seen: std::collections::HashMap<String, u32> =
+                std::collections::HashMap::new();
             for p in &presences {
                 let prod = p["product"].as_str().unwrap_or("?").to_string();
                 *products_seen.entry(prod).or_insert(0) += 1;
             }
-            log_info(&format!("[Friends] Products breakdown: {:?}", products_seen));
+            log_info(&format!(
+                "[Friends] Products breakdown: {:?}",
+                products_seen
+            ));
 
             let mut sample_logged = 0u32;
             for p in presences {
@@ -239,40 +369,63 @@ pub fn get_friends(state: &Mutex<ConnectionState>) -> Result<String, String> {
                 let mut account_level: u64 = 0;
 
                 if let Some(priv_b64) = p["private"].as_str().filter(|s| !s.is_empty()) {
-                    if let Ok(decoded) = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, priv_b64) {
-                        if let Ok(priv_json) = serde_json::from_slice::<serde_json::Value>(&decoded) {
+                    if let Ok(decoded) =
+                        base64::Engine::decode(&base64::engine::general_purpose::STANDARD, priv_b64)
+                    {
+                        if let Ok(priv_json) = serde_json::from_slice::<serde_json::Value>(&decoded)
+                        {
                             if sample_logged < 3 {
-                                let keys: Vec<&str> = priv_json.as_object()
+                                let keys: Vec<&str> = priv_json
+                                    .as_object()
                                     .map(|o| o.keys().map(|k| k.as_str()).collect())
                                     .unwrap_or_default();
-                                log_info(&format!("[Friends] Decoded keys for {}.. ({}): {:?}",
-                                    &puuid[..8.min(puuid.len())], pres_product, keys));
+                                log_info(&format!(
+                                    "[Friends] Decoded keys for {}.. ({}): {:?}",
+                                    &puuid[..8.min(puuid.len())],
+                                    pres_product,
+                                    keys
+                                ));
                                 sample_logged += 1;
                             }
-                            if let Some(card_id) = priv_json["playerCardId"].as_str().filter(|s| !s.is_empty()) {
-                                card_url = format!("https://media.valorant-api.com/playercards/{}/smallart.png", card_id);
+                            if let Some(card_id) =
+                                priv_json["playerCardId"].as_str().filter(|s| !s.is_empty())
+                            {
+                                card_url = format!(
+                                    "https://media.valorant-api.com/playercards/{}/smallart.png",
+                                    card_id
+                                );
                             }
                             account_level = priv_json["accountLevel"].as_u64().unwrap_or(0);
                         } else {
                             if sample_logged < 3 {
                                 let preview = String::from_utf8_lossy(&decoded);
-                                log_info(&format!("[Friends] JSON parse fail for {}.. preview: {}",
-                                    &puuid[..8.min(puuid.len())], &preview[..preview.len().min(200)]));
+                                log_info(&format!(
+                                    "[Friends] JSON parse fail for {}.. preview: {}",
+                                    &puuid[..8.min(puuid.len())],
+                                    &preview[..preview.len().min(200)]
+                                ));
                                 sample_logged += 1;
                             }
                         }
                     } else if sample_logged < 3 {
-                        log_info(&format!("[Friends] b64 decode fail for {}.. b64_len={}", &puuid[..8.min(puuid.len())], priv_b64.len()));
+                        log_info(&format!(
+                            "[Friends] b64 decode fail for {}.. b64_len={}",
+                            &puuid[..8.min(puuid.len())],
+                            priv_b64.len()
+                        ));
                         sample_logged += 1;
                     }
                 }
 
-                presence_map.insert(puuid, PresenceInfo {
-                    state: state_str,
-                    product: pres_product,
-                    card_url,
-                    account_level,
-                });
+                presence_map.insert(
+                    puuid,
+                    PresenceInfo {
+                        state: state_str,
+                        product: pres_product,
+                        card_url,
+                        account_level,
+                    },
+                );
             }
         } else {
             log_info("[Friends] Failed to parse presences JSON");
@@ -286,20 +439,34 @@ pub fn get_friends(state: &Mutex<ConnectionState>) -> Result<String, String> {
     for f in &friends {
         let game_name = f["game_name"].as_str().unwrap_or_default();
         let game_tag = f["game_tag"].as_str().unwrap_or_default();
-        if game_name.is_empty() { continue; }
+        if game_name.is_empty() {
+            continue;
+        }
         let puuid = f["puuid"].as_str().unwrap_or_default();
         let note = f["note"].as_str().unwrap_or_default();
         let (status, card_url, level, pres_product) = match presence_map.get(puuid) {
-            Some(p) => (p.state.as_str(), p.card_url.as_str(), p.account_level, p.product.as_str()),
+            Some(p) => (
+                p.state.as_str(),
+                p.card_url.as_str(),
+                p.account_level,
+                p.product.as_str(),
+            ),
             None => ("offline", "", 0u64, ""),
         };
         let pid = f["pid"].as_str().unwrap_or_default();
-        let product = if !pres_product.is_empty() { pres_product }
-            else if pid.contains("valorant") { "valorant" }
-            else if pid.contains("league") { "league" }
-            else { "" };
+        let product = if !pres_product.is_empty() {
+            pres_product
+        } else if pid.contains("valorant") {
+            "valorant"
+        } else if pid.contains("league") {
+            "league"
+        } else {
+            ""
+        };
         let is_online = status != "offline" && status != "mobile";
-        if is_online { online_count += 1; }
+        if is_online {
+            online_count += 1;
+        }
         result.push(serde_json::json!({
             "puuid": puuid,
             "game_name": game_name,
@@ -322,15 +489,30 @@ pub fn get_friends(state: &Mutex<ConnectionState>) -> Result<String, String> {
         })
     });
 
-    log_info(&format!("[Friends] Result: {} friends, {} online", result.len(), online_count));
+    log_info(&format!(
+        "[Friends] Result: {} friends, {} online",
+        result.len(),
+        online_count
+    ));
     Ok(serde_json::json!(result).to_string())
 }
 
-pub fn resolve_player_names(state: &Mutex<ConnectionState>, puuids: Vec<String>) -> Result<String, String> {
+pub fn resolve_player_names(
+    state: &Mutex<ConnectionState>,
+    puuids: Vec<String>,
+) -> Result<String, String> {
     let (access_token, entitlements, _, _, shard, client_version) = get_glz_creds(state)?;
     let body = serde_json::json!(puuids).to_string();
-    let raw = pd_put(&shard, "/name-service/v2/players", &body, &access_token, &entitlements, &client_version)?;
-    let names: Vec<serde_json::Value> = serde_json::from_str(&raw).map_err(|e| format!("Parse names: {}", e))?;
+    let raw = pd_put(
+        &shard,
+        "/name-service/v2/players",
+        &body,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )?;
+    let names: Vec<serde_json::Value> =
+        serde_json::from_str(&raw).map_err(|e| format!("Parse names: {}", e))?;
     let mut result = Vec::new();
     for n in names {
         result.push(serde_json::json!({
@@ -342,14 +524,22 @@ pub fn resolve_player_names(state: &Mutex<ConnectionState>, puuids: Vec<String>)
     Ok(serde_json::json!(result).to_string())
 }
 
-pub fn get_player_mmr(state: &Mutex<ConnectionState>, target_puuid: &str) -> Result<String, String> {
+pub fn get_player_mmr(
+    state: &Mutex<ConnectionState>,
+    target_puuid: &str,
+) -> Result<String, String> {
     let (access_token, entitlements, _, _, shard, client_version) = get_glz_creds(state)?;
     let path = format!("/mmr/v1/players/{}", target_puuid);
     let raw = pd_get(&shard, &path, &access_token, &entitlements, &client_version)?;
-    let json: serde_json::Value = serde_json::from_str(&raw).map_err(|e| format!("Parse MMR: {}", e))?;
+    let json: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|e| format!("Parse MMR: {}", e))?;
 
-    let tier = json["LatestCompetitiveUpdate"]["TierAfterUpdate"].as_u64().unwrap_or(0);
-    let rr = json["LatestCompetitiveUpdate"]["RankedRatingAfterUpdate"].as_u64().unwrap_or(0);
+    let tier = json["LatestCompetitiveUpdate"]["TierAfterUpdate"]
+        .as_u64()
+        .unwrap_or(0);
+    let rr = json["LatestCompetitiveUpdate"]["RankedRatingAfterUpdate"]
+        .as_u64()
+        .unwrap_or(0);
 
     let result = serde_json::json!({
         "currenttier": tier,
@@ -366,7 +556,10 @@ pub fn get_player_mmr(state: &Mutex<ConnectionState>, target_puuid: &str) -> Res
 // and doesn't have to repeat the same structural sniffing.
 fn extract_premier_team(json: &serde_json::Value) -> Option<serde_json::Value> {
     if let Some(arr) = json.get("Teams").and_then(|v| v.as_array()) {
-        return arr.iter().find(|t| t.get("id").is_some() || t.get("ID").is_some()).cloned();
+        return arr
+            .iter()
+            .find(|t| t.get("id").is_some() || t.get("ID").is_some())
+            .cloned();
     }
     if let Some(team) = json.get("Team") {
         if team.get("id").is_some() || team.get("ID").is_some() {
@@ -379,12 +572,15 @@ fn extract_premier_team(json: &serde_json::Value) -> Option<serde_json::Value> {
     None
 }
 
-pub fn get_premier_player(state: &Mutex<ConnectionState>, target_puuid: &str) -> Result<String, String> {
+pub fn get_premier_player(
+    state: &Mutex<ConnectionState>,
+    target_puuid: &str,
+) -> Result<String, String> {
     let (access_token, entitlements, _, _, shard, client_version) = get_glz_creds(state)?;
     let path = format!("/premier/v2/players/{}", target_puuid);
     let raw = pd_get(&shard, &path, &access_token, &entitlements, &client_version)?;
-    let json: serde_json::Value = serde_json::from_str(&raw)
-        .map_err(|e| format!("Parse Premier player: {}", e))?;
+    let json: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|e| format!("Parse Premier player: {}", e))?;
     let envelope = match extract_premier_team(&json) {
         Some(team) => serde_json::json!({ "enrolled": true, "team": team, "raw": json }),
         None => serde_json::json!({ "enrolled": false, "raw": json }),
@@ -392,13 +588,19 @@ pub fn get_premier_player(state: &Mutex<ConnectionState>, target_puuid: &str) ->
     Ok(envelope.to_string())
 }
 
-pub fn get_premier_division(state: &Mutex<ConnectionState>, division_id: &str) -> Result<String, String> {
+pub fn get_premier_division(
+    state: &Mutex<ConnectionState>,
+    division_id: &str,
+) -> Result<String, String> {
     let (access_token, entitlements, _, _, shard, client_version) = get_glz_creds(state)?;
     let path = format!("/premier/v1/divisions/{}", division_id);
     pd_get(&shard, &path, &access_token, &entitlements, &client_version)
 }
 
-pub fn get_premier_conference(state: &Mutex<ConnectionState>, conference_id: &str) -> Result<String, String> {
+pub fn get_premier_conference(
+    state: &Mutex<ConnectionState>,
+    conference_id: &str,
+) -> Result<String, String> {
     let (access_token, entitlements, _, _, shard, client_version) = get_glz_creds(state)?;
     let path = format!("/premier/v1/conferences/{}", conference_id);
     pd_get(&shard, &path, &access_token, &entitlements, &client_version)
@@ -419,7 +621,11 @@ pub fn get_match_details(state: &Mutex<ConnectionState>, match_id: &str) -> Resu
 // most-recent-first. We pass through the raw response so the frontend can
 // do its own filtering (placement-tier-zero, queue) without an extra round
 // trip when it wants a different slice.
-pub fn get_rr_history(state: &Mutex<ConnectionState>, start: u64, end: u64) -> Result<String, String> {
+pub fn get_rr_history(
+    state: &Mutex<ConnectionState>,
+    start: u64,
+    end: u64,
+) -> Result<String, String> {
     let (access_token, entitlements, puuid, _, shard, client_version) = get_glz_creds(state)?;
     let path = format!(
         "/mmr/v1/players/{}/competitiveupdates?startIndex={}&endIndex={}&queue=competitive",
@@ -434,93 +640,223 @@ pub fn get_penalties(state: &Mutex<ConnectionState>) -> Result<String, String> {
     pd_get(&shard, path, &access_token, &entitlements, &client_version)
 }
 
-pub fn set_party_accessibility(state: &Mutex<ConnectionState>, open: bool) -> Result<String, String> {
+pub fn set_party_accessibility(
+    state: &Mutex<ConnectionState>,
+    open: bool,
+) -> Result<String, String> {
     let (access_token, entitlements, puuid, region, shard, client_version) = get_glz_creds(state)?;
     let player_path = format!("/parties/v1/players/{}", puuid);
-    let player_raw = glz_get(&region, &shard, &player_path, &access_token, &entitlements, &client_version)?;
-    let player_json: serde_json::Value = serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
-    let party_id = player_json["CurrentPartyID"].as_str().filter(|s| !s.is_empty())
+    let player_raw = glz_get(
+        &region,
+        &shard,
+        &player_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )?;
+    let player_json: serde_json::Value =
+        serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
+    let party_id = player_json["CurrentPartyID"]
+        .as_str()
+        .filter(|s| !s.is_empty())
         .ok_or("No party ID")?;
     let path = format!("/parties/v1/parties/{}/accessibility", party_id);
-    let body = serde_json::json!({"accessibility": if open { "OPEN" } else { "CLOSED" }}).to_string();
-    glz_post_body(&region, &shard, &path, &body, &access_token, &entitlements, &client_version)
+    let body =
+        serde_json::json!({"accessibility": if open { "OPEN" } else { "CLOSED" }}).to_string();
+    glz_post_body(
+        &region,
+        &shard,
+        &path,
+        &body,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )
 }
 
 pub fn disable_party_code(state: &Mutex<ConnectionState>) -> Result<String, String> {
     let (access_token, entitlements, puuid, region, shard, client_version) = get_glz_creds(state)?;
     let player_path = format!("/parties/v1/players/{}", puuid);
-    let player_raw = glz_get(&region, &shard, &player_path, &access_token, &entitlements, &client_version)?;
-    let player_json: serde_json::Value = serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
-    let party_id = player_json["CurrentPartyID"].as_str().filter(|s| !s.is_empty())
+    let player_raw = glz_get(
+        &region,
+        &shard,
+        &player_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )?;
+    let player_json: serde_json::Value =
+        serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
+    let party_id = player_json["CurrentPartyID"]
+        .as_str()
+        .filter(|s| !s.is_empty())
         .ok_or("No party ID")?;
     let path = format!("/parties/v1/parties/{}/invitecode", party_id);
-    glz_delete(&region, &shard, &path, &access_token, &entitlements, &client_version)
+    glz_delete(
+        &region,
+        &shard,
+        &path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )
 }
 
-pub fn kick_from_party(state: &Mutex<ConnectionState>, target_puuid: &str) -> Result<String, String> {
+pub fn kick_from_party(
+    state: &Mutex<ConnectionState>,
+    target_puuid: &str,
+) -> Result<String, String> {
     let (access_token, entitlements, puuid, region, shard, client_version) = get_glz_creds(state)?;
     let player_path = format!("/parties/v1/players/{}", puuid);
-    let player_raw = glz_get(&region, &shard, &player_path, &access_token, &entitlements, &client_version)?;
-    let player_json: serde_json::Value = serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
-    let party_id = player_json["CurrentPartyID"].as_str().filter(|s| !s.is_empty())
+    let player_raw = glz_get(
+        &region,
+        &shard,
+        &player_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )?;
+    let player_json: serde_json::Value =
+        serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
+    let party_id = player_json["CurrentPartyID"]
+        .as_str()
+        .filter(|s| !s.is_empty())
         .ok_or("No party ID")?;
     let kick_path = format!("/parties/v1/parties/{}/members/{}", party_id, target_puuid);
-    log_info(&format!("[Party] Kick {} from party {}", target_puuid, party_id));
-    glz_delete(&region, &shard, &kick_path, &access_token, &entitlements, &client_version)
+    log_info(&format!(
+        "[Party] Kick {} from party {}",
+        target_puuid, party_id
+    ));
+    glz_delete(
+        &region,
+        &shard,
+        &kick_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )
 }
 
 pub fn generate_party_code(state: &Mutex<ConnectionState>) -> Result<String, String> {
     let (access_token, entitlements, puuid, region, shard, client_version) = get_glz_creds(state)?;
     let player_path = format!("/parties/v1/players/{}", puuid);
-    let player_raw = glz_get(&region, &shard, &player_path, &access_token, &entitlements, &client_version)?;
-    let player_json: serde_json::Value = serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
-    let party_id = player_json["CurrentPartyID"].as_str().filter(|s| !s.is_empty())
+    let player_raw = glz_get(
+        &region,
+        &shard,
+        &player_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )?;
+    let player_json: serde_json::Value =
+        serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
+    let party_id = player_json["CurrentPartyID"]
+        .as_str()
+        .filter(|s| !s.is_empty())
         .ok_or("No party ID")?;
     let code_path = format!("/parties/v1/parties/{}/invitecode", party_id);
-    glz_post(&region, &shard, &code_path, &access_token, &entitlements, &client_version)
+    glz_post(
+        &region,
+        &shard,
+        &code_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )
 }
 
-pub fn invite_to_party(state: &Mutex<ConnectionState>, name: &str, tag: &str) -> Result<String, String> {
+pub fn invite_to_party(
+    state: &Mutex<ConnectionState>,
+    name: &str,
+    tag: &str,
+) -> Result<String, String> {
     let (access_token, entitlements, puuid, region, shard, client_version) = get_glz_creds(state)?;
     let player_path = format!("/parties/v1/players/{}", puuid);
-    let player_raw = glz_get(&region, &shard, &player_path, &access_token, &entitlements, &client_version)?;
-    let player_json: serde_json::Value = serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
-    let party_id = player_json["CurrentPartyID"].as_str().filter(|s| !s.is_empty())
+    let player_raw = glz_get(
+        &region,
+        &shard,
+        &player_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )?;
+    let player_json: serde_json::Value =
+        serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
+    let party_id = player_json["CurrentPartyID"]
+        .as_str()
+        .filter(|s| !s.is_empty())
         .ok_or("No party ID")?;
-    let invite_path = format!("/parties/v1/parties/{}/invites/name/{}/tag/{}", party_id, name, tag);
-    log_info(&format!("[Party] Inviting {}#{} to party {}", name, tag, party_id));
-    glz_post(&region, &shard, &invite_path, &access_token, &entitlements, &client_version)
+    let invite_path = format!(
+        "/parties/v1/parties/{}/invites/name/{}/tag/{}",
+        party_id, name, tag
+    );
+    log_info(&format!(
+        "[Party] Inviting {}#{} to party {}",
+        name, tag, party_id
+    ));
+    glz_post(
+        &region,
+        &shard,
+        &invite_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )
 }
 
-pub fn request_to_join_party(state: &Mutex<ConnectionState>, target_puuid: &str) -> Result<String, String> {
+pub fn request_to_join_party(
+    state: &Mutex<ConnectionState>,
+    target_puuid: &str,
+) -> Result<String, String> {
     let (port, auth) = get_local_creds(state)?;
     let (access_token, entitlements, puuid, region, shard, client_version) = get_glz_creds(state)?;
 
     let pres_raw = local_get(port, &auth, "/chat/v4/presences")?;
-    let pres_json: serde_json::Value = serde_json::from_str(&pres_raw).map_err(|e| format!("Parse presences: {}", e))?;
-    let presences = pres_json["presences"].as_array().ok_or("No presences array")?;
+    let pres_json: serde_json::Value =
+        serde_json::from_str(&pres_raw).map_err(|e| format!("Parse presences: {}", e))?;
+    let presences = pres_json["presences"]
+        .as_array()
+        .ok_or("No presences array")?;
 
     let my_party_path = format!("/parties/v1/players/{}", puuid);
-    let my_party_id = glz_get(&region, &shard, &my_party_path, &access_token, &entitlements, &client_version)
-        .ok()
-        .and_then(|r| serde_json::from_str::<serde_json::Value>(&r).ok())
-        .and_then(|j| j["CurrentPartyID"].as_str().map(|s| s.to_string()))
-        .unwrap_or_default();
+    let my_party_id = glz_get(
+        &region,
+        &shard,
+        &my_party_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )
+    .ok()
+    .and_then(|r| serde_json::from_str::<serde_json::Value>(&r).ok())
+    .and_then(|j| j["CurrentPartyID"].as_str().map(|s| s.to_string()))
+    .unwrap_or_default();
     log_info(&format!("[Party] My party ID: {}", my_party_id));
-    log_info(&format!("[Party] Looking for target PUUID {} in {} presences", target_puuid, presences.len()));
+    log_info(&format!(
+        "[Party] Looking for target PUUID {} in {} presences",
+        target_puuid,
+        presences.len()
+    ));
 
     let mut target_party: Option<String> = None;
     let mut all_matches: Vec<(String, String, u64)> = Vec::new();
     for p in presences {
         let pid = p["puuid"].as_str().unwrap_or_default();
-        if pid != target_puuid { continue; }
+        if pid != target_puuid {
+            continue;
+        }
         let product = p["product"].as_str().unwrap_or("?").to_string();
         if let Some(priv_b64) = p["private"].as_str().filter(|s| !s.is_empty()) {
-            if let Ok(decoded) = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, priv_b64) {
+            if let Ok(decoded) =
+                base64::Engine::decode(&base64::engine::general_purpose::STANDARD, priv_b64)
+            {
                 if let Ok(priv_json) = serde_json::from_slice::<serde_json::Value>(&decoded) {
                     let party_id = priv_json["partyId"].as_str().unwrap_or("").to_string();
                     let party_size = priv_json["partySize"].as_u64().unwrap_or(0);
-                    log_info(&format!("[Party] Found presence: product={} partyId={} partySize={}", product, party_id, party_size));
+                    log_info(&format!(
+                        "[Party] Found presence: product={} partyId={} partySize={}",
+                        product, party_id, party_size
+                    ));
                     if !party_id.is_empty() {
                         all_matches.push((product.clone(), party_id, party_size));
                     }
@@ -554,17 +890,38 @@ pub fn request_to_join_party(state: &Mutex<ConnectionState>, target_puuid: &str)
     let target_party = target_party.ok_or("Player has no party (not found in presence data)")?;
     let path = format!("/parties/v1/parties/{}/request", target_party);
     let body = serde_json::json!({"Subjects": [puuid]}).to_string();
-    log_info(&format!("[Party] Requesting to join party {} (player {})", target_party, target_puuid));
-    glz_post_body(&region, &shard, &path, &body, &access_token, &entitlements, &client_version)
+    log_info(&format!(
+        "[Party] Requesting to join party {} (player {})",
+        target_party, target_puuid
+    ));
+    glz_post_body(
+        &region,
+        &shard,
+        &path,
+        &body,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )
 }
 
 pub fn join_party_by_code(state: &Mutex<ConnectionState>, code: &str) -> Result<String, String> {
     let (access_token, entitlements, puuid, region, shard, client_version) = get_glz_creds(state)?;
     let path = format!("/parties/v1/players/{}/joinbycode/{}", puuid, code);
     log_info(&format!("[Party] Joining by code '{}' -> {}", code, path));
-    let result = glz_post(&region, &shard, &path, &access_token, &entitlements, &client_version);
+    let result = glz_post(
+        &region,
+        &shard,
+        &path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    );
     match &result {
-        Ok(r) => log_info(&format!("[Party] Join by code response: {}", &r[..r.len().min(200)])),
+        Ok(r) => log_info(&format!(
+            "[Party] Join by code response: {}",
+            &r[..r.len().min(200)]
+        )),
         Err(e) => log_info(&format!("[Party] Join by code error: {}", e)),
     }
     result
@@ -572,13 +929,23 @@ pub fn join_party_by_code(state: &Mutex<ConnectionState>, code: &str) -> Result<
 
 pub fn get_custom_configs(state: &Mutex<ConnectionState>) -> Result<String, String> {
     let (access_token, entitlements, _puuid, region, shard, client_version) = get_glz_creds(state)?;
-    let configs_raw = glz_get(&region, &shard, "/parties/v1/parties/customgameconfigs", &access_token, &entitlements, &client_version)?;
-    let configs: serde_json::Value = serde_json::from_str(&configs_raw).map_err(|e| format!("Parse configs: {}", e))?;
+    let configs_raw = glz_get(
+        &region,
+        &shard,
+        "/parties/v1/parties/customgameconfigs",
+        &access_token,
+        &entitlements,
+        &client_version,
+    )?;
+    let configs: serde_json::Value =
+        serde_json::from_str(&configs_raw).map_err(|e| format!("Parse configs: {}", e))?;
 
-    let raw_maps: Vec<&str> = configs["EnabledMaps"].as_array()
+    let raw_maps: Vec<&str> = configs["EnabledMaps"]
+        .as_array()
         .map(|a| a.iter().filter_map(|v| v.as_str()).collect())
         .unwrap_or_default();
-    let raw_modes: Vec<&str> = configs["EnabledModes"].as_array()
+    let raw_modes: Vec<&str> = configs["EnabledModes"]
+        .as_array()
         .map(|a| a.iter().filter_map(|v| v.as_str()).collect())
         .unwrap_or_default();
     log_info(&format!("[Custom] Raw maps: {:?}", raw_maps));
@@ -589,17 +956,26 @@ pub fn get_custom_configs(state: &Mutex<ConnectionState>) -> Result<String, Stri
         ("Skirmish_B", "/Game/Maps/Duel/Duel_2/Skirmish_B"),
         ("Skirmish_C", "/Game/Maps/Duel/Duel_3/Skirmish_C"),
         ("Skirmish_D", "/Game/Maps/Duel/Duel_4/Skirmish_D"),
-    ].into_iter().collect();
+    ]
+    .into_iter()
+    .collect();
 
-    let maps: Vec<String> = raw_maps.iter().map(|s| {
-        if s.starts_with("/Game/") { return s.to_string(); }
-        if let Some(full) = known_maps.get(s) { return full.to_string(); }
-        if s.starts_with("HURM_") {
-            format!("/Game/Maps/HURM/{}/{}", s, s)
-        } else {
-            format!("/Game/Maps/{}/{}", s, s)
-        }
-    }).collect();
+    let maps: Vec<String> = raw_maps
+        .iter()
+        .map(|s| {
+            if s.starts_with("/Game/") {
+                return s.to_string();
+            }
+            if let Some(full) = known_maps.get(s) {
+                return full.to_string();
+            }
+            if s.starts_with("HURM_") {
+                format!("/Game/Maps/HURM/{}/{}", s, s)
+            } else {
+                format!("/Game/Maps/{}/{}", s, s)
+            }
+        })
+        .collect();
 
     let known_modes: std::collections::HashMap<&str, &str> = [
         ("BombGameMode", "/Game/GameModes/Bomb/BombGameMode.BombGameMode_C"),
@@ -618,15 +994,25 @@ pub fn get_custom_configs(state: &Mutex<ConnectionState>) -> Result<String, Stri
 
     let skip_modes: [&str; 0] = [];
 
-    let modes: Vec<String> = raw_modes.iter().filter_map(|s| {
-        if skip_modes.contains(s) { return None; }
-        if s.starts_with("/Game/") { return Some(s.to_string()); }
-        if let Some(full) = known_modes.get(s) { return Some(full.to_string()); }
-        let folder = s.replace("_GameMode", "").replace("GameMode", "");
-        Some(format!("/Game/GameModes/{}/{}.{}_C", folder, s, s))
-    }).collect();
+    let modes: Vec<String> = raw_modes
+        .iter()
+        .filter_map(|s| {
+            if skip_modes.contains(s) {
+                return None;
+            }
+            if s.starts_with("/Game/") {
+                return Some(s.to_string());
+            }
+            if let Some(full) = known_modes.get(s) {
+                return Some(full.to_string());
+            }
+            let folder = s.replace("_GameMode", "").replace("GameMode", "");
+            Some(format!("/Game/GameModes/{}/{}.{}_C", folder, s, s))
+        })
+        .collect();
 
-    let pods: Vec<String> = configs["GamePodPingServiceInfo"].as_object()
+    let pods: Vec<String> = configs["GamePodPingServiceInfo"]
+        .as_object()
         .map(|o| o.keys().cloned().collect())
         .unwrap_or_default();
 
@@ -649,9 +1035,19 @@ pub fn set_custom_settings(
 ) -> Result<String, String> {
     let (access_token, entitlements, puuid, region, shard, client_version) = get_glz_creds(state)?;
     let player_path = format!("/parties/v1/players/{}", puuid);
-    let player_raw = glz_get(&region, &shard, &player_path, &access_token, &entitlements, &client_version)?;
-    let player_json: serde_json::Value = serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
-    let party_id = player_json["CurrentPartyID"].as_str().filter(|s| !s.is_empty())
+    let player_raw = glz_get(
+        &region,
+        &shard,
+        &player_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )?;
+    let player_json: serde_json::Value =
+        serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
+    let party_id = player_json["CurrentPartyID"]
+        .as_str()
+        .filter(|s| !s.is_empty())
         .ok_or("No party ID")?;
 
     let body = serde_json::json!({
@@ -671,7 +1067,15 @@ pub fn set_custom_settings(
     let path = format!("/parties/v1/parties/{}/customgamesettings", party_id);
     let body_str = body.to_string();
     log_info(&format!("[Custom] POST {} body={}", path, body_str));
-    let resp = glz_post_body(&region, &shard, &path, &body_str, &access_token, &entitlements, &client_version);
+    let resp = glz_post_body(
+        &region,
+        &shard,
+        &path,
+        &body_str,
+        &access_token,
+        &entitlements,
+        &client_version,
+    );
     match &resp {
         Ok(r) => log_info(&format!("[Custom] Response: {}", &r[..r.len().min(200)])),
         Err(e) => log_info(&format!("[Custom] Error: {}", e)),
@@ -682,50 +1086,119 @@ pub fn set_custom_settings(
 pub fn change_queue(state: &Mutex<ConnectionState>, queue_id: &str) -> Result<String, String> {
     let (access_token, entitlements, puuid, region, shard, client_version) = get_glz_creds(state)?;
     let player_path = format!("/parties/v1/players/{}", puuid);
-    let player_raw = glz_get(&region, &shard, &player_path, &access_token, &entitlements, &client_version)?;
-    let player_json: serde_json::Value = serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
-    let party_id = player_json["CurrentPartyID"].as_str().filter(|s| !s.is_empty())
+    let player_raw = glz_get(
+        &region,
+        &shard,
+        &player_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )?;
+    let player_json: serde_json::Value =
+        serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
+    let party_id = player_json["CurrentPartyID"]
+        .as_str()
+        .filter(|s| !s.is_empty())
         .ok_or("No party ID")?;
     let path = format!("/parties/v1/parties/{}/queue", party_id);
     let body = serde_json::json!({"queueID": queue_id}).to_string();
     log_info(&format!("[Party] Changing queue to {}", queue_id));
-    glz_post_body(&region, &shard, &path, &body, &access_token, &entitlements, &client_version)
+    glz_post_body(
+        &region,
+        &shard,
+        &path,
+        &body,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )
 }
 
 pub fn start_custom_game_match(state: &Mutex<ConnectionState>) -> Result<String, String> {
     let (access_token, entitlements, puuid, region, shard, client_version) = get_glz_creds(state)?;
     let player_path = format!("/parties/v1/players/{}", puuid);
-    let player_raw = glz_get(&region, &shard, &player_path, &access_token, &entitlements, &client_version)?;
-    let player_json: serde_json::Value = serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
-    let party_id = player_json["CurrentPartyID"].as_str().filter(|s| !s.is_empty())
+    let player_raw = glz_get(
+        &region,
+        &shard,
+        &player_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )?;
+    let player_json: serde_json::Value =
+        serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
+    let party_id = player_json["CurrentPartyID"]
+        .as_str()
+        .filter(|s| !s.is_empty())
         .ok_or("No party ID")?;
     let path = format!("/parties/v1/parties/{}/startcustomgame", party_id);
     log_info("[Custom] Starting custom game");
-    glz_post(&region, &shard, &path, &access_token, &entitlements, &client_version)
+    glz_post(
+        &region,
+        &shard,
+        &path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )
 }
 
 pub fn enter_queue(state: &Mutex<ConnectionState>) -> Result<String, String> {
     let (access_token, entitlements, puuid, region, shard, client_version) = get_glz_creds(state)?;
     let player_path = format!("/parties/v1/players/{}", puuid);
-    let player_raw = glz_get(&region, &shard, &player_path, &access_token, &entitlements, &client_version)?;
-    let player_json: serde_json::Value = serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
-    let party_id = player_json["CurrentPartyID"].as_str().filter(|s| !s.is_empty())
+    let player_raw = glz_get(
+        &region,
+        &shard,
+        &player_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )?;
+    let player_json: serde_json::Value =
+        serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
+    let party_id = player_json["CurrentPartyID"]
+        .as_str()
+        .filter(|s| !s.is_empty())
         .ok_or("No party ID")?;
     let path = format!("/parties/v1/parties/{}/matchmaking/join", party_id);
     log_info(&format!("[Queue] Entering queue for party {}", party_id));
-    glz_post(&region, &shard, &path, &access_token, &entitlements, &client_version)
+    glz_post(
+        &region,
+        &shard,
+        &path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )
 }
 
 pub fn leave_queue(state: &Mutex<ConnectionState>) -> Result<String, String> {
     let (access_token, entitlements, puuid, region, shard, client_version) = get_glz_creds(state)?;
     let player_path = format!("/parties/v1/players/{}", puuid);
-    let player_raw = glz_get(&region, &shard, &player_path, &access_token, &entitlements, &client_version)?;
-    let player_json: serde_json::Value = serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
-    let party_id = player_json["CurrentPartyID"].as_str().filter(|s| !s.is_empty())
+    let player_raw = glz_get(
+        &region,
+        &shard,
+        &player_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )?;
+    let player_json: serde_json::Value =
+        serde_json::from_str(&player_raw).map_err(|e| format!("Parse: {}", e))?;
+    let party_id = player_json["CurrentPartyID"]
+        .as_str()
+        .filter(|s| !s.is_empty())
         .ok_or("No party ID")?;
     let path = format!("/parties/v1/parties/{}/matchmaking/leave", party_id);
     log_info(&format!("[Queue] Leaving queue for party {}", party_id));
-    glz_post(&region, &shard, &path, &access_token, &entitlements, &client_version)
+    glz_post(
+        &region,
+        &shard,
+        &path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )
 }
 
 pub fn check_loadout(state: &Mutex<ConnectionState>) -> Result<String, String> {
@@ -748,9 +1221,13 @@ fn act_peak_tier(season: &serde_json::Value) -> u64 {
     let mut peak: u64 = 0;
     if let Some(map) = season["WinsByTier"].as_object() {
         for (tier_str, wins) in map {
-            if wins.as_u64().unwrap_or(0) == 0 { continue; }
+            if wins.as_u64().unwrap_or(0) == 0 {
+                continue;
+            }
             if let Ok(t) = tier_str.parse::<u64>() {
-                if t > peak { peak = t; }
+                if t > peak {
+                    peak = t;
+                }
             }
         }
     }
@@ -760,7 +1237,10 @@ fn act_peak_tier(season: &serde_json::Value) -> u64 {
     peak
 }
 
-pub fn get_home_stats(state: &Mutex<ConnectionState>, _queue_filter: &str) -> Result<String, String> {
+pub fn get_home_stats(
+    state: &Mutex<ConnectionState>,
+    _queue_filter: &str,
+) -> Result<String, String> {
     let (access_token, entitlements, puuid, _region, shard, client_version) = get_glz_creds(state)?;
 
     // MMR endpoint can return non-JSON for accounts with no comp history,
@@ -768,19 +1248,35 @@ pub fn get_home_stats(state: &Mutex<ConnectionState>, _queue_filter: &str) -> Re
     // the loadout / xp fetches below already have: log the failure but
     // continue with zeroed defaults so HomePage still renders the rest.
     let mmr_path = format!("/mmr/v1/players/{}", puuid);
-    let mmr: serde_json::Value = match pd_get(&shard, &mmr_path, &access_token, &entitlements, &client_version) {
+    let mmr: serde_json::Value = match pd_get(
+        &shard,
+        &mmr_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    ) {
         Ok(raw) => serde_json::from_str(&raw).unwrap_or_else(|e| {
-            log_info(&format!("[Home] mmr parse failed ({}), falling back to defaults", e));
+            log_info(&format!(
+                "[Home] mmr parse failed ({}), falling back to defaults",
+                e
+            ));
             serde_json::Value::Null
         }),
         Err(e) => {
-            log_info(&format!("[Home] mmr fetch failed ({}), falling back to defaults", e));
+            log_info(&format!(
+                "[Home] mmr fetch failed ({}), falling back to defaults",
+                e
+            ));
             serde_json::Value::Null
         }
     };
 
-    let current_tier = mmr["LatestCompetitiveUpdate"]["TierAfterUpdate"].as_u64().unwrap_or(0);
-    let current_rr = mmr["LatestCompetitiveUpdate"]["RankedRatingAfterUpdate"].as_u64().unwrap_or(0);
+    let current_tier = mmr["LatestCompetitiveUpdate"]["TierAfterUpdate"]
+        .as_u64()
+        .unwrap_or(0);
+    let current_rr = mmr["LatestCompetitiveUpdate"]["RankedRatingAfterUpdate"]
+        .as_u64()
+        .unwrap_or(0);
 
     let mut peak_tier: u64 = 0;
     let mut comp_wins: u64 = 0;
@@ -788,7 +1284,9 @@ pub fn get_home_stats(state: &Mutex<ConnectionState>, _queue_filter: &str) -> Re
     if let Some(seasons) = mmr["QueueSkills"]["competitive"]["SeasonalInfoBySeasonID"].as_object() {
         for (_id, season) in seasons {
             let act_peak = act_peak_tier(season);
-            if act_peak > peak_tier { peak_tier = act_peak; }
+            if act_peak > peak_tier {
+                peak_tier = act_peak;
+            }
             comp_wins += season["NumberOfWinsWithPlacements"].as_u64().unwrap_or(0);
             comp_games += season["NumberOfGames"].as_u64().unwrap_or(0);
         }
@@ -796,15 +1294,30 @@ pub fn get_home_stats(state: &Mutex<ConnectionState>, _queue_filter: &str) -> Re
 
     let loadout_path = format!("/personalization/v2/players/{}/playerloadout", puuid);
     let mut card_id = String::new();
-    if let Ok(loadout_raw) = pd_get(&shard, &loadout_path, &access_token, &entitlements, &client_version) {
+    if let Ok(loadout_raw) = pd_get(
+        &shard,
+        &loadout_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    ) {
         if let Ok(loadout) = serde_json::from_str::<serde_json::Value>(&loadout_raw) {
-            card_id = loadout["Identity"]["PlayerCardID"].as_str().unwrap_or("").to_string();
+            card_id = loadout["Identity"]["PlayerCardID"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
         }
     }
 
     let mut account_level: u64 = 0;
     let xp_path = format!("/account-xp/v1/players/{}", puuid);
-    if let Ok(xp_raw) = pd_get(&shard, &xp_path, &access_token, &entitlements, &client_version) {
+    if let Ok(xp_raw) = pd_get(
+        &shard,
+        &xp_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    ) {
         if let Ok(xp) = serde_json::from_str::<serde_json::Value>(&xp_raw) {
             account_level = xp["Progress"]["Level"].as_u64().unwrap_or(0);
         }
@@ -819,17 +1332,32 @@ pub fn get_home_stats(state: &Mutex<ConnectionState>, _queue_filter: &str) -> Re
         "wins": comp_wins,
         "losses": comp_games.saturating_sub(comp_wins),
         "totalGames": comp_games,
-    }).to_string())
+    })
+    .to_string())
 }
 
-pub fn get_match_page(state: &Mutex<ConnectionState>, page: u64, page_size: u64) -> Result<String, String> {
+pub fn get_match_page(
+    state: &Mutex<ConnectionState>,
+    page: u64,
+    page_size: u64,
+) -> Result<String, String> {
     let (access_token, entitlements, puuid, _region, shard, client_version) = get_glz_creds(state)?;
 
     let start = page * page_size;
     let end = start + page_size;
-    let history_path = format!("/match-history/v1/history/{}?startIndex={}&endIndex={}", puuid, start, end);
-    let history_raw = pd_get(&shard, &history_path, &access_token, &entitlements, &client_version)?;
-    let history: serde_json::Value = serde_json::from_str(&history_raw).map_err(|e| format!("parse history: {}", e))?;
+    let history_path = format!(
+        "/match-history/v1/history/{}?startIndex={}&endIndex={}",
+        puuid, start, end
+    );
+    let history_raw = pd_get(
+        &shard,
+        &history_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )?;
+    let history: serde_json::Value =
+        serde_json::from_str(&history_raw).map_err(|e| format!("parse history: {}", e))?;
     let total = history["Total"].as_u64().unwrap_or(0);
 
     let mut match_paths: Vec<String> = Vec::new();
@@ -843,16 +1371,29 @@ pub fn get_match_page(state: &Mutex<ConnectionState>, page: u64, page_size: u64)
 
     let mut matches: Vec<serde_json::Value> = Vec::new();
     if !match_paths.is_empty() {
-        let details = pd_batch_get(&shard, &match_paths, &access_token, &entitlements, &client_version)?;
+        let details = pd_batch_get(
+            &shard,
+            &match_paths,
+            &access_token,
+            &entitlements,
+            &client_version,
+        )?;
         for detail in &details {
-            if detail.is_null() { continue; }
+            if detail.is_null() {
+                continue;
+            }
 
             let map_name = extract_map_name(detail["matchInfo"]["mapId"].as_str().unwrap_or(""));
-            let match_id = detail["matchInfo"]["matchId"].as_str().unwrap_or("").to_string();
+            let match_id = detail["matchInfo"]["matchId"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
             let game_start_ms = detail["matchInfo"]["gameStartMillis"].as_i64().unwrap_or(0);
 
             let player_data = detail["players"].as_array().and_then(|players| {
-                players.iter().find(|p| p["subject"].as_str() == Some(puuid.as_str()))
+                players
+                    .iter()
+                    .find(|p| p["subject"].as_str() == Some(puuid.as_str()))
             });
 
             let (team_id, kills, deaths, assists, agent) = match player_data {
@@ -883,20 +1424,29 @@ pub fn get_match_page(state: &Mutex<ConnectionState>, page: u64, page_size: u64)
                 }
             }
 
-            let queue_id = detail["matchInfo"]["queueID"].as_str().unwrap_or("").to_string();
+            let queue_id = detail["matchInfo"]["queueID"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
 
             let mut teammates: Vec<serde_json::Value> = Vec::new();
             let mut enemies: Vec<serde_json::Value> = Vec::new();
             if let Some(players) = detail["players"].as_array() {
                 for p in players {
                     let p_puuid = p["subject"].as_str().unwrap_or("");
-                    if p_puuid.is_empty() || p_puuid == puuid { continue; }
+                    if p_puuid.is_empty() || p_puuid == puuid {
+                        continue;
+                    }
                     let p_team = p["teamId"].as_str().unwrap_or("");
                     let entry = serde_json::json!({
                         "puuid": p_puuid,
                         "agentId": p["characterId"].as_str().unwrap_or(""),
                     });
-                    if p_team == team_id { teammates.push(entry); } else { enemies.push(entry); }
+                    if p_team == team_id {
+                        teammates.push(entry);
+                    } else {
+                        enemies.push(entry);
+                    }
                 }
             }
 
@@ -923,16 +1473,23 @@ pub fn get_match_page(state: &Mutex<ConnectionState>, page: u64, page_size: u64)
         "total": total,
         "page": page,
         "pageSize": page_size,
-    }).to_string())
+    })
+    .to_string())
 }
 
 pub fn get_owned_agents(state: &Mutex<ConnectionState>) -> Result<Vec<String>, String> {
     let (access_token, entitlements, puuid, _, shard, client_version) = get_glz_creds(state)?;
-    let path = format!("/store/v1/entitlements/{}/01bb38e1-da47-4e6a-9b3d-945fe4655707", puuid);
+    let path = format!(
+        "/store/v1/entitlements/{}/01bb38e1-da47-4e6a-9b3d-945fe4655707",
+        puuid
+    );
     let raw = pd_get(&shard, &path, &access_token, &entitlements, &client_version)?;
     let json: serde_json::Value = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
-    let items = json["Entitlements"].as_array().ok_or("No Entitlements array")?;
-    let ids: Vec<String> = items.iter()
+    let items = json["Entitlements"]
+        .as_array()
+        .ok_or("No Entitlements array")?;
+    let ids: Vec<String> = items
+        .iter()
         .filter_map(|item| item["ItemID"].as_str().map(|s| s.to_lowercase()))
         .collect();
     log_info(&format!("[Game] Owned agents: {} total", ids.len()));
@@ -950,15 +1507,33 @@ pub fn get_chat_conversations(state: &Mutex<ConnectionState>) -> Result<String, 
         guard.puuid.clone().unwrap_or_default()
     };
 
-    let mut muc_labels: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new();
+    let mut muc_labels: std::collections::HashMap<String, (String, String)> =
+        std::collections::HashMap::new();
     if let Ok((at, ent, puuid, region, shard, cv)) = get_glz_creds(state) {
-        if let Ok(pr) = glz_get(&region, &shard, &format!("/parties/v1/players/{}", puuid), &at, &ent, &cv) {
+        if let Ok(pr) = glz_get(
+            &region,
+            &shard,
+            &format!("/parties/v1/players/{}", puuid),
+            &at,
+            &ent,
+            &cv,
+        ) {
             if let Ok(pj) = serde_json::from_str::<serde_json::Value>(&pr) {
                 if let Some(pid) = pj["CurrentPartyID"].as_str().filter(|s| !s.is_empty()) {
-                    if let Ok(party_raw) = glz_get(&region, &shard, &format!("/parties/v1/parties/{}", pid), &at, &ent, &cv) {
+                    if let Ok(party_raw) = glz_get(
+                        &region,
+                        &shard,
+                        &format!("/parties/v1/parties/{}", pid),
+                        &at,
+                        &ent,
+                        &cv,
+                    ) {
                         if let Ok(party) = serde_json::from_str::<serde_json::Value>(&party_raw) {
                             if let Some(muc) = party["MUCName"].as_str().filter(|s| !s.is_empty()) {
-                                muc_labels.insert(muc.to_string(), ("ares-parties".into(), "Party".into()));
+                                muc_labels.insert(
+                                    muc.to_string(),
+                                    ("ares-parties".into(), "Party".into()),
+                                );
                             }
                         }
                     }
@@ -966,23 +1541,44 @@ pub fn get_chat_conversations(state: &Mutex<ConnectionState>) -> Result<String, 
             }
         }
         for (player_path, match_prefix, phase) in &[
-            (format!("/pregame/v1/players/{}", puuid), "/pregame/v1/matches/", "pregame"),
-            (format!("/core-game/v1/players/{}", puuid), "/core-game/v1/matches/", "coregame"),
+            (
+                format!("/pregame/v1/players/{}", puuid),
+                "/pregame/v1/matches/",
+                "pregame",
+            ),
+            (
+                format!("/core-game/v1/players/{}", puuid),
+                "/core-game/v1/matches/",
+                "coregame",
+            ),
         ] {
             if let Ok(pr) = glz_get(&region, &shard, player_path, &at, &ent, &cv) {
                 if let Ok(pj) = serde_json::from_str::<serde_json::Value>(&pr) {
                     if let Some(mid) = pj["MatchID"].as_str().filter(|s| !s.is_empty()) {
-                        if let Ok(mr) = glz_get(&region, &shard, &format!("{}{}", match_prefix, mid), &at, &ent, &cv) {
+                        if let Ok(mr) = glz_get(
+                            &region,
+                            &shard,
+                            &format!("{}{}", match_prefix, mid),
+                            &at,
+                            &ent,
+                            &cv,
+                        ) {
                             if let Ok(mj) = serde_json::from_str::<serde_json::Value>(&mr) {
                                 let ares = format!("ares-{}", phase);
                                 if let Some(m) = mj["MUCName"].as_str().filter(|s| !s.is_empty()) {
-                                    muc_labels.insert(m.to_string(), (ares.clone(), "Team Chat".into()));
+                                    muc_labels
+                                        .insert(m.to_string(), (ares.clone(), "Team Chat".into()));
                                 }
-                                if let Some(m) = mj["AllMUCName"].as_str().filter(|s| !s.is_empty()) {
-                                    muc_labels.insert(m.to_string(), (ares.clone(), "All Chat".into()));
+                                if let Some(m) = mj["AllMUCName"].as_str().filter(|s| !s.is_empty())
+                                {
+                                    muc_labels
+                                        .insert(m.to_string(), (ares.clone(), "All Chat".into()));
                                 }
-                                if let Some(m) = mj["TeamMUCName"].as_str().filter(|s| !s.is_empty()) {
-                                    muc_labels.insert(m.to_string(), (ares.clone(), "Team Chat".into()));
+                                if let Some(m) =
+                                    mj["TeamMUCName"].as_str().filter(|s| !s.is_empty())
+                                {
+                                    muc_labels
+                                        .insert(m.to_string(), (ares.clone(), "Team Chat".into()));
                                 }
                             }
                         }
@@ -1011,16 +1607,33 @@ pub fn get_chat_conversations(state: &Mutex<ConnectionState>) -> Result<String, 
             seen_mucs.insert(muc_key.clone());
         } else {
             let encoded = cid.replace("@", "%40");
-            if let Ok(pr) = local_get(port, &auth, &format!("/chat/v6/conversations/{}/participants", encoded)) {
+            if let Ok(pr) = local_get(
+                port,
+                &auth,
+                &format!("/chat/v6/conversations/{}/participants", encoded),
+            ) {
                 if let Ok(pv) = serde_json::from_str::<serde_json::Value>(&pr) {
-                    let parts = pv["participants"].as_array().or_else(|| pv.as_array()).cloned().unwrap_or_default();
-                    let names: Vec<String> = parts.iter().filter_map(|p| {
-                        let pid = p["puuid"].as_str().unwrap_or("");
-                        if pid == my_puuid { return None; }
-                        let gn = p["game_name"].as_str().unwrap_or("");
-                        let gt = p["game_tag"].as_str().unwrap_or("");
-                        if !gn.is_empty() { Some(format!("{}#{}", gn, gt)) } else { None }
-                    }).collect();
+                    let parts = pv["participants"]
+                        .as_array()
+                        .or_else(|| pv.as_array())
+                        .cloned()
+                        .unwrap_or_default();
+                    let names: Vec<String> = parts
+                        .iter()
+                        .filter_map(|p| {
+                            let pid = p["puuid"].as_str().unwrap_or("");
+                            if pid == my_puuid {
+                                return None;
+                            }
+                            let gn = p["game_name"].as_str().unwrap_or("");
+                            let gt = p["game_tag"].as_str().unwrap_or("");
+                            if !gn.is_empty() {
+                                Some(format!("{}#{}", gn, gt))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
                     if !names.is_empty() {
                         conv["display_name"] = serde_json::json!(names.join(", "));
                     }
@@ -1042,8 +1655,12 @@ pub fn get_chat_conversations(state: &Mutex<ConnectionState>) -> Result<String, 
         }
     }
 
-    log_info(&format!("[Chat] {} conversations returned ({} from list, {} game MUCs added)",
-        result.len(), convs.len(), result.len() - convs.len()));
+    log_info(&format!(
+        "[Chat] {} conversations returned ({} from list, {} game MUCs added)",
+        result.len(),
+        convs.len(),
+        result.len() - convs.len()
+    ));
 
     Ok(serde_json::json!({ "conversations": result }).to_string())
 }
@@ -1055,9 +1672,18 @@ pub fn get_chat_messages(state: &Mutex<ConnectionState>, cid: &str) -> Result<St
     local_get(port, &auth, &path)
 }
 
-pub fn send_chat_message(state: &Mutex<ConnectionState>, cid: &str, message: &str, msg_type: &str) -> Result<String, String> {
+pub fn send_chat_message(
+    state: &Mutex<ConnectionState>,
+    cid: &str,
+    message: &str,
+    msg_type: &str,
+) -> Result<String, String> {
     let (port, auth) = get_local_creds(state)?;
-    let send_type = if msg_type.is_empty() { "chat" } else { msg_type };
+    let send_type = if msg_type.is_empty() {
+        "chat"
+    } else {
+        msg_type
+    };
 
     let mut cids_to_try = vec![cid.to_string()];
     if cid.contains("@ares-") {
@@ -1077,27 +1703,51 @@ pub fn send_chat_message(state: &Mutex<ConnectionState>, cid: &str, message: &st
             "cid": try_cid,
             "message": message,
             "type": send_type
-        }).to_string();
+        })
+        .to_string();
         log_info(&format!("[Chat] Try sending {} to {}", send_type, try_cid));
         if let Ok(raw) = local_post(port, &auth, "/chat/v6/messages", &body) {
             let lines: Vec<&str> = raw.splitn(2, '\n').collect();
-            let status = lines.first().and_then(|s| s.parse::<u16>().ok()).unwrap_or(0);
+            let status = lines
+                .first()
+                .and_then(|s| s.parse::<u16>().ok())
+                .unwrap_or(0);
             let resp_body = lines.get(1).unwrap_or(&"").to_string();
             if status < 400 {
                 log_info(&format!("[Chat] Send OK with cid={}", try_cid));
                 return Ok(resp_body);
             }
-            log_info(&format!("[Chat] Failed ({}): {}", status, &resp_body[..resp_body.len().min(100)]));
+            log_info(&format!(
+                "[Chat] Failed ({}): {}",
+                status,
+                &resp_body[..resp_body.len().min(100)]
+            ));
         }
     }
-    Err(format!("Chat send failed: all CID formats tried for {}", cid))
+    Err(format!(
+        "Chat send failed: all CID formats tried for {}",
+        cid
+    ))
 }
 
-pub fn get_player_level_from_history(state: &Mutex<ConnectionState>, target_puuid: &str) -> Result<String, String> {
+pub fn get_player_level_from_history(
+    state: &Mutex<ConnectionState>,
+    target_puuid: &str,
+) -> Result<String, String> {
     let (access_token, entitlements, _, _, shard, client_version) = get_glz_creds(state)?;
-    let history_path = format!("/match-history/v1/history/{}?startIndex=0&endIndex=5", target_puuid);
-    let history_raw = pd_get(&shard, &history_path, &access_token, &entitlements, &client_version)?;
-    let history: serde_json::Value = serde_json::from_str(&history_raw).map_err(|e| format!("parse history: {}", e))?;
+    let history_path = format!(
+        "/match-history/v1/history/{}?startIndex=0&endIndex=5",
+        target_puuid
+    );
+    let history_raw = pd_get(
+        &shard,
+        &history_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )?;
+    let history: serde_json::Value =
+        serde_json::from_str(&history_raw).map_err(|e| format!("parse history: {}", e))?;
 
     let matches = history["History"].as_array().ok_or("No History array")?;
     if matches.is_empty() {
@@ -1106,8 +1756,15 @@ pub fn get_player_level_from_history(state: &Mutex<ConnectionState>, target_puui
 
     let match_id = matches[0]["MatchID"].as_str().ok_or("No MatchID")?;
     let detail_path = format!("/match-details/v1/matches/{}", match_id);
-    let detail_raw = pd_get(&shard, &detail_path, &access_token, &entitlements, &client_version)?;
-    let detail: serde_json::Value = serde_json::from_str(&detail_raw).map_err(|e| format!("parse detail: {}", e))?;
+    let detail_raw = pd_get(
+        &shard,
+        &detail_path,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )?;
+    let detail: serde_json::Value =
+        serde_json::from_str(&detail_raw).map_err(|e| format!("parse detail: {}", e))?;
 
     let mut level: u64 = 0;
     if let Some(players) = detail["players"].as_array() {
@@ -1119,7 +1776,12 @@ pub fn get_player_level_from_history(state: &Mutex<ConnectionState>, target_puui
         }
     }
 
-    log_info(&format!("[History] Level for {} = {} (from match {})", &target_puuid[..8.min(target_puuid.len())], level, match_id));
+    log_info(&format!(
+        "[History] Level for {} = {} (from match {})",
+        &target_puuid[..8.min(target_puuid.len())],
+        level,
+        match_id
+    ));
     Ok(serde_json::json!({"level": level, "matchId": match_id}).to_string())
 }
 
@@ -1140,10 +1802,20 @@ pub fn set_loadout(state: &Mutex<ConnectionState>, loadout_json: &str) -> Result
     let (access_token, entitlements, puuid, _region, shard, client_version) = get_glz_creds(state)?;
     let path = format!("/personalization/v2/players/{}/playerloadout", puuid);
     log_info("[Loadout] Updating player loadout");
-    pd_put(&shard, &path, loadout_json, &access_token, &entitlements, &client_version)
+    pd_put(
+        &shard,
+        &path,
+        loadout_json,
+        &access_token,
+        &entitlements,
+        &client_version,
+    )
 }
 
-pub fn get_owned_items(state: &Mutex<ConnectionState>, item_type_id: &str) -> Result<String, String> {
+pub fn get_owned_items(
+    state: &Mutex<ConnectionState>,
+    item_type_id: &str,
+) -> Result<String, String> {
     let (access_token, entitlements, puuid, _region, shard, client_version) = get_glz_creds(state)?;
     let path = format!("/store/v1/entitlements/{}/{}", puuid, item_type_id);
     pd_get(&shard, &path, &access_token, &entitlements, &client_version)

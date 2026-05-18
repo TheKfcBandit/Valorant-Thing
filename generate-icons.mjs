@@ -131,7 +131,12 @@ async function generateNsisBmps() {
       .toBuffer();
 
     await sharp({
-      create: { width: w, height: h, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 255 } },
+      create: {
+        width: w,
+        height: h,
+        channels: 4,
+        background: { r: 255, g: 255, b: 255, alpha: 255 },
+      },
     })
       .composite([{ input: icon, gravity: "center" }])
       .flatten({ background: { r: 255, g: 255, b: 255 } })
@@ -142,7 +147,12 @@ async function generateNsisBmps() {
       .raw()
       .toBuffer({ resolveWithObject: true });
 
-    const bmpBuf = createBmp(pngBuf.data, pngBuf.info.width, pngBuf.info.height, pngBuf.info.channels);
+    const bmpBuf = createBmp(
+      pngBuf.data,
+      pngBuf.info.width,
+      pngBuf.info.height,
+      pngBuf.info.channels
+    );
     writeFileSync(join(OUT, name), bmpBuf);
     console.log(`✓ ${name} (${w}x${h})`);
   }

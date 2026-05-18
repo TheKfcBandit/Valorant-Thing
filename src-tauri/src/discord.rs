@@ -1,7 +1,7 @@
+use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
-use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
 
 const APP_ID: &str = "1469359571637108931";
 
@@ -21,7 +21,9 @@ pub fn start_rpc(state: &Mutex<DiscordState>) -> Result<(), String> {
         return Ok(());
     }
     let mut client = DiscordIpcClient::new(APP_ID).map_err(|e| format!("RPC init: {}", e))?;
-    client.connect().map_err(|e| format!("RPC connect: {}", e))?;
+    client
+        .connect()
+        .map_err(|e| format!("RPC connect: {}", e))?;
     eprintln!("[discord] IPC connected, waiting for pipe...");
     thread::sleep(Duration::from_millis(500));
 
@@ -36,7 +38,10 @@ pub fn start_rpc(state: &Mutex<DiscordState>) -> Result<(), String> {
                 .small_text("Valorant Thing"),
         )
         .buttons(vec![
-            activity::Button::new("Download Valorant Thing", "https://github.com/TheKfcBandit/Valorant-Thing/releases"),
+            activity::Button::new(
+                "Download Valorant Thing",
+                "https://github.com/TheKfcBandit/Valorant-Thing/releases",
+            ),
             activity::Button::new("GitHub", "https://github.com/TheKfcBandit/Valorant-Thing"),
         ]);
     match client.set_activity(payload) {
@@ -59,7 +64,15 @@ pub fn stop_rpc(state: &Mutex<DiscordState>) -> Result<(), String> {
     Ok(())
 }
 
-pub fn update_rpc(state: &Mutex<DiscordState>, details: &str, rpc_state: &str, large_image: &str, large_text: &str, small_image: &str, small_text: &str) -> Result<(), String> {
+pub fn update_rpc(
+    state: &Mutex<DiscordState>,
+    details: &str,
+    rpc_state: &str,
+    large_image: &str,
+    large_text: &str,
+    small_image: &str,
+    small_text: &str,
+) -> Result<(), String> {
     let mut s = state.lock().map_err(|e| e.to_string())?;
     if let Some(ref mut client) = s.client {
         let mut assets = activity::Assets::new()
@@ -73,10 +86,15 @@ pub fn update_rpc(state: &Mutex<DiscordState>, details: &str, rpc_state: &str, l
             .details(details)
             .assets(assets)
             .buttons(vec![
-                activity::Button::new("Download Valorant Thing", "https://github.com/AjaxFNC-YT/Valorant-Thing/releases"),
+                activity::Button::new(
+                    "Download Valorant Thing",
+                    "https://github.com/AjaxFNC-YT/Valorant-Thing/releases",
+                ),
                 activity::Button::new("GitHub", "https://github.com/AjaxFNC-YT/Valorant-Thing"),
             ]);
-        client.set_activity(payload).map_err(|e| format!("RPC update: {}", e))?;
+        client
+            .set_activity(payload)
+            .map_err(|e| format!("RPC update: {}", e))?;
     }
     Ok(())
 }

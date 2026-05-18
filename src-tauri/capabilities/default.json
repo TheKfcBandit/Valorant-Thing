@@ -1,11 +1,7 @@
 {
   "identifier": "default",
   "description": "Default capabilities for the main window",
-  "windows": [
-    "main",
-    "overlay",
-    "notification-overlay"
-  ],
+  "windows": ["main", "overlay", "notification-overlay"],
   "permissions": [
     "core:default",
     "core:window:allow-close",

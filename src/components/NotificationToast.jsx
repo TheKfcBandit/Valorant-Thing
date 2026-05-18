@@ -1,7 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 
-const DISMISS_MS = { "match-found": 8000, "locked": 4000, "dodged": 4000, "queue": 4000, "wishlist-hit": 8000 };
+const DISMISS_MS = {
+  "match-found": 8000,
+  locked: 4000,
+  dodged: 4000,
+  queue: 4000,
+  "wishlist-hit": 8000,
+};
 
 const SPIKE_TOTAL_S = 45;
 const FULL_DEFUSE_S = 7;
@@ -29,7 +35,10 @@ export default function NotificationToast({ notification, onDismiss }) {
         }
       };
       tick();
-      return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); if (timerRef.current) clearTimeout(timerRef.current); };
+      return () => {
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        if (timerRef.current) clearTimeout(timerRef.current);
+      };
     }
 
     const ms = DISMISS_MS[notification.type];
@@ -48,11 +57,12 @@ export default function NotificationToast({ notification, onDismiss }) {
   if (type === "wishlist-hit") return <WishlistHitCard n={notification} />;
 
   const spikeT = type === "spike" ? spikeTier(remaining) : null;
-  const stripBg = type === "locked"
-    ? "linear-gradient(180deg, rgb(var(--status-green)), rgb(var(--status-green) / 0.4))"
-    : spikeT
-    ? spikeT.stripBg
-    : "linear-gradient(180deg, rgb(var(--val-red)), rgb(var(--val-red) / 0.3))";
+  const stripBg =
+    type === "locked"
+      ? "linear-gradient(180deg, rgb(var(--status-green)), rgb(var(--status-green) / 0.4))"
+      : spikeT
+        ? spikeT.stripBg
+        : "linear-gradient(180deg, rgb(var(--val-red)), rgb(var(--val-red) / 0.3))";
 
   return (
     <CardShell stripBg={stripBg}>
@@ -64,16 +74,28 @@ export default function NotificationToast({ notification, onDismiss }) {
               <span className="text-sm font-body text-text-secondary">Spike detonates in</span>
               <span
                 className="text-sm font-display font-bold tabular-nums"
-                style={{ color: spikeT.color, minWidth: "3.5ch", textAlign: "right", transition: "color 200ms" }}
+                style={{
+                  color: spikeT.color,
+                  minWidth: "3.5ch",
+                  textAlign: "right",
+                  transition: "color 200ms",
+                }}
               >
                 {(remaining / 1000).toFixed(1)}s
               </span>
             </div>
             <div className="relative w-full pb-3">
-              <div className="w-full h-1 rounded-full" style={{ background: "rgb(var(--base-600))" }}>
+              <div
+                className="w-full h-1 rounded-full"
+                style={{ background: "rgb(var(--base-600))" }}
+              >
                 <motion.div
                   className="h-full rounded-full"
-                  style={{ background: spikeT.color, transformOrigin: "left", transition: "background 200ms" }}
+                  style={{
+                    background: spikeT.color,
+                    transformOrigin: "left",
+                    transition: "background 200ms",
+                  }}
                   initial={{ scaleX: 1 }}
                   animate={{ scaleX: notification.totalMs ? remaining / notification.totalMs : 0 }}
                   transition={{ duration: 0.05, ease: "linear" }}
@@ -88,7 +110,9 @@ export default function NotificationToast({ notification, onDismiss }) {
         {type === "locking" && (
           <>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-sm font-body text-text-secondary">Locking {notification.agentName || "agent"} in</span>
+              <span className="text-sm font-body text-text-secondary">
+                Locking {notification.agentName || "agent"} in
+              </span>
               <span
                 className="text-sm font-display font-bold tabular-nums"
                 style={{ color: "rgb(var(--val-red))", minWidth: "2.5ch", textAlign: "right" }}
@@ -97,12 +121,17 @@ export default function NotificationToast({ notification, onDismiss }) {
               </span>
               <LoadingDots />
             </div>
-            <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: "rgb(var(--base-600))" }}>
+            <div
+              className="w-full h-1 rounded-full overflow-hidden"
+              style={{ background: "rgb(var(--base-600))" }}
+            >
               <motion.div
                 className="h-full rounded-full"
                 style={{ background: "rgb(var(--val-red))", transformOrigin: "left" }}
                 initial={{ scaleX: 0 }}
-                animate={{ scaleX: notification.totalMs ? 1 - remaining / notification.totalMs : 0 }}
+                animate={{
+                  scaleX: notification.totalMs ? 1 - remaining / notification.totalMs : 0,
+                }}
                 transition={{ duration: 0.05, ease: "linear" }}
               />
             </div>
@@ -115,10 +144,26 @@ export default function NotificationToast({ notification, onDismiss }) {
             transition={{ type: "spring", stiffness: 500, damping: 25 }}
             className="flex items-center gap-1.5"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0" style={{ color: "rgb(var(--status-green))" }}>
-              <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              className="shrink-0"
+              style={{ color: "rgb(var(--status-green))" }}
+            >
+              <path
+                d="M20 6L9 17l-5-5"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
-            <span className="text-sm font-body font-semibold" style={{ color: "rgb(var(--status-green))" }}>
+            <span
+              className="text-sm font-body font-semibold"
+              style={{ color: "rgb(var(--status-green))" }}
+            >
               Locked {notification.agentName}!
             </span>
           </motion.div>
@@ -150,22 +195,50 @@ function MatchFoundCard({ n }) {
     <CardShell stripBg="linear-gradient(180deg, rgb(var(--accent-blue)), rgb(var(--accent-blue) / 0.3))">
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <div className="relative h-20 w-full overflow-hidden">
-          {mapImage && <img src={mapImage} alt="" className="absolute inset-0 w-full h-full object-cover" />}
-          <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgb(var(--base-800) / 0.3) 0%, rgb(var(--base-800) / 0.85) 100%)" }} />
+          {mapImage && (
+            <img src={mapImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          )}
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(180deg, rgb(var(--base-800) / 0.3) 0%, rgb(var(--base-800) / 0.85) 100%)",
+            }}
+          />
           <div className="relative h-full flex flex-col justify-end p-3 gap-1">
             <div className="flex items-center gap-1.5">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="shrink-0" style={{ color: "rgb(var(--accent-blue))" }}>
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="shrink-0"
+                style={{ color: "rgb(var(--accent-blue))" }}
+              >
+                <path
+                  d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
                 <circle cx="12" cy="10" r="3" stroke="currentColor" strokeWidth="2" />
               </svg>
-              <span className="text-[11px] font-body text-text-secondary">{server || "Unknown Server"}</span>
+              <span className="text-[11px] font-body text-text-secondary">
+                {server || "Unknown Server"}
+              </span>
             </div>
-            <p className="text-base font-display font-bold text-text-primary leading-tight tracking-wide">{mapName || "Unknown Map"}</p>
+            <p className="text-base font-display font-bold text-text-primary leading-tight tracking-wide">
+              {mapName || "Unknown Map"}
+            </p>
           </div>
         </div>
         <div className="px-3 py-2 flex items-center justify-between">
           <VTHeader />
-          <span className="text-[10px] font-display font-bold tracking-widest uppercase" style={{ color: "rgb(var(--accent-blue))" }}>
+          <span
+            className="text-[10px] font-display font-bold tracking-widest uppercase"
+            style={{ color: "rgb(var(--accent-blue))" }}
+          >
             Match Found
           </span>
         </div>
@@ -175,11 +248,15 @@ function MatchFoundCard({ n }) {
               Press{" "}
               <kbd
                 className="px-1.5 py-0.5 rounded text-[9px] font-display font-semibold border"
-                style={{ borderColor: "rgb(var(--border))", background: "rgb(var(--base-600))", color: "rgb(var(--text-secondary))" }}
+                style={{
+                  borderColor: "rgb(var(--border))",
+                  background: "rgb(var(--base-600))",
+                  color: "rgb(var(--text-secondary))",
+                }}
               >
                 {dodgeKeybind}
-              </kbd>
-              {" "}to dodge
+              </kbd>{" "}
+              to dodge
             </span>
           </div>
         )}
@@ -189,16 +266,24 @@ function MatchFoundCard({ n }) {
 }
 
 function DodgedCard({ n }) {
-  const reason = n.reason === "map" ? `${n.mapName || "Map"} was blacklisted`
-    : n.reason === "keybind" ? `Dodged via ${n.keybind || "keybind"}`
-    : "Manually dodged";
+  const reason =
+    n.reason === "map"
+      ? `${n.mapName || "Map"} was blacklisted`
+      : n.reason === "keybind"
+        ? `Dodged via ${n.keybind || "keybind"}`
+        : "Manually dodged";
   const title = n.reason === "map" ? "Map Dodged" : "Match Dodged";
   return (
     <CardShell stripBg="linear-gradient(180deg, rgb(var(--status-yellow)), rgb(var(--status-yellow) / 0.3))">
       <div className="flex-1 px-3.5 py-3 flex flex-col gap-2 min-w-0">
         <VTHeader />
         <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-body font-semibold" style={{ color: "rgb(var(--status-yellow))" }}>{title}</span>
+          <span
+            className="text-sm font-body font-semibold"
+            style={{ color: "rgb(var(--status-yellow))" }}
+          >
+            {title}
+          </span>
           <span className="text-xs font-body text-text-muted">{reason}</span>
         </div>
       </div>
@@ -209,7 +294,9 @@ function DodgedCard({ n }) {
 function QueueCard({ n }) {
   const isRequeue = n.action === "requeue";
   const title = isRequeue ? "Requeued" : "Left Queue";
-  const desc = isRequeue ? "Automatically requeued after match" : "Automatically left queue after dodge";
+  const desc = isRequeue
+    ? "Automatically requeued after match"
+    : "Automatically left queue after dodge";
   const color = isRequeue ? "rgb(var(--accent-blue))" : "rgb(var(--val-red))";
   const strip = isRequeue
     ? "linear-gradient(180deg, rgb(var(--accent-blue)), rgb(var(--accent-blue) / 0.3))"
@@ -219,7 +306,9 @@ function QueueCard({ n }) {
       <div className="flex-1 px-3.5 py-3 flex flex-col gap-2 min-w-0">
         <VTHeader />
         <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-body font-semibold" style={{ color }}>{title}</span>
+          <span className="text-sm font-body font-semibold" style={{ color }}>
+            {title}
+          </span>
           <span className="text-xs font-body text-text-muted">{desc}</span>
         </div>
       </div>
@@ -243,7 +332,9 @@ function WishlistHitCard({ n }) {
       <div className="flex-1 px-3.5 py-3 flex flex-col gap-2 min-w-0">
         <VTHeader />
         <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-body font-semibold" style={{ color }}>{title}</span>
+          <span className="text-sm font-body font-semibold" style={{ color }}>
+            {title}
+          </span>
           <span className="text-xs font-body text-text-muted">{desc}</span>
         </div>
       </div>
@@ -271,18 +362,21 @@ function DefuseTick({ seconds, color }) {
 
 function spikeTier(remaining) {
   const s = remaining / 1000;
-  if (s >= FULL_DEFUSE_S) return {
-    color: "rgb(var(--status-green))",
-    stripBg: "linear-gradient(180deg, rgb(var(--status-green)), rgb(var(--status-green) / 0.3))",
-    label: "Full defuse",
-    icon: "check",
-  };
-  if (s >= HALF_DEFUSE_S) return {
-    color: "rgb(var(--status-yellow))",
-    stripBg: "linear-gradient(180deg, rgb(var(--status-yellow)), rgb(var(--status-yellow) / 0.3))",
-    label: "Half defuse only",
-    icon: "half",
-  };
+  if (s >= FULL_DEFUSE_S)
+    return {
+      color: "rgb(var(--status-green))",
+      stripBg: "linear-gradient(180deg, rgb(var(--status-green)), rgb(var(--status-green) / 0.3))",
+      label: "Full defuse",
+      icon: "check",
+    };
+  if (s >= HALF_DEFUSE_S)
+    return {
+      color: "rgb(var(--status-yellow))",
+      stripBg:
+        "linear-gradient(180deg, rgb(var(--status-yellow)), rgb(var(--status-yellow) / 0.3))",
+      label: "Half defuse only",
+      icon: "half",
+    };
   return {
     color: "rgb(var(--val-red))",
     stripBg: "linear-gradient(180deg, rgb(var(--val-red)), rgb(var(--val-red) / 0.3))",
@@ -295,11 +389,24 @@ function SpikeDefuseStatus({ tier }) {
   const { color, label, icon } = tier;
   return (
     <div className="flex items-center gap-1.5" style={{ transition: "color 200ms" }}>
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" className="shrink-0" style={{ color, transition: "color 200ms" }}>
+      <svg
+        width="13"
+        height="13"
+        viewBox="0 0 24 24"
+        fill="none"
+        className="shrink-0"
+        style={{ color, transition: "color 200ms" }}
+      >
         {icon === "check" && (
           <>
             <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
-            <path d="M8 12.5l2.5 2.5L16 9.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d="M8 12.5l2.5 2.5L16 9.5"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </>
         )}
         {icon === "half" && (
@@ -312,11 +419,21 @@ function SpikeDefuseStatus({ tier }) {
           <>
             <circle cx="11" cy="14" r="6.5" stroke="currentColor" strokeWidth="2" />
             <path d="M16 9.5l2-2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            <path d="M19 6.5l1.5-1M19 6.5l-1-2M19 6.5l2 .5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            <path
+              d="M19 6.5l1.5-1M19 6.5l-1-2M19 6.5l2 .5"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
           </>
         )}
       </svg>
-      <span className="text-[11px] font-body font-semibold tracking-wide" style={{ color, transition: "color 200ms" }}>{label}</span>
+      <span
+        className="text-[11px] font-body font-semibold tracking-wide"
+        style={{ color, transition: "color 200ms" }}
+      >
+        {label}
+      </span>
     </div>
   );
 }
@@ -327,7 +444,8 @@ function VTHeader() {
       <div
         className="w-6 h-6 rounded-[6px] flex items-center justify-center shrink-0"
         style={{
-          background: "linear-gradient(135deg, rgb(var(--val-red)) 0%, color-mix(in srgb, rgb(var(--val-red)) 45%, black) 64%, color-mix(in srgb, rgb(var(--val-red)) 5%, black) 100%)",
+          background:
+            "linear-gradient(135deg, rgb(var(--val-red)) 0%, color-mix(in srgb, rgb(var(--val-red)) 45%, black) 64%, color-mix(in srgb, rgb(var(--val-red)) 5%, black) 100%)",
           boxShadow: "0 2px 6px rgba(0,0,0,0.5), 0 0 0 0.5px rgba(255,255,255,0.08) inset",
         }}
       >

@@ -11,7 +11,13 @@ import { parseGamePod } from "../utils/gamePod";
 
 const POLL_INTERVAL = 2000;
 
-export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, player: selfPlayer, connected, addLog }) {
+export default function MatchInfoPage({
+  splooshimaApiKey,
+  splooshimaAvailable,
+  player: selfPlayer,
+  connected,
+  addLog,
+}) {
   const myPuuid = selfPlayer?.puuid;
   const [players, setPlayers] = useState([]);
   const agents = useApiLookup(getAgentLookup);
@@ -33,28 +39,34 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
   // Generic module orchestrator: run each registered LiveModule's fetch
   // once per (matchId, phase, moduleId). Modules don't see each other —
   // each one's result lands in moduleData[module.id][puuid] independently.
-  const runModules = useCallback((matchId, phase, currentPlayers) => {
-    if (!matchId) return;
-    for (const mod of LIVE_MODULES) {
-      if (typeof mod.fetch !== "function") continue;
-      const key = `${matchId}_${phase}_${mod.id}`;
-      if (fetchedModuleKeysRef.current[mod.id] === key) continue;
-      fetchedModuleKeysRef.current[mod.id] = key;
-      Promise.resolve()
-        .then(() => mod.fetch({ matchId, phase, players: currentPlayers, addLog }))
-        .then((result) => {
-          if (cancelledRef.current) return;
-          if (!result) return;
-          setModuleData((prev) => ({ ...prev, [mod.id]: { ...(prev[mod.id] || {}), ...result } }));
-        })
-        .catch((e) => {
-          if (cancelledRef.current) return;
-          fetchedModuleKeysRef.current[mod.id] = null;
-          const msg = typeof e === "string" ? e : e?.message || String(e);
-          addLog?.("error", `[Live] Module '${mod.id}' failed: ${msg}`);
-        });
-    }
-  }, [addLog]);
+  const runModules = useCallback(
+    (matchId, phase, currentPlayers) => {
+      if (!matchId) return;
+      for (const mod of LIVE_MODULES) {
+        if (typeof mod.fetch !== "function") continue;
+        const key = `${matchId}_${phase}_${mod.id}`;
+        if (fetchedModuleKeysRef.current[mod.id] === key) continue;
+        fetchedModuleKeysRef.current[mod.id] = key;
+        Promise.resolve()
+          .then(() => mod.fetch({ matchId, phase, players: currentPlayers, addLog }))
+          .then((result) => {
+            if (cancelledRef.current) return;
+            if (!result) return;
+            setModuleData((prev) => ({
+              ...prev,
+              [mod.id]: { ...(prev[mod.id] || {}), ...result },
+            }));
+          })
+          .catch((e) => {
+            if (cancelledRef.current) return;
+            fetchedModuleKeysRef.current[mod.id] = null;
+            const msg = typeof e === "string" ? e : e?.message || String(e);
+            addLog?.("error", `[Live] Module '${mod.id}' failed: ${msg}`);
+          });
+      }
+    },
+    [addLog]
+  );
 
   const seedModuleCache = useCallback((puuid) => {
     const seeded = {};
@@ -88,8 +100,8 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
 
       const modeUrl = match.GameMode || match.Mode || "";
       const queueId = match.MatchmakingData?.QueueID || match.QueueID || "";
-      const modeKey = Object.keys(MODE_NAMES).find(k => queueId === k || modeUrl.includes(k));
-      const modeName = modeKey ? MODE_NAMES[modeKey] : (queueId || "Custom");
+      const modeKey = Object.keys(MODE_NAMES).find((k) => queueId === k || modeUrl.includes(k));
+      const modeName = modeKey ? MODE_NAMES[modeKey] : queueId || "Custom";
 
       const nonTeamModes = ["Deathmatch"];
       const isTeamMode = !nonTeamModes.includes(modeName);
@@ -97,7 +109,7 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
 
       setMatchInfo(info);
 
-      const rawPlayers = phase === "PREGAME" ? (match.AllyTeam?.Players || []) : (match.Players || []);
+      const rawPlayers = phase === "PREGAME" ? match.AllyTeam?.Players || [] : match.Players || [];
 
       let playerList = [];
       if (phase === "PREGAME") {
@@ -125,10 +137,19 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
       const prevKey = fetchedMatchRef.current;
       const newKey = `${matchId}_${phase}`;
       if (prevKey === newKey) {
-        setPlayers((prev) => prev.map((old) => {
-          const updated = playerList.find((p) => p.puuid === old.puuid);
-          return updated ? { ...old, characterId: updated.characterId, team: updated.team, accountLevel: updated.accountLevel } : old;
-        }));
+        setPlayers((prev) =>
+          prev.map((old) => {
+            const updated = playerList.find((p) => p.puuid === old.puuid);
+            return updated
+              ? {
+                  ...old,
+                  characterId: updated.characterId,
+                  team: updated.team,
+                  accountLevel: updated.accountLevel,
+                }
+              : old;
+          })
+        );
         setLoading(false);
         runModules(matchId, phase, playerList);
         return;
@@ -158,7 +179,10 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
           const raw = await invoke("resolve_player_names", { puuids: puuidsToResolve });
           if (cancelledRef.current) return;
           const names = JSON.parse(raw);
-          addLog?.("info", `[Riot] Name-service resolved ${names.filter(n => n.name).length}/${puuidsToResolve.length} players`);
+          addLog?.(
+            "info",
+            `[Riot] Name-service resolved ${names.filter((n) => n.name).length}/${puuidsToResolve.length} players`
+          );
           names.forEach((n) => {
             if (n.name) {
               resolved[n.puuid] = { name: n.name, tag: n.tag };
@@ -169,22 +193,32 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
           addLog?.("error", `[Riot] Name-service failed`, { error: String(e) });
         }
 
-        const needLevel = needsAccount.filter((p) =>
-          (p.hideLevel || p.accountLevel === 0) && resolved[p.puuid]
+        const needLevel = needsAccount.filter(
+          (p) => (p.hideLevel || p.accountLevel === 0) && resolved[p.puuid]
         );
         if (needLevel.length > 0) {
-          addLog?.("info", `[Riot] Fetching levels from match history for ${needLevel.length} hidden-level players`);
-          const levelResults = await Promise.all(needLevel.map(async (p) => {
-            try {
-              const raw = await invoke("get_player_level_from_history", { targetPuuid: p.puuid });
-              const data = JSON.parse(raw);
-              addLog?.("info", `[Riot] History level for ${p.puuid.slice(0, 8)}… = ${data.level}`);
-              return { puuid: p.puuid, level: data.level || 0 };
-            } catch (e) {
-              addLog?.("error", `[Riot] History level failed for ${p.puuid.slice(0, 8)}…`, { error: String(e) });
-              return { puuid: p.puuid, level: 0 };
-            }
-          }));
+          addLog?.(
+            "info",
+            `[Riot] Fetching levels from match history for ${needLevel.length} hidden-level players`
+          );
+          const levelResults = await Promise.all(
+            needLevel.map(async (p) => {
+              try {
+                const raw = await invoke("get_player_level_from_history", { targetPuuid: p.puuid });
+                const data = JSON.parse(raw);
+                addLog?.(
+                  "info",
+                  `[Riot] History level for ${p.puuid.slice(0, 8)}… = ${data.level}`
+                );
+                return { puuid: p.puuid, level: data.level || 0 };
+              } catch (e) {
+                addLog?.("error", `[Riot] History level failed for ${p.puuid.slice(0, 8)}…`, {
+                  error: String(e),
+                });
+                return { puuid: p.puuid, level: 0 };
+              }
+            })
+          );
           if (cancelledRef.current) return;
           levelResults.forEach((r) => {
             if (r.level > 0 && resolved[r.puuid]) {
@@ -196,21 +230,42 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
 
         let unresolvedNames = puuidsToResolve.filter((id) => !resolved[id]);
         let stillNeedLevel = needLevel.filter((p) => !resolved[p.puuid]?.account_level);
-        if ((unresolvedNames.length > 0 || stillNeedLevel.length > 0) && splooshimaApiKey && splooshimaAvailable) {
+        if (
+          (unresolvedNames.length > 0 || stillNeedLevel.length > 0) &&
+          splooshimaApiKey &&
+          splooshimaAvailable
+        ) {
           try {
-            const sPuuids = [...new Set([...unresolvedNames, ...stillNeedLevel.map(p => p.puuid)])];
-            const sRaw = await invoke("splooshima_lookup", { puuids: sPuuids, apiKey: splooshimaApiKey });
+            const sPuuids = [
+              ...new Set([...unresolvedNames, ...stillNeedLevel.map((p) => p.puuid)]),
+            ];
+            const sRaw = await invoke("splooshima_lookup", {
+              puuids: sPuuids,
+              apiKey: splooshimaApiKey,
+            });
             if (cancelledRef.current) return;
             const sData = JSON.parse(sRaw);
-            addLog?.("info", `[Splooshima] Fallback resolved ${sData.found ?? 0}/${sData.requested ?? 0} players`);
+            addLog?.(
+              "info",
+              `[Splooshima] Fallback resolved ${sData.found ?? 0}/${sData.requested ?? 0} players`
+            );
             (sData?.results || []).forEach((r) => {
-              const entry = { name: r.gameName || resolved[r.puuid]?.name, tag: r.tagLine || resolved[r.puuid]?.tag, account_level: r.level ?? resolved[r.puuid]?.account_level ?? null };
+              const entry = {
+                name: r.gameName || resolved[r.puuid]?.name,
+                tag: r.tagLine || resolved[r.puuid]?.tag,
+                account_level: r.level ?? resolved[r.puuid]?.account_level ?? null,
+              };
               if (entry.name) {
                 resolved[r.puuid] = { ...resolved[r.puuid], ...entry };
                 setCache(r.puuid, "account", resolved[r.puuid]);
               }
               if (r.currentTier != null) {
-                setCache(r.puuid, "mmr", { currenttier: r.currentTier || 0, ranking_in_tier: r.currentRR || 0, peaktier: r.peakTier || 0, peak_rr: r.peakRR || 0 });
+                setCache(r.puuid, "mmr", {
+                  currenttier: r.currentTier || 0,
+                  ranking_in_tier: r.currentRR || 0,
+                  peaktier: r.peakTier || 0,
+                  peak_rr: r.peakRR || 0,
+                });
               }
             });
           } catch (e) {
@@ -218,11 +273,15 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
           }
         }
 
-        setPlayers((prev) => prev.map((p) => {
-          const r = resolved[p.puuid];
-          const cachedMmr = getCached(p.puuid, "mmr") || null;
-          return r ? { ...p, account: { ...p.account, ...r }, mmr: cachedMmr || p.mmr, _loading: false } : { ...p, mmr: cachedMmr || p.mmr, _loading: false };
-        }));
+        setPlayers((prev) =>
+          prev.map((p) => {
+            const r = resolved[p.puuid];
+            const cachedMmr = getCached(p.puuid, "mmr") || null;
+            return r
+              ? { ...p, account: { ...p.account, ...r }, mmr: cachedMmr || p.mmr, _loading: false }
+              : { ...p, mmr: cachedMmr || p.mmr, _loading: false };
+          })
+        );
         setFetching(false);
       }
 
@@ -233,14 +292,20 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
         try {
           const seasons = rawJson?.QueueSkills?.competitive?.SeasonalInfoBySeasonID;
           if (!seasons) return { peaktier: 0, peak_rr: 0 };
-          let best = 0, bestRr = 0;
-          Object.values(seasons).forEach(s => {
+          let best = 0,
+            bestRr = 0;
+          Object.values(seasons).forEach((s) => {
             const t = s.CompetitiveTier || 0;
             const r = s.RankedRating || 0;
-            if (t > best || (t === best && r > bestRr)) { best = t; bestRr = r; }
+            if (t > best || (t === best && r > bestRr)) {
+              best = t;
+              bestRr = r;
+            }
           });
           return { peaktier: best, peak_rr: bestRr };
-        } catch { return { peaktier: 0, peak_rr: 0 }; }
+        } catch {
+          return { peaktier: 0, peak_rr: 0 };
+        }
       };
 
       const fetchMmr = (puuid) =>
@@ -259,19 +324,28 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
       if (cancelledRef.current) return;
 
       mmrResults.filter((r) => r.data).forEach((r) => setCache(r.puuid, "mmr", r.data));
-      setPlayers((prev) => prev.map((p) => {
-        const r = mmrResults.find((a) => a.puuid === p.puuid);
-        return r?.data ? { ...p, mmr: r.data } : p;
-      }));
+      setPlayers((prev) =>
+        prev.map((p) => {
+          const r = mmrResults.find((a) => a.puuid === p.puuid);
+          return r?.data ? { ...p, mmr: r.data } : p;
+        })
+      );
 
       let mmrFailed = mmrResults.filter((r) => r.needsFallback).map((r) => r.puuid);
 
       if (mmrFailed.length > 0 && splooshimaApiKey && splooshimaAvailable) {
         try {
-          const sRaw = await invoke("splooshima_lookup", { puuids: mmrFailed, apiKey: splooshimaApiKey });
+          const sRaw = await invoke("splooshima_lookup", {
+            puuids: mmrFailed,
+            apiKey: splooshimaApiKey,
+          });
           if (cancelledRef.current) return;
           const sData = JSON.parse(sRaw);
-          addLog?.("info", `[Splooshima] MMR bulk lookup — ${sData.found ?? 0}/${sData.requested ?? 0} resolved`, sData);
+          addLog?.(
+            "info",
+            `[Splooshima] MMR bulk lookup — ${sData.found ?? 0}/${sData.requested ?? 0} resolved`,
+            sData
+          );
           const smmrMap = {};
           (sData?.results || []).forEach((r) => {
             if (r.currentTier != null && r.currentTier > 0) {
@@ -284,13 +358,14 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
               setCache(r.puuid, "mmr", smmrMap[r.puuid]);
             }
           });
-          setPlayers((prev) => prev.map((p) => smmrMap[p.puuid] ? { ...p, mmr: smmrMap[p.puuid] } : p));
+          setPlayers((prev) =>
+            prev.map((p) => (smmrMap[p.puuid] ? { ...p, mmr: smmrMap[p.puuid] } : p))
+          );
           mmrFailed = mmrFailed.filter((id) => !smmrMap[id]);
         } catch (e) {
           addLog?.("error", `[Splooshima] MMR lookup failed`, { error: String(e) });
         }
       }
-
     } catch (err) {
       const msg = typeof err === "string" ? err : err?.message || "";
       if (msg.includes("Not in a match")) {
@@ -320,7 +395,17 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
   if (!connected) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-2">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-muted">
+        <svg
+          width="32"
+          height="32"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="text-text-muted"
+        >
           <path d="M1 1l22 22" />
           <path d="M16.72 11.06A10.94 10.94 0 0119 12.55" />
           <path d="M5 12.55a10.94 10.94 0 015.17-2.39" />
@@ -330,7 +415,9 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
           <line x1="12" y1="20" x2="12.01" y2="20" />
         </svg>
         <p className="text-text-muted text-sm font-display">Waiting for Valorant</p>
-        <p className="text-[11px] font-body text-text-muted/60">Open Valorant and it will connect automatically</p>
+        <p className="text-[11px] font-body text-text-muted/60">
+          Open Valorant and it will connect automatically
+        </p>
       </div>
     );
   }
@@ -338,14 +425,24 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
   if (!matchPhase) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-3">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-muted/25">
+        <svg
+          width="36"
+          height="36"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          className="text-text-muted/25"
+        >
           <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
           <circle cx="9" cy="7" r="4" />
           <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
         </svg>
         <div className="text-center space-y-1">
           <p className="text-sm font-display font-semibold text-text-secondary">No Active Match</p>
-          <p className="text-xs font-body text-text-muted">Player info will appear when you enter a match</p>
+          <p className="text-xs font-body text-text-muted">
+            Player info will appear when you enter a match
+          </p>
         </div>
       </div>
     );
@@ -359,7 +456,10 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
           <div className="space-y-1.5">
             <div className="h-3 w-20 rounded bg-base-600 mb-2" />
             {[0, 1, 2, 3, 4].map((i) => (
-              <div key={i} className="flex items-center gap-2.5 p-2 rounded-lg bg-base-700 border border-border h-12">
+              <div
+                key={i}
+                className="flex items-center gap-2.5 p-2 rounded-lg bg-base-700 border border-border h-12"
+              >
                 <div className="w-8 h-8 rounded-md bg-base-600 shrink-0" />
                 <div className="flex-1 space-y-1">
                   <div className="h-3 w-24 rounded bg-base-600" />
@@ -372,7 +472,10 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
           <div className="space-y-1.5">
             <div className="h-3 w-20 rounded bg-base-600 mb-2" />
             {[0, 1, 2, 3, 4].map((i) => (
-              <div key={i} className="flex items-center gap-2.5 p-2 rounded-lg bg-base-700 border border-border h-12">
+              <div
+                key={i}
+                className="flex items-center gap-2.5 p-2 rounded-lg bg-base-700 border border-border h-12"
+              >
                 <div className="w-8 h-8 rounded-md bg-base-600 shrink-0" />
                 <div className="flex-1 space-y-1">
                   <div className="h-3 w-24 rounded bg-base-600" />
@@ -391,7 +494,16 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
 
   return (
     <div className="flex-1 flex flex-col min-h-0 p-4 gap-3">
-      <MatchHeader mapId={mapId} maps={maps} matchPhase={matchPhase} matchInfo={matchInfo} matchId={matchId} playerCount={players.length} fetching={fetching} error={error} />
+      <MatchHeader
+        mapId={mapId}
+        maps={maps}
+        matchPhase={matchPhase}
+        matchInfo={matchInfo}
+        matchId={matchId}
+        playerCount={players.length}
+        fetching={fetching}
+        error={error}
+      />
 
       <div className="flex-1 min-h-0 overflow-y-auto pr-1">
         {teamData.mode === "teams" ? (
@@ -402,8 +514,20 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
                 YOUR TEAM
               </p>
               {teamData.ally.map((p, i) => (
-                <motion.div key={p.puuid} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.15, delay: i * 0.04 }}>
-                <PlayerCard player={p} agents={agents} tiers={tiers} moduleData={moduleData} isSelf={p.puuid === myPuuid} onOpen={() => setOpenPuuid(p.puuid)} />
+                <motion.div
+                  key={p.puuid}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={noAnim() ? T0 : { duration: 0.15, delay: i * 0.04 }}
+                >
+                  <PlayerCard
+                    player={p}
+                    agents={agents}
+                    tiers={tiers}
+                    moduleData={moduleData}
+                    isSelf={p.puuid === myPuuid}
+                    onOpen={() => setOpenPuuid(p.puuid)}
+                  />
                 </motion.div>
               ))}
             </div>
@@ -413,8 +537,20 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
                 ENEMY TEAM
               </p>
               {teamData.enemy.map((p, i) => (
-                <motion.div key={p.puuid} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.15, delay: i * 0.04 }}>
-                <PlayerCard player={p} agents={agents} tiers={tiers} moduleData={moduleData} isSelf={p.puuid === myPuuid} onOpen={() => setOpenPuuid(p.puuid)} />
+                <motion.div
+                  key={p.puuid}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={noAnim() ? T0 : { duration: 0.15, delay: i * 0.04 }}
+                >
+                  <PlayerCard
+                    player={p}
+                    agents={agents}
+                    tiers={tiers}
+                    moduleData={moduleData}
+                    isSelf={p.puuid === myPuuid}
+                    onOpen={() => setOpenPuuid(p.puuid)}
+                  />
                 </motion.div>
               ))}
             </div>
@@ -422,8 +558,20 @@ export default function MatchInfoPage({ splooshimaApiKey, splooshimaAvailable, p
         ) : (
           <div className="space-y-1.5">
             {teamData.all.map((p, i) => (
-              <motion.div key={p.puuid} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={noAnim() ? T0 : { duration: 0.15, delay: i * 0.04 }}>
-              <PlayerCard player={p} agents={agents} tiers={tiers} moduleData={moduleData} isSelf={p.puuid === myPuuid} onOpen={() => setOpenPuuid(p.puuid)} />
+              <motion.div
+                key={p.puuid}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={noAnim() ? T0 : { duration: 0.15, delay: i * 0.04 }}
+              >
+                <PlayerCard
+                  player={p}
+                  agents={agents}
+                  tiers={tiers}
+                  moduleData={moduleData}
+                  isSelf={p.puuid === myPuuid}
+                  onOpen={() => setOpenPuuid(p.puuid)}
+                />
               </motion.div>
             ))}
           </div>
@@ -462,8 +610,17 @@ function splitTeams(players, phase, myPuuid) {
   return { mode: "list", all: players };
 }
 
-function MatchHeader({ mapId, maps, matchPhase, matchInfo, matchId, playerCount, fetching, error }) {
-  const mapData = mapId ? (maps[mapId.toLowerCase()] || null) : null;
+function MatchHeader({
+  mapId,
+  maps,
+  matchPhase,
+  matchInfo,
+  matchId,
+  playerCount,
+  fetching,
+  error,
+}) {
+  const mapData = mapId ? maps[mapId.toLowerCase()] || null : null;
   const mapName = mapData?.displayName || "Unknown Map";
   const mapImg = mapData?.listViewIcon || mapData?.splash || "";
   const canLeave = matchInfo?.mode === "Deathmatch" || matchInfo?.mode === "Custom";
@@ -495,7 +652,9 @@ function MatchHeader({ mapId, maps, matchPhase, matchInfo, matchId, playerCount,
             {matchInfo?.server && (
               <>
                 <span className="text-[11px] text-text-muted/40">·</span>
-                <span className="text-[11px] font-body text-text-muted">{parseGamePod(matchInfo.server)}</span>
+                <span className="text-[11px] font-body text-text-muted">
+                  {parseGamePod(matchInfo.server)}
+                </span>
               </>
             )}
             <span className="text-[11px] text-text-muted/40">·</span>
@@ -510,12 +669,23 @@ function MatchHeader({ mapId, maps, matchPhase, matchInfo, matchId, playerCount,
             disabled={leaving}
             onClick={async () => {
               setLeaving(true);
-              try { await invoke("coregame_quit", { matchId }); } catch {}
+              try {
+                await invoke("coregame_quit", { matchId });
+              } catch (e) {
+                console.warn("[MatchInfo] suppressed:", e);
+              }
               setLeaving(false);
             }}
             className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-status-red/15 border border-status-red/30 text-xs font-display font-semibold text-status-red hover:bg-status-red/25 transition-colors disabled:opacity-50"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
             </svg>
             {leaving ? "..." : "Leave"}
@@ -530,7 +700,9 @@ function MatchHeader({ mapId, maps, matchPhase, matchInfo, matchId, playerCount,
             </div>
           )}
           {error && (
-            <span className="text-[10px] font-body text-yellow-400 max-w-[140px] truncate">{error}</span>
+            <span className="text-[10px] font-body text-yellow-400 max-w-[140px] truncate">
+              {error}
+            </span>
           )}
         </div>
       </div>
@@ -562,12 +734,20 @@ function PlayerCard({ player, agents, tiers, moduleData, isSelf, onOpen }) {
       role={hasModuleData ? "button" : undefined}
       tabIndex={hasModuleData ? 0 : undefined}
       onClick={hasModuleData ? onOpen : undefined}
-      onKeyDown={hasModuleData ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen?.(); } } : undefined}
+      onKeyDown={
+        hasModuleData
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onOpen?.();
+              }
+            }
+          : undefined
+      }
       className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-colors ${
-        isSelf
-          ? "bg-val-red/10 border-val-red/30"
-          : "bg-base-700 border-border"
-      } ${hasModuleData ? "cursor-pointer hover:border-val-red/40" : ""}`}>
+        isSelf ? "bg-val-red/10 border-val-red/30" : "bg-base-700 border-border"
+      } ${hasModuleData ? "cursor-pointer hover:border-val-red/40" : ""}`}
+    >
       <div className="w-10 h-10 rounded-lg bg-base-600 overflow-hidden shrink-0 flex items-center justify-center">
         {agent?.displayIconSmall ? (
           <img src={agent.displayIconSmall} alt="" className="w-full h-full object-cover" />
@@ -585,20 +765,31 @@ function PlayerCard({ player, agents, tiers, moduleData, isSelf, onOpen }) {
         ) : (
           <>
             <div className="flex items-center gap-1">
-              <p className={`text-sm font-display font-bold truncate ${isSelf ? "text-val-red" : "text-text-primary"}`}>
+              <p
+                className={`text-sm font-display font-bold truncate ${isSelf ? "text-val-red" : "text-text-primary"}`}
+              >
                 {displayName}
               </p>
-              {acct?.tag && (
-                <span className="text-xs font-body text-text-muted">#{acct.tag}</span>
-              )}
+              {acct?.tag && <span className="text-xs font-body text-text-muted">#{acct.tag}</span>}
               {(player.incognito || player.hideLevel) && (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-muted/50 shrink-0" title="Hidden identity">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  className="text-text-muted/50 shrink-0"
+                  title="Hidden identity"
+                >
                   <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
                   <line x1="1" y1="1" x2="23" y2="23" />
                 </svg>
               )}
               {isSelf && (
-                <span className="text-[9px] font-display font-bold text-val-red/70 uppercase tracking-wider ml-0.5">you</span>
+                <span className="text-[9px] font-display font-bold text-val-red/70 uppercase tracking-wider ml-0.5">
+                  you
+                </span>
               )}
             </div>
             <div className="flex items-center gap-1.5 overflow-hidden whitespace-nowrap">
@@ -607,20 +798,30 @@ function PlayerCard({ player, agents, tiers, moduleData, isSelf, onOpen }) {
               </span>
               <span className="text-[11px] text-text-primary/50 shrink-0">·</span>
               <img
-                src={tierInfo?.icon || "https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/0/smallicon.png"}
-                alt="" className="w-3.5 h-3.5 shrink-0"
+                src={
+                  tierInfo?.icon ||
+                  "https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/0/smallicon.png"
+                }
+                alt=""
+                className="w-3.5 h-3.5 shrink-0"
               />
               <span className="text-[11px] font-display font-semibold text-text-primary">
                 {tierInfo?.name || "Unranked"}
               </span>
-              <span className="text-[11px] font-body text-text-primary/70 shrink-0">{mmr?.ranking_in_tier ?? 0}RR</span>
+              <span className="text-[11px] font-body text-text-primary/70 shrink-0">
+                {mmr?.ranking_in_tier ?? 0}RR
+              </span>
               {peakTierInfo && mmr?.peaktier > 0 && (
                 <>
                   <span className="text-[11px] text-text-primary/50 shrink-0">·</span>
                   <span className="text-[11px] font-body text-text-primary shrink-0">Peak:</span>
                   <img src={peakTierInfo.icon} alt="" className="w-3.5 h-3.5 shrink-0" />
-                  <span className="text-[11px] font-display font-semibold text-text-primary">{peakTierInfo.name}</span>
-                  <span className="text-[11px] font-body text-text-primary/70">{mmr?.peak_rr ?? 0}RR</span>
+                  <span className="text-[11px] font-display font-semibold text-text-primary">
+                    {peakTierInfo.name}
+                  </span>
+                  <span className="text-[11px] font-body text-text-primary/70">
+                    {mmr?.peak_rr ?? 0}RR
+                  </span>
                 </>
               )}
             </div>
@@ -646,14 +847,21 @@ function Spinner() {
   return (
     <svg className="w-4 h-4 animate-spin text-text-muted" viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-20" />
-      <path d="M12 2a10 10 0 019.95 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      <path
+        d="M12 2a10 10 0 019.95 9"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 
 function PlayerDetailDialog({ player, agents, tiers, moduleData, onClose }) {
   useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onClose?.(); };
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose?.();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -676,13 +884,17 @@ function PlayerDetailDialog({ player, agents, tiers, moduleData, onClose }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
       transition={noAnim() ? T0 : { duration: 0.15 }}
       className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm"
       onClick={onClose}
     >
       <motion.div
-        initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.96, opacity: 0 }}
+        initial={{ scale: 0.96, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.96, opacity: 0 }}
         transition={noAnim() ? T0 : { type: "spring", stiffness: 400, damping: 28 }}
         className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-xl border border-border bg-base-800 shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -697,13 +909,19 @@ function PlayerDetailDialog({ player, agents, tiers, moduleData, onClose }) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-baseline gap-1.5">
-              <p className="text-base font-display font-bold text-text-primary truncate">{displayName}</p>
+              <p className="text-base font-display font-bold text-text-primary truncate">
+                {displayName}
+              </p>
               {acct?.tag && <span className="text-xs font-body text-text-muted">#{acct.tag}</span>}
             </div>
             <div className="flex items-center gap-1.5 mt-0.5">
               {tierInfo?.icon && <img src={tierInfo.icon} alt="" className="w-3.5 h-3.5" />}
-              <span className="text-[11px] font-display font-semibold text-text-secondary">{tierInfo?.name || "Unranked"}</span>
-              <span className="text-[11px] font-body text-text-muted">{mmr?.ranking_in_tier ?? 0}RR</span>
+              <span className="text-[11px] font-display font-semibold text-text-secondary">
+                {tierInfo?.name || "Unranked"}
+              </span>
+              <span className="text-[11px] font-body text-text-muted">
+                {mmr?.ranking_in_tier ?? 0}RR
+              </span>
             </div>
           </div>
           <button
@@ -711,7 +929,15 @@ function PlayerDetailDialog({ player, agents, tiers, moduleData, onClose }) {
             className="shrink-0 w-7 h-7 rounded-md text-text-muted hover:text-text-primary hover:bg-base-600 flex items-center justify-center transition-colors"
             aria-label="Close"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
@@ -720,7 +946,9 @@ function PlayerDetailDialog({ player, agents, tiers, moduleData, onClose }) {
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
           {sections.length === 0 ? (
-            <p className="text-xs font-body text-text-muted italic text-center py-8">No additional info available for this player.</p>
+            <p className="text-xs font-body text-text-muted italic text-center py-8">
+              No additional info available for this player.
+            </p>
           ) : (
             sections.map(({ mod, data }) => (
               <mod.DialogSection key={mod.id} player={player} data={data} />

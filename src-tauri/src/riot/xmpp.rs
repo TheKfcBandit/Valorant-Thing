@@ -1,8 +1,8 @@
+use base64::Engine;
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use base64::Engine;
 
 pub struct XmppLog {
     pub direction: String,
@@ -45,8 +45,12 @@ fn format_json_tabs(val: &serde_json::Value) -> String {
         let trimmed = line.trim_start();
         let spaces = line.len() - trimmed.len();
         let tabs = spaces / 4;
-        for _ in 0..tabs { result.push('\t'); }
-        if spaces % 4 > 0 { result.push('\t'); }
+        for _ in 0..tabs {
+            result.push('\t');
+        }
+        if spaces % 4 > 0 {
+            result.push('\t');
+        }
         result.push_str(trimmed);
         result.push_str("\r\n");
     }
@@ -57,7 +61,9 @@ fn format_json_tabs(val: &serde_json::Value) -> String {
 }
 
 fn extract_real_valorant_payload(data: &str, puuid: &str) -> Option<(serde_json::Value, u64)> {
-    if puuid.is_empty() { return None; }
+    if puuid.is_empty() {
+        return None;
+    }
     let marker = format!("{}@", puuid);
     let mut search_from = 0;
     while let Some(pos) = data[search_from..].find(&marker) {
@@ -65,7 +71,9 @@ fn extract_real_valorant_payload(data: &str, puuid: &str) -> Option<(serde_json:
         let before = &data[..abs_pos];
         let pres_start = before.rfind("<presence ")?;
         let after = &data[pres_start..];
-        let pres_end = after.find("</presence>").map(|p| pres_start + p + "</presence>".len())?;
+        let pres_end = after
+            .find("</presence>")
+            .map(|p| pres_start + p + "</presence>".len())?;
         let stanza = &data[pres_start..pres_end];
 
         if stanza.contains("<valorant>") && stanza.contains("<keystone>") {
@@ -76,7 +84,8 @@ fn extract_real_valorant_payload(data: &str, puuid: &str) -> Option<(serde_json:
                     if let Some(b64_end) = b64_data.find("</p>") {
                         let b64 = &b64_data[..b64_end];
                         if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(b64) {
-                            if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&decoded) {
+                            if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&decoded)
+                            {
                                 let mut ks_ts: u64 = 0;
                                 if let Some(ks_start) = stanza.find("<keystone>") {
                                     let ks = &stanza[ks_start..];
@@ -100,11 +109,18 @@ fn extract_real_valorant_payload(data: &str, puuid: &str) -> Option<(serde_json:
 }
 
 fn now_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
 }
 
 fn add_log(logs: &mut Vec<XmppLog>, direction: &str, data: &str) {
-    super::logging::log_info(&format!("[XMPP] {} {}", direction, &data[..data.len().min(300)]));
+    super::logging::log_info(&format!(
+        "[XMPP] {} {}",
+        direction,
+        &data[..data.len().min(300)]
+    ));
     logs.push(XmppLog {
         direction: direction.to_string(),
         data: data.to_string(),
@@ -116,12 +132,19 @@ fn add_log(logs: &mut Vec<XmppLog>, direction: &str, data: &str) {
 }
 
 fn xmpp_write(stream: &mut native_tls::TlsStream<TcpStream>, data: &str) -> Result<(), String> {
-    stream.write_all(data.as_bytes()).map_err(|e| format!("write: {}", e))?;
+    stream
+        .write_all(data.as_bytes())
+        .map_err(|e| format!("write: {}", e))?;
     stream.flush().map_err(|e| format!("flush: {}", e))
 }
 
-fn xmpp_read_timeout(stream: &mut native_tls::TlsStream<TcpStream>, timeout_ms: u64) -> Result<String, String> {
-    stream.get_ref().set_read_timeout(Some(Duration::from_millis(timeout_ms)))
+fn xmpp_read_timeout(
+    stream: &mut native_tls::TlsStream<TcpStream>,
+    timeout_ms: u64,
+) -> Result<String, String> {
+    stream
+        .get_ref()
+        .set_read_timeout(Some(Duration::from_millis(timeout_ms)))
         .map_err(|e| format!("set timeout: {}", e))?;
 
     let mut buf = vec![0u8; 16384];
@@ -137,10 +160,16 @@ fn xmpp_read_timeout(stream: &mut native_tls::TlsStream<TcpStream>, timeout_ms: 
             }
             Ok(n) => {
                 result.push_str(&String::from_utf8_lossy(&buf[..n]));
-                if n < buf.len() { break; }
+                if n < buf.len() {
+                    break;
+                }
             }
-            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock
-                    || e.kind() == std::io::ErrorKind::TimedOut => break,
+            Err(e)
+                if e.kind() == std::io::ErrorKind::WouldBlock
+                    || e.kind() == std::io::ErrorKind::TimedOut =>
+            {
+                break
+            }
             Err(e) => return Err(format!("read: {}", e)),
         }
     }
@@ -148,8 +177,14 @@ fn xmpp_read_timeout(stream: &mut native_tls::TlsStream<TcpStream>, timeout_ms: 
     Ok(result)
 }
 
-fn xmpp_read_until(stream: &mut native_tls::TlsStream<TcpStream>, marker: &str, timeout_secs: u64) -> Result<String, String> {
-    stream.get_ref().set_read_timeout(Some(Duration::from_millis(500)))
+fn xmpp_read_until(
+    stream: &mut native_tls::TlsStream<TcpStream>,
+    marker: &str,
+    timeout_secs: u64,
+) -> Result<String, String> {
+    stream
+        .get_ref()
+        .set_read_timeout(Some(Duration::from_millis(500)))
         .map_err(|e| format!("set timeout: {}", e))?;
 
     let start = Instant::now();
@@ -161,11 +196,17 @@ fn xmpp_read_until(stream: &mut native_tls::TlsStream<TcpStream>, marker: &str, 
             Ok(0) => return Err("connection closed during handshake".to_string()),
             Ok(n) => {
                 result.push_str(&String::from_utf8_lossy(&buf[..n]));
-                if result.contains(marker) { return Ok(result); }
+                if result.contains(marker) {
+                    return Ok(result);
+                }
             }
-            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock
-                    || e.kind() == std::io::ErrorKind::TimedOut => {
-                if result.contains(marker) { return Ok(result); }
+            Err(e)
+                if e.kind() == std::io::ErrorKind::WouldBlock
+                    || e.kind() == std::io::ErrorKind::TimedOut =>
+            {
+                if result.contains(marker) {
+                    return Ok(result);
+                }
                 continue;
             }
             Err(e) => return Err(format!("read: {}", e)),
@@ -175,7 +216,11 @@ fn xmpp_read_until(stream: &mut native_tls::TlsStream<TcpStream>, marker: &str, 
     if result.contains(marker) {
         Ok(result)
     } else {
-        Err(format!("timeout waiting for '{}', got: {}", marker, &result[..result.len().min(500)]))
+        Err(format!(
+            "timeout waiting for '{}', got: {}",
+            marker,
+            &result[..result.len().min(500)]
+        ))
     }
 }
 
@@ -199,26 +244,39 @@ fn decode_affinity(pas_token: &str) -> Result<String, String> {
         .or_else(|_| base64::engine::general_purpose::STANDARD.decode(parts[1]))
         .map_err(|e| format!("base64 decode PAS payload: {}", e))?;
 
-    let json: serde_json::Value = serde_json::from_slice(&payload)
-        .map_err(|e| format!("parse PAS payload: {}", e))?;
+    let json: serde_json::Value =
+        serde_json::from_slice(&payload).map_err(|e| format!("parse PAS payload: {}", e))?;
 
-    json["affinity"].as_str()
+    json["affinity"]
+        .as_str()
         .ok_or("No affinity in PAS token".to_string())
         .map(|s| s.to_string())
 }
 
-fn fetch_chat_config(access_token: &str, entitlements: &str, affinity: &str) -> Result<(String, String), String> {
+fn fetch_chat_config(
+    access_token: &str,
+    entitlements: &str,
+    affinity: &str,
+) -> Result<(String, String), String> {
     let url = "https://clientconfig.rpg.riotgames.com/api/v1/config/player?app=Riot%20Client";
     let raw = super::http::authed_get_with_entitlements(url, access_token, entitlements)?;
-    let config: serde_json::Value = serde_json::from_str(&raw)
-        .map_err(|e| format!("parse client config: {}", e))?;
+    let config: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|e| format!("parse client config: {}", e))?;
 
-    let host = config["chat.affinities"][affinity].as_str()
-        .ok_or(format!("No chat.affinities entry for affinity '{}'", affinity))?
+    let host = config["chat.affinities"][affinity]
+        .as_str()
+        .ok_or(format!(
+            "No chat.affinities entry for affinity '{}'",
+            affinity
+        ))?
         .to_string();
 
-    let domain = config["chat.affinity_domains"][affinity].as_str()
-        .ok_or(format!("No chat.affinity_domains entry for affinity '{}'", affinity))?
+    let domain = config["chat.affinity_domains"][affinity]
+        .as_str()
+        .ok_or(format!(
+            "No chat.affinity_domains entry for affinity '{}'",
+            affinity
+        ))?
         .to_string();
 
     Ok((host, domain))
@@ -233,10 +291,15 @@ fn extract_jid(xml: &str) -> String {
     String::new()
 }
 
-pub fn xmpp_connect(xmpp_state: &Mutex<XmppState>, riot_state: &Mutex<super::types::ConnectionState>) -> Result<String, String> {
+pub fn xmpp_connect(
+    xmpp_state: &Mutex<XmppState>,
+    riot_state: &Mutex<super::types::ConnectionState>,
+) -> Result<String, String> {
     let access_token = {
         let s = riot_state.lock().map_err(|e| format!("lock riot: {}", e))?;
-        s.access_token.clone().ok_or("Not connected to Riot — connect first")?
+        s.access_token
+            .clone()
+            .ok_or("Not connected to Riot — connect first")?
     };
 
     {
@@ -257,7 +320,11 @@ pub fn xmpp_connect(xmpp_state: &Mutex<XmppState>, riot_state: &Mutex<super::typ
     let pas_token = fetch_pas_token(&access_token)?;
     {
         let mut s = xmpp_state.lock().map_err(|e| format!("lock: {}", e))?;
-        add_log(&mut s.logs, "system", &format!("PAS token received ({} chars)", pas_token.len()));
+        add_log(
+            &mut s.logs,
+            "system",
+            &format!("PAS token received ({} chars)", pas_token.len()),
+        );
     }
 
     let affinity = decode_affinity(&pas_token)?;
@@ -272,14 +339,22 @@ pub fn xmpp_connect(xmpp_state: &Mutex<XmppState>, riot_state: &Mutex<super::typ
 
     {
         let mut s = xmpp_state.lock().map_err(|e| format!("lock: {}", e))?;
-        add_log(&mut s.logs, "system", &format!("Affinity: {}, fetching client config...", affinity));
+        add_log(
+            &mut s.logs,
+            "system",
+            &format!("Affinity: {}, fetching client config...", affinity),
+        );
     }
 
     let (host, domain) = fetch_chat_config(&access_tok, &entitlements_jwt, &affinity)?;
 
     {
         let mut s = xmpp_state.lock().map_err(|e| format!("lock: {}", e))?;
-        add_log(&mut s.logs, "system", &format!("Host: {}:5223, Domain: {}.pvp.net", host, domain));
+        add_log(
+            &mut s.logs,
+            "system",
+            &format!("Host: {}:5223, Domain: {}.pvp.net", host, domain),
+        );
         s.xmpp_region = domain.clone();
     }
 
@@ -297,7 +372,8 @@ pub fn xmpp_connect(xmpp_state: &Mutex<XmppState>, riot_state: &Mutex<super::typ
     let tcp = TcpStream::connect_timeout(&addr, Duration::from_secs(10))
         .map_err(|e| format!("TCP connect to {}: {}", host, e))?;
 
-    let mut stream = connector.connect(&host, tcp)
+    let mut stream = connector
+        .connect(&host, tcp)
         .map_err(|e| format!("TLS handshake: {}", e))?;
 
     {
@@ -329,7 +405,11 @@ pub fn xmpp_connect(xmpp_state: &Mutex<XmppState>, riot_state: &Mutex<super::typ
     xmpp_write(&mut stream, &auth_xml)?;
     {
         let mut s = xmpp_state.lock().map_err(|e| format!("lock: {}", e))?;
-        add_log(&mut s.logs, "sent", "<auth mechanism=\"X-Riot-RSO-PAS\">[tokens redacted]</auth>");
+        add_log(
+            &mut s.logs,
+            "sent",
+            "<auth mechanism=\"X-Riot-RSO-PAS\">[tokens redacted]</auth>",
+        );
     }
 
     let resp = xmpp_read_timeout(&mut stream, 10000)?;
@@ -392,7 +472,11 @@ pub fn xmpp_connect(xmpp_state: &Mutex<XmppState>, riot_state: &Mutex<super::typ
     xmpp_write(&mut stream, &entitlements_xml)?;
     {
         let mut s = xmpp_state.lock().map_err(|e| format!("lock: {}", e))?;
-        add_log(&mut s.logs, "sent", "<iq id=\"xmpp_entitlements_0\"> [entitlements token]</iq>");
+        add_log(
+            &mut s.logs,
+            "sent",
+            "<iq id=\"xmpp_entitlements_0\"> [entitlements token]</iq>",
+        );
     }
 
     let resp = xmpp_read_timeout(&mut stream, 2000)?;
@@ -417,7 +501,9 @@ pub fn xmpp_connect(xmpp_state: &Mutex<XmppState>, riot_state: &Mutex<super::typ
     let mut all_chunks = String::new();
     for _ in 0..8 {
         let chunk = xmpp_read_timeout(&mut stream, 1500)?;
-        if chunk.is_empty() { break; }
+        if chunk.is_empty() {
+            break;
+        }
         all_chunks.push_str(&chunk);
         let mut s = xmpp_state.lock().map_err(|e| format!("lock: {}", e))?;
         if !puuid_clone.is_empty() && chunk.contains(&puuid_clone) {
@@ -432,14 +518,29 @@ pub fn xmpp_connect(xmpp_state: &Mutex<XmppState>, riot_state: &Mutex<super::typ
         if let Some(real_data) = extract_real_valorant_payload(&all_chunks, &puuid_clone) {
             if let Some(obj) = real_data.0.as_object() {
                 let keys: Vec<&String> = obj.keys().collect();
-                add_log(&mut s.logs, "debug", &format!("Presence top-level keys: {:?}", keys));
+                add_log(
+                    &mut s.logs,
+                    "debug",
+                    &format!("Presence top-level keys: {:?}", keys),
+                );
                 for (k, v) in obj {
-                    if k.contains("resence") || k.contains("oster") || k.contains("remier") || k.contains("eam") {
+                    if k.contains("resence")
+                        || k.contains("oster")
+                        || k.contains("remier")
+                        || k.contains("eam")
+                    {
                         add_log(&mut s.logs, "debug", &format!("{}: {}", k, v));
                     }
                 }
             }
-            add_log(&mut s.logs, "system", &format!("Captured real valorant data: {} fields", real_data.0.as_object().map(|o| o.len()).unwrap_or(0)));
+            add_log(
+                &mut s.logs,
+                "system",
+                &format!(
+                    "Captured real valorant data: {} fields",
+                    real_data.0.as_object().map(|o| o.len()).unwrap_or(0)
+                ),
+            );
             s.real_valorant_data = Some(real_data.0);
             s.real_keystone_ts = Some(real_data.1);
         }
@@ -481,7 +582,9 @@ pub fn xmpp_poll(state: &Mutex<XmppState>) -> Result<String, String> {
     };
 
     let read_result = {
-        let mut sg = stream_arc.lock().map_err(|e| format!("stream lock: {}", e))?;
+        let mut sg = stream_arc
+            .lock()
+            .map_err(|e| format!("stream lock: {}", e))?;
         match sg.as_mut() {
             Some(stream) => xmpp_read_timeout(stream, 150),
             None => {
@@ -516,16 +619,24 @@ pub fn xmpp_poll(state: &Mutex<XmppState>) -> Result<String, String> {
     Ok("ok".to_string())
 }
 
-pub fn xmpp_send_fake_presence(state: &Mutex<XmppState>, riot_state: &Mutex<super::ConnectionState>, presence_json: &str) -> Result<(), String> {
+pub fn xmpp_send_fake_presence(
+    state: &Mutex<XmppState>,
+    riot_state: &Mutex<super::ConnectionState>,
+    presence_json: &str,
+) -> Result<(), String> {
     let mut s = state.lock().map_err(|e| format!("lock: {}", e))?;
     if !s.connected {
         return Err("Not connected to XMPP".to_string());
     }
 
-    let client_version = riot_state.lock().ok().and_then(|r| r.client_version.clone()).unwrap_or_default();
+    let client_version = riot_state
+        .lock()
+        .ok()
+        .and_then(|r| r.client_version.clone())
+        .unwrap_or_default();
 
-    let params: serde_json::Value = serde_json::from_str(presence_json)
-        .map_err(|e| format!("parse presence params: {}", e))?;
+    let params: serde_json::Value =
+        serde_json::from_str(presence_json).map_err(|e| format!("parse presence params: {}", e))?;
 
     let show = match params["show"].as_str() {
         Some(s @ ("chat" | "away" | "dnd" | "xa" | "unavailable")) => s,
@@ -546,14 +657,22 @@ pub fn xmpp_send_fake_presence(state: &Mutex<XmppState>, riot_state: &Mutex<supe
             let stream = sg.as_mut().ok_or("No stream")?;
             xmpp_write(stream, &xml)?;
         }
-        add_log(&mut s.logs, "sent", "[FAKE PRESENCE] invisible mode (unavailable)");
+        add_log(
+            &mut s.logs,
+            "sent",
+            "[FAKE PRESENCE] invisible mode (unavailable)",
+        );
         return Ok(());
     }
 
     let mut valorant_data = match &s.real_valorant_data {
         Some(real) => real.clone(),
         None => {
-            add_log(&mut s.logs, "error", "No real valorant data captured - connect XMPP while in game first");
+            add_log(
+                &mut s.logs,
+                "error",
+                "No real valorant data captured - connect XMPP while in game first",
+            );
             return Err("No real valorant data captured. Reconnect XMPP.".to_string());
         }
     };
@@ -561,12 +680,25 @@ pub fn xmpp_send_fake_presence(state: &Mutex<XmppState>, riot_state: &Mutex<supe
     let ks_ts = s.real_keystone_ts.unwrap_or(timestamp - 5000);
 
     if let Some(obj) = valorant_data.as_object_mut() {
-        if let Some(pd) = obj.get_mut("playerPresenceData").and_then(|v| v.as_object_mut()) {
-            if let Some(v) = params["competitiveTier"].as_u64() { pd.insert("competitiveTier".into(), serde_json::json!(v)); }
-            if let Some(v) = params["accountLevel"].as_u64() { pd.insert("accountLevel".into(), serde_json::json!(v)); }
-            if let Some(v) = params["leaderboardPosition"].as_u64() { pd.insert("leaderboardPosition".into(), serde_json::json!(v)); }
-            if let Some(v) = params["playerCardId"].as_str().filter(|s| !s.is_empty()) { pd.insert("playerCardId".into(), serde_json::json!(v)); }
-            if let Some(v) = params["playerTitleId"].as_str().filter(|s| !s.is_empty()) { pd.insert("playerTitleId".into(), serde_json::json!(v)); }
+        if let Some(pd) = obj
+            .get_mut("playerPresenceData")
+            .and_then(|v| v.as_object_mut())
+        {
+            if let Some(v) = params["competitiveTier"].as_u64() {
+                pd.insert("competitiveTier".into(), serde_json::json!(v));
+            }
+            if let Some(v) = params["accountLevel"].as_u64() {
+                pd.insert("accountLevel".into(), serde_json::json!(v));
+            }
+            if let Some(v) = params["leaderboardPosition"].as_u64() {
+                pd.insert("leaderboardPosition".into(), serde_json::json!(v));
+            }
+            if let Some(v) = params["playerCardId"].as_str().filter(|s| !s.is_empty()) {
+                pd.insert("playerCardId".into(), serde_json::json!(v));
+            }
+            if let Some(v) = params["playerTitleId"].as_str().filter(|s| !s.is_empty()) {
+                pd.insert("playerTitleId".into(), serde_json::json!(v));
+            }
         }
 
         if !obj.contains_key("matchPresenceData") || !obj["matchPresenceData"].is_object() {
@@ -574,58 +706,99 @@ pub fn xmpp_send_fake_presence(state: &Mutex<XmppState>, riot_state: &Mutex<supe
         }
 
         if let Some(session) = params["sessionLoopState"].as_str() {
-            if let Some(md) = obj.get_mut("matchPresenceData").and_then(|v| v.as_object_mut()) {
+            if let Some(md) = obj
+                .get_mut("matchPresenceData")
+                .and_then(|v| v.as_object_mut())
+            {
                 md.insert("sessionLoopState".into(), serde_json::json!(session));
             }
         }
 
         if let Some(queue) = params["queueId"].as_str().filter(|s| !s.is_empty()) {
             obj.insert("queueId".into(), serde_json::json!(queue));
-            if let Some(md) = obj.get_mut("matchPresenceData").and_then(|v| v.as_object_mut()) {
+            if let Some(md) = obj
+                .get_mut("matchPresenceData")
+                .and_then(|v| v.as_object_mut())
+            {
                 md.insert("queueId".into(), serde_json::json!(queue));
-                let flow = if queue == "newmap" || queue.is_empty() { "Invalid" } else { "Matchmaking" };
+                let flow = if queue == "newmap" || queue.is_empty() {
+                    "Invalid"
+                } else {
+                    "Matchmaking"
+                };
                 md.insert("provisioningFlow".into(), serde_json::json!(flow));
             }
         }
 
         if !client_version.is_empty() {
-            if let Some(ppd) = obj.get_mut("partyPresenceData").and_then(|v| v.as_object_mut()) {
-                ppd.insert("partyClientVersion".into(), serde_json::json!(client_version));
+            if let Some(ppd) = obj
+                .get_mut("partyPresenceData")
+                .and_then(|v| v.as_object_mut())
+            {
+                ppd.insert(
+                    "partyClientVersion".into(),
+                    serde_json::json!(client_version),
+                );
             }
         }
 
         if let Some(v) = params["partySize"].as_u64() {
             obj.insert("partySize".into(), serde_json::json!(v));
-            if let Some(ppd) = obj.get_mut("partyPresenceData").and_then(|v| v.as_object_mut()) {
+            if let Some(ppd) = obj
+                .get_mut("partyPresenceData")
+                .and_then(|v| v.as_object_mut())
+            {
                 ppd.insert("partySize".into(), serde_json::json!(v));
             }
         }
         if let Some(v) = params["maxPartySize"].as_u64() {
             obj.insert("maxPartySize".into(), serde_json::json!(v));
-            if let Some(ppd) = obj.get_mut("partyPresenceData").and_then(|v| v.as_object_mut()) {
+            if let Some(ppd) = obj
+                .get_mut("partyPresenceData")
+                .and_then(|v| v.as_object_mut())
+            {
                 ppd.insert("maxPartySize".into(), serde_json::json!(v));
             }
         }
 
         if let Some(v) = params["partyOwnerMatchScoreAllyTeam"].as_u64() {
             obj.insert("partyOwnerMatchScoreAllyTeam".into(), serde_json::json!(v));
-            if let Some(ppd) = obj.get_mut("partyPresenceData").and_then(|v| v.as_object_mut()) {
+            if let Some(ppd) = obj
+                .get_mut("partyPresenceData")
+                .and_then(|v| v.as_object_mut())
+            {
                 ppd.insert("partyOwnerMatchScoreAllyTeam".into(), serde_json::json!(v));
             }
         }
         if let Some(v) = params["partyOwnerMatchScoreEnemyTeam"].as_u64() {
             obj.insert("partyOwnerMatchScoreEnemyTeam".into(), serde_json::json!(v));
-            if let Some(ppd) = obj.get_mut("partyPresenceData").and_then(|v| v.as_object_mut()) {
+            if let Some(ppd) = obj
+                .get_mut("partyPresenceData")
+                .and_then(|v| v.as_object_mut())
+            {
                 ppd.insert("partyOwnerMatchScoreEnemyTeam".into(), serde_json::json!(v));
             }
         }
 
-        if let Some(prem) = obj.get_mut("premierPresenceData").and_then(|v| v.as_object_mut()) {
-            if let Some(v) = params["premierDivision"].as_u64() { prem.insert("division".into(), serde_json::json!(v)); }
-            if let Some(v) = params["premierTag"].as_str().filter(|s| !s.is_empty()) { prem.insert("rosterTag".into(), serde_json::json!(v)); }
-            if let Some(v) = params["rosterName"].as_str().filter(|s| !s.is_empty()) { prem.insert("rosterName".into(), serde_json::json!(v)); }
-            if let Some(v) = params["premierScore"].as_u64() { prem.insert("score".into(), serde_json::json!(v)); }
-            if let Some(v) = params["rosterType"].as_str() { prem.insert("rosterType".into(), serde_json::json!(v)); }
+        if let Some(prem) = obj
+            .get_mut("premierPresenceData")
+            .and_then(|v| v.as_object_mut())
+        {
+            if let Some(v) = params["premierDivision"].as_u64() {
+                prem.insert("division".into(), serde_json::json!(v));
+            }
+            if let Some(v) = params["premierTag"].as_str().filter(|s| !s.is_empty()) {
+                prem.insert("rosterTag".into(), serde_json::json!(v));
+            }
+            if let Some(v) = params["rosterName"].as_str().filter(|s| !s.is_empty()) {
+                prem.insert("rosterName".into(), serde_json::json!(v));
+            }
+            if let Some(v) = params["premierScore"].as_u64() {
+                prem.insert("score".into(), serde_json::json!(v));
+            }
+            if let Some(v) = params["rosterType"].as_str() {
+                prem.insert("rosterType".into(), serde_json::json!(v));
+            }
         }
     }
 
@@ -654,7 +827,16 @@ pub fn xmpp_send_fake_presence(state: &Mutex<XmppState>, riot_state: &Mutex<supe
         let stream = sg.as_mut().ok_or("No stream")?;
         xmpp_write(stream, &xml)?;
     }
-    add_log(&mut s.logs, "sent", &format!("[FAKE PRESENCE] show={} tier={} xml_len={}", show, valorant_data["playerPresenceData"]["competitiveTier"], xml.len()));
+    add_log(
+        &mut s.logs,
+        "sent",
+        &format!(
+            "[FAKE PRESENCE] show={} tier={} xml_len={}",
+            show,
+            valorant_data["playerPresenceData"]["competitiveTier"],
+            xml.len()
+        ),
+    );
     add_log(&mut s.logs, "debug", &xml);
     Ok(())
 }
@@ -665,19 +847,26 @@ pub fn xmpp_get_status(state: &Mutex<XmppState>) -> String {
         Err(_) => return serde_json::json!({"connected": false}).to_string(),
     };
 
-    let uptime = s.connected_at
+    let uptime = s
+        .connected_at
         .filter(|_| s.connected)
         .map(|t| t.elapsed().as_secs())
         .unwrap_or(0);
 
-    let real_card = s.real_valorant_data.as_ref()
+    let real_card = s
+        .real_valorant_data
+        .as_ref()
         .and_then(|d| d["playerPresenceData"]["playerCardId"].as_str())
         .unwrap_or("");
-    let real_title = s.real_valorant_data.as_ref()
+    let real_title = s
+        .real_valorant_data
+        .as_ref()
         .and_then(|d| d["playerPresenceData"]["playerTitleId"].as_str())
         .unwrap_or("");
 
-    let premier_data = s.real_valorant_data.as_ref()
+    let premier_data = s
+        .real_valorant_data
+        .as_ref()
         .and_then(|d| d.get("premierPresenceData"))
         .cloned()
         .unwrap_or(serde_json::json!(null));
@@ -691,7 +880,8 @@ pub fn xmpp_get_status(state: &Mutex<XmppState>) -> String {
         "realCardId": real_card,
         "realTitleId": real_title,
         "premierData": premier_data,
-    }).to_string()
+    })
+    .to_string()
 }
 
 pub fn xmpp_get_logs(state: &Mutex<XmppState>) -> String {
@@ -700,13 +890,17 @@ pub fn xmpp_get_logs(state: &Mutex<XmppState>) -> String {
         Err(_) => return "[]".to_string(),
     };
 
-    let logs: Vec<serde_json::Value> = s.logs.iter().map(|l| {
-        serde_json::json!({
-            "direction": l.direction,
-            "data": l.data,
-            "timestamp": l.timestamp,
+    let logs: Vec<serde_json::Value> = s
+        .logs
+        .iter()
+        .map(|l| {
+            serde_json::json!({
+                "direction": l.direction,
+                "data": l.data,
+                "timestamp": l.timestamp,
+            })
         })
-    }).collect();
+        .collect();
 
     serde_json::json!(logs).to_string()
 }

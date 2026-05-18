@@ -16,18 +16,32 @@ export default function Tooltip({ text, children }) {
 
   return (
     <>
-      <span ref={triggerRef} onMouseEnter={handleEnter} onMouseLeave={() => setShow(false)} className="inline-flex">
+      <span
+        ref={triggerRef}
+        onMouseEnter={handleEnter}
+        onMouseLeave={() => setShow(false)}
+        className="inline-flex"
+      >
         {children}
       </span>
-      {show && createPortal(
-        <div
-          style={{ position: "fixed", left: pos.x, top: pos.y, transform: "translate(-50%, -100%)", marginTop: -6, pointerEvents: "none", zIndex: 9999 }}
-          className="px-2 py-1 rounded bg-base-900 border border-border text-[10px] font-body text-text-secondary whitespace-nowrap shadow-lg"
-        >
-          {text}
-        </div>,
-        document.body
-      )}
+      {show &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              left: pos.x,
+              top: pos.y,
+              transform: "translate(-50%, -100%)",
+              marginTop: -6,
+              pointerEvents: "none",
+              zIndex: 9999,
+            }}
+            className="px-2 py-1 rounded bg-base-900 border border-border text-[10px] font-body text-text-secondary whitespace-nowrap shadow-lg"
+          >
+            {text}
+          </div>,
+          document.body
+        )}
     </>
   );
 }

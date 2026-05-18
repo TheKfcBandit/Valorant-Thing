@@ -5,7 +5,8 @@ export const CUSTOM_AGENTS = [
     displayIcon: "/agents/miks.png",
     role: {
       displayName: "Controller",
-      displayIcon: "https://media.valorant-api.com/agents/roles/4ee40330-ecdd-4f2f-98a8-eb1243428373/displayicon.png",
+      displayIcon:
+        "https://media.valorant-api.com/agents/roles/4ee40330-ecdd-4f2f-98a8-eb1243428373/displayicon.png",
     },
     isPlayableCharacter: true,
   },

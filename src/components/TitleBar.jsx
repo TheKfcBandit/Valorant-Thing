@@ -22,7 +22,8 @@ export default function TitleBar({ simplifiedTheme = true, minimizeToTray = fals
         <div
           className="w-6 h-6 rounded-[6px] flex items-center justify-center shrink-0"
           style={{
-            background: "linear-gradient(135deg, rgb(var(--val-red)) 0%, color-mix(in srgb, rgb(var(--val-red)) 45%, black) 64%, color-mix(in srgb, rgb(var(--val-red)) 5%, black) 100%)",
+            background:
+              "linear-gradient(135deg, rgb(var(--val-red)) 0%, color-mix(in srgb, rgb(var(--val-red)) 45%, black) 64%, color-mix(in srgb, rgb(var(--val-red)) 5%, black) 100%)",
             boxShadow: "0 2px 6px rgba(0,0,0,0.5), 0 0 0 0.5px rgba(255,255,255,0.08) inset",
           }}
         >
@@ -65,7 +66,12 @@ export default function TitleBar({ simplifiedTheme = true, minimizeToTray = fals
           title="Close"
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <path
+              d="M2.5 2.5l7 7M9.5 2.5l-7 7"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
           </svg>
         </button>
       </div>

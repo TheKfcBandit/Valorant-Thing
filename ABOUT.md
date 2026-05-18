@@ -37,46 +37,46 @@
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Desktop framework | **Tauri v2** (Rust backend + webview frontend) |
-| Backend language | **Rust** (2021 edition) |
-| Frontend framework | **React 18** (functional components, hooks only) |
-| Bundler | **Vite** (port 1420 for dev) |
-| Styling | **Tailwind CSS** with CSS custom properties for theming |
-| Animations | **framer-motion** (`motion.div`, `AnimatePresence`, `MotionConfig`) |
-| Icons | Inline SVGs everywhere (no icon library) |
-| Fonts | `Chakra Petch` (display/headings), `IBM Plex Sans` (body) |
-| Package manager | **npm** |
-| Installer | **NSIS** (Windows .exe setup) |
+| Layer              | Technology                                                          |
+| ------------------ | ------------------------------------------------------------------- |
+| Desktop framework  | **Tauri v2** (Rust backend + webview frontend)                      |
+| Backend language   | **Rust** (2021 edition)                                             |
+| Frontend framework | **React 18** (functional components, hooks only)                    |
+| Bundler            | **Vite** (port 1420 for dev)                                        |
+| Styling            | **Tailwind CSS** with CSS custom properties for theming             |
+| Animations         | **framer-motion** (`motion.div`, `AnimatePresence`, `MotionConfig`) |
+| Icons              | Inline SVGs everywhere (no icon library)                            |
+| Fonts              | `Chakra Petch` (display/headings), `IBM Plex Sans` (body)           |
+| Package manager    | **npm**                                                             |
+| Installer          | **NSIS** (Windows .exe setup)                                       |
 
 ### Key Rust Crates
 
-| Crate | Purpose |
-|-------|---------|
-| `tauri` | App framework (features: `protocol-asset`, `tray-icon`, `devtools`) |
-| `tauri-plugin-autostart` | Start with Windows |
-| `tauri-plugin-notification` | System tray notifications |
-| `tauri-plugin-shell` | Open URLs in browser |
-| `tauri-plugin-dialog` | File picker dialogs |
-| `tauri-plugin-fs` | File system access from frontend |
-| `serde` / `serde_json` | JSON serialization |
-| `base64` | Encoding/decoding tokens and presence data |
-| `regex` | Parsing ShooterGame.log for region/shard |
-| `native-tls` | TLS for XMPP connections |
-| `discord-rich-presence` | Discord IPC for Rich Presence |
-| `reqwest` | HTTP client for cloud API requests (features: `json`, `native-tls`) |
-| `tokio` | Async runtime (features: `full`) |
-| `tauri-plugin-global-shortcut` | Global keyboard shortcuts (dodge keybind) |
+| Crate                          | Purpose                                                             |
+| ------------------------------ | ------------------------------------------------------------------- |
+| `tauri`                        | App framework (features: `protocol-asset`, `tray-icon`, `devtools`) |
+| `tauri-plugin-autostart`       | Start with Windows                                                  |
+| `tauri-plugin-notification`    | System tray notifications                                           |
+| `tauri-plugin-shell`           | Open URLs in browser                                                |
+| `tauri-plugin-dialog`          | File picker dialogs                                                 |
+| `tauri-plugin-fs`              | File system access from frontend                                    |
+| `serde` / `serde_json`         | JSON serialization                                                  |
+| `base64`                       | Encoding/decoding tokens and presence data                          |
+| `regex`                        | Parsing ShooterGame.log for region/shard                            |
+| `native-tls`                   | TLS for XMPP connections                                            |
+| `discord-rich-presence`        | Discord IPC for Rich Presence                                       |
+| `reqwest`                      | HTTP client for cloud API requests (features: `json`, `native-tls`) |
+| `tokio`                        | Async runtime (features: `full`)                                    |
+| `tauri-plugin-global-shortcut` | Global keyboard shortcuts (dodge keybind)                           |
 
 ### Key npm Packages
 
-| Package | Purpose |
-|---------|---------|
-| `@tauri-apps/api` | Invoke Rust commands, window management |
+| Package                | Purpose                                    |
+| ---------------------- | ------------------------------------------ |
+| `@tauri-apps/api`      | Invoke Rust commands, window management    |
 | `@tauri-apps/plugin-*` | Autostart, shell, notification, dialog, fs |
-| `framer-motion` | Animation library |
-| `react-colorful` | Color picker for custom themes |
+| `framer-motion`        | Animation library                          |
+| `react-colorful`       | Color picker for custom themes             |
 
 ---
 
@@ -200,6 +200,7 @@ Then run `npm install --package-lock-only` to sync `package-lock.json`.
 6. Registers all `#[tauri::command]` handlers via `tauri::generate_handler![]`.
 
 **Pattern for async commands:** Almost every async command follows the same pattern:
+
 ```rust
 #[tauri::command]
 async fn some_command(state: tauri::State<'_, SharedState>) -> Result<T, String> {
@@ -209,6 +210,7 @@ async fn some_command(state: tauri::State<'_, SharedState>) -> Result<T, String>
         .map_err(|e| format!("Task failed: {}", e))?
 }
 ```
+
 This is because all Riot API calls use `node` subprocess spawning which is blocking I/O, so they must run on `spawn_blocking`.
 
 ### Module Layout (`src/riot/`)
@@ -232,6 +234,7 @@ riot/
 **Critical design decision:** All HTTP requests are made by spawning a `node -e "<inline JS script>"` subprocess. This is because Rust's native TLS doesn't easily handle Riot's local API (self-signed cert on `127.0.0.1`), and Node's `https` module with `rejectUnauthorized: false` handles it cleanly.
 
 Every HTTP function:
+
 1. Constructs an inline Node.js script string.
 2. Spawns `node -e` with `creation_flags(0x08000000)` on Windows (to hide the console window).
 3. Reads stdout as the response body, stderr as debug/error info.
@@ -239,29 +242,31 @@ Every HTTP function:
 
 **HTTP Functions:**
 
-| Function | Target | Purpose |
-|----------|--------|---------|
-| `local_get(port, auth, path)` | `https://127.0.0.1:{port}` | Riot Client local API (lockfile auth) |
-| `local_put(port, auth, path, body)` | Same | PUT to local API |
-| `https_get(url)` | Any HTTPS URL | Simple unauthenticated GET |
-| `authed_get(url, access_token)` | Any URL | GET with Bearer token |
-| `authed_get_with_entitlements(url, access_token, entitlements)` | Any URL | GET with Bearer + X-Riot-Entitlements-JWT |
-| `pd_get(shard, path, ...)` | `https://pd.{shard}.a.pvp.net` | Valorant PD (Player Data) API |
-| `pd_put(shard, path, body, ...)` | Same | PUT to PD API |
-| `pd_batch_get(shard, paths, ...)` | Same | Parallel GET for multiple PD paths (uses Promise.all in Node) |
-| `glz_get(region, shard, path, ...)` | `https://glz-{region}-1.{shard}.a.pvp.net` | Valorant GLZ (Game Logic Zone) API |
-| `glz_post(region, shard, path, ...)` | Same | POST (empty body) |
-| `glz_post_body(region, shard, path, body, ...)` | Same | POST with JSON body |
-| `glz_delete(region, shard, path, ...)` | Same | DELETE |
-| `henrik_api_get(path, api_key)` | `https://api.henrikdev.xyz` | Henrik's third-party Valorant API |
+| Function                                                        | Target                                     | Purpose                                                       |
+| --------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------- |
+| `local_get(port, auth, path)`                                   | `https://127.0.0.1:{port}`                 | Riot Client local API (lockfile auth)                         |
+| `local_put(port, auth, path, body)`                             | Same                                       | PUT to local API                                              |
+| `https_get(url)`                                                | Any HTTPS URL                              | Simple unauthenticated GET                                    |
+| `authed_get(url, access_token)`                                 | Any URL                                    | GET with Bearer token                                         |
+| `authed_get_with_entitlements(url, access_token, entitlements)` | Any URL                                    | GET with Bearer + X-Riot-Entitlements-JWT                     |
+| `pd_get(shard, path, ...)`                                      | `https://pd.{shard}.a.pvp.net`             | Valorant PD (Player Data) API                                 |
+| `pd_put(shard, path, body, ...)`                                | Same                                       | PUT to PD API                                                 |
+| `pd_batch_get(shard, paths, ...)`                               | Same                                       | Parallel GET for multiple PD paths (uses Promise.all in Node) |
+| `glz_get(region, shard, path, ...)`                             | `https://glz-{region}-1.{shard}.a.pvp.net` | Valorant GLZ (Game Logic Zone) API                            |
+| `glz_post(region, shard, path, ...)`                            | Same                                       | POST (empty body)                                             |
+| `glz_post_body(region, shard, path, body, ...)`                 | Same                                       | POST with JSON body                                           |
+| `glz_delete(region, shard, path, ...)`                          | Same                                       | DELETE                                                        |
+| `henrik_api_get(path, api_key)`                                 | `https://api.henrikdev.xyz`                | Henrik's third-party Valorant API                             |
 
 **Auth headers pattern:** All authenticated Riot API calls need:
+
 - `Authorization: Bearer {access_token}`
 - `X-Riot-Entitlements-JWT: {entitlements}`
 - `X-Riot-ClientPlatform: {PLATFORM}` (base64-encoded static JSON)
 - `X-Riot-ClientVersion: {client_version}` (fetched from valorant-api.com)
 
 **Helper functions in `game.rs`:**
+
 - `get_local_creds(state)` → extracts `(port, local_auth)` from ConnectionState
 - `get_glz_creds(state)` → extracts `(access_token, entitlements, puuid, region, shard, client_version)`
 
@@ -270,6 +275,7 @@ These are the standard way to extract credentials before making API calls. Alway
 ### Connection Lifecycle (`connection.rs`)
 
 #### Connect Flow (`connect_and_store`)
+
 1. Read lockfile from `%LOCALAPPDATA%\Riot Games\Riot Client\Config\lockfile` → get PID, port, password.
 2. Verify PID is alive via `tasklist`.
 3. Build Basic auth: `Base64("riot:{password}")`.
@@ -281,6 +287,7 @@ These are the standard way to extract credentials before making API calls. Alway
 9. Store everything in `ConnectionState`, set `connected = true`, record `token_fetched_at`.
 
 #### Health Check (runs every 10s from frontend)
+
 1. If not connected → return None.
 2. Check if Riot Client is still running (lockfile + PID alive).
 3. If token is >600s old → refresh via `refresh_tokens()`.
@@ -288,49 +295,51 @@ These are the standard way to extract credentials before making API calls. Alway
 5. If validation fails → try refresh → if refresh fails → disconnect.
 
 #### Token Refresh (`refresh_tokens`)
+
 Re-reads the lockfile and fetches fresh tokens from `/entitlements/v1/token`. Updates `ConnectionState` in-place.
 
 ### Game Actions (`game.rs`)
 
-| Function | API | What it does |
-|----------|-----|-------------|
-| `check_current_game` | GLZ `/pregame/v1/players/{puuid}` + `/core-game/v1/players/{puuid}` | Checks if in pregame or in-game, returns match data with `_phase` field |
-| `select_agent` | GLZ POST `/pregame/v1/matches/{id}/select/{agentId}` | Selects (hovers) an agent |
-| `lock_agent` | GLZ POST `/pregame/v1/matches/{id}/lock/{agentId}` | Locks in the agent |
-| `pregame_quit` | GLZ POST `/pregame/v1/matches/{id}/quit` | Dodges in agent select |
-| `coregame_quit` | GLZ POST `/core-game/v1/players/{puuid}/disassociate/{id}` | Leaves an active match |
-| `get_party` | GLZ GET party + name resolution | Returns full party info with member details |
-| `get_friends` | Local `/chat/v4/friends` + `/chat/v4/presences` | Friends list with online status and player cards |
-| `set_party_accessibility` | GLZ POST party accessibility | Open/close party |
-| `disable_party_code` | GLZ DELETE party invite code | Removes invite code |
-| `kick_from_party` | GLZ DELETE party member | Kicks a member |
-| `generate_party_code` | GLZ POST party invite code | Generates new invite code |
-| `join_party_by_code` | GLZ POST join by code | Joins party via code |
-| `enter_queue` | GLZ POST matchmaking join | Queues for a match |
-| `leave_queue` | GLZ POST matchmaking leave | Leaves the queue |
-| `get_home_stats` | PD mmr + loadout + account-xp | Gets player stats (rank, RR, peak, wins/losses, level, card) |
-| `get_match_page` | PD match-history + batch match-details | Paginated competitive match history |
-| `get_owned_agents` | PD store entitlements | List of owned agent UUIDs |
-| `get_player_mmr` | PD mmr for any player | Gets rank tier and RR for a specific player |
-| `resolve_player_names` | PD name-service | Resolves puuids to game names |
-| `check_loadout` | PD player loadout | Token validation ping |
+| Function                  | API                                                                 | What it does                                                            |
+| ------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `check_current_game`      | GLZ `/pregame/v1/players/{puuid}` + `/core-game/v1/players/{puuid}` | Checks if in pregame or in-game, returns match data with `_phase` field |
+| `select_agent`            | GLZ POST `/pregame/v1/matches/{id}/select/{agentId}`                | Selects (hovers) an agent                                               |
+| `lock_agent`              | GLZ POST `/pregame/v1/matches/{id}/lock/{agentId}`                  | Locks in the agent                                                      |
+| `pregame_quit`            | GLZ POST `/pregame/v1/matches/{id}/quit`                            | Dodges in agent select                                                  |
+| `coregame_quit`           | GLZ POST `/core-game/v1/players/{puuid}/disassociate/{id}`          | Leaves an active match                                                  |
+| `get_party`               | GLZ GET party + name resolution                                     | Returns full party info with member details                             |
+| `get_friends`             | Local `/chat/v4/friends` + `/chat/v4/presences`                     | Friends list with online status and player cards                        |
+| `set_party_accessibility` | GLZ POST party accessibility                                        | Open/close party                                                        |
+| `disable_party_code`      | GLZ DELETE party invite code                                        | Removes invite code                                                     |
+| `kick_from_party`         | GLZ DELETE party member                                             | Kicks a member                                                          |
+| `generate_party_code`     | GLZ POST party invite code                                          | Generates new invite code                                               |
+| `join_party_by_code`      | GLZ POST join by code                                               | Joins party via code                                                    |
+| `enter_queue`             | GLZ POST matchmaking join                                           | Queues for a match                                                      |
+| `leave_queue`             | GLZ POST matchmaking leave                                          | Leaves the queue                                                        |
+| `get_home_stats`          | PD mmr + loadout + account-xp                                       | Gets player stats (rank, RR, peak, wins/losses, level, card)            |
+| `get_match_page`          | PD match-history + batch match-details                              | Paginated competitive match history                                     |
+| `get_owned_agents`        | PD store entitlements                                               | List of owned agent UUIDs                                               |
+| `get_player_mmr`          | PD mmr for any player                                               | Gets rank tier and RR for a specific player                             |
+| `resolve_player_names`    | PD name-service                                                     | Resolves puuids to game names                                           |
+| `check_loadout`           | PD player loadout                                                   | Token validation ping                                                   |
 
 ### Process Detection (`process.rs`)
 
-| Function | What it does |
-|----------|-------------|
-| `read_lockfile()` | Reads `%LOCALAPPDATA%\Riot Games\Riot Client\Config\lockfile`, parses `name:pid:port:password:protocol` |
-| `is_pid_alive(pid)` | Runs `tasklist /FI "PID eq {pid}"` and checks if output contains the PID |
-| `is_riot_client_running()` | Reads lockfile + checks PID alive |
-| `is_valorant_running()` | Riot Client running AND `VALORANT-Win64-Shi` process exists |
-| `find_valorant_path()` | Reads `C:\ProgramData\Riot Games\Metadata\valorant.live\valorant.live.product_settings.yaml` for `product_install_full_path` |
-| `parse_region_shard()` | Regex on `%LOCALAPPDATA%\VALORANT\Saved\Logs\ShooterGame.log` for last GLZ URL occurrence |
+| Function                   | What it does                                                                                                                 |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `read_lockfile()`          | Reads `%LOCALAPPDATA%\Riot Games\Riot Client\Config\lockfile`, parses `name:pid:port:password:protocol`                      |
+| `is_pid_alive(pid)`        | Runs `tasklist /FI "PID eq {pid}"` and checks if output contains the PID                                                     |
+| `is_riot_client_running()` | Reads lockfile + checks PID alive                                                                                            |
+| `is_valorant_running()`    | Riot Client running AND `VALORANT-Win64-Shi` process exists                                                                  |
+| `find_valorant_path()`     | Reads `C:\ProgramData\Riot Games\Metadata\valorant.live\valorant.live.product_settings.yaml` for `product_install_full_path` |
+| `parse_region_shard()`     | Regex on `%LOCALAPPDATA%\VALORANT\Saved\Logs\ShooterGame.log` for last GLZ URL occurrence                                    |
 
 ### XMPP Fake Presence (`xmpp.rs`)
 
 XMPP is Riot's chat protocol. The app connects to Riot's XMPP server to spoof the player's in-game presence (shown to friends).
 
 #### State: `XmppState`
+
 ```rust
 pub struct XmppState {
     pub connected: bool,
@@ -346,6 +355,7 @@ pub struct XmppState {
 ```
 
 #### Connect Flow (`xmpp_connect`)
+
 1. Fetch PAS (Player Affinity Service) token via `https://riot-geo.pas.si.riotgames.com/pas/v1/service/chat`.
 2. Decode JWT payload to get `affinity` (chat server region code like `jp1`, `na1`).
 3. Fetch client config from `https://clientconfig.rpg.riotgames.com` to get actual chat host + domain.
@@ -360,6 +370,7 @@ pub struct XmppState {
 7. **Capture real presence data**: `extract_real_valorant_payload()` parses the initial burst for the player's own Valorant presence stanza, stores the base64-decoded JSON and keystone timestamp.
 
 #### Fake Presence (`xmpp_send_fake_presence`)
+
 1. Starts from `real_valorant_data` (the actual game presence captured at connect).
 2. Overrides only specific fields: `competitiveTier`, `accountLevel`, `leaderboardPosition`, `playerCardId`, `playerTitleId`, `sessionLoopState`, `queueId`, `partySize`, `maxPartySize`, scores, premier data.
 3. Re-encodes to base64 with tab-indented JSON format (`format_json_tabs`).
@@ -368,9 +379,11 @@ pub struct XmppState {
 6. Uses current timestamp for valorant `<s.t>` so the fake data takes precedence.
 
 #### Polling (`xmpp_poll`)
+
 Called from frontend every ~1s. Reads any pending data from the XMPP stream with 150ms timeout. Detects connection drops.
 
 #### Other XMPP Commands
+
 - `xmpp_disconnect` — Sends `</stream:stream>`, clears state.
 - `xmpp_send_raw` — Send arbitrary XML (debug tool).
 - `xmpp_get_status` — Returns JSON with connection status, uptime, real card/title IDs, premier data.
@@ -382,10 +395,10 @@ Called from frontend every ~1s. Reads any pending data from the XMPP stream with
 
 Handles cloud save/load for share codes (profiles, themes, configs). Uses `reqwest` for HTTP requests to `https://vt-cloud.ajaxfnc.com`.
 
-| Command | Method | Endpoint | Purpose |
-|---------|--------|----------|---------|
-| `cloud_save` | POST | `/save` | Saves data (type + JSON), returns share code (e.g. `VT-AGENT-XXXXX`) |
-| `cloud_load` | GET | `/load/{code}` | Loads data by share code, returns `{ type, data }` |
+| Command      | Method | Endpoint       | Purpose                                                              |
+| ------------ | ------ | -------------- | -------------------------------------------------------------------- |
+| `cloud_save` | POST   | `/save`        | Saves data (type + JSON), returns share code (e.g. `VT-AGENT-XXXXX`) |
+| `cloud_load` | GET    | `/load/{code}` | Loads data by share code, returns `{ type, data }`                   |
 
 These are async Tauri commands (not `spawn_blocking`) since `reqwest` is natively async. Previously these were JS `fetch()` calls in `cloud.js` — moved to Rust in v1.8.0.
 
@@ -399,7 +412,7 @@ Simple Discord Rich Presence integration via IPC pipe:
 - `update_rpc` — Updates activity with custom details, state, and image assets.
 
 The frontend updates RPC every 5s based on game state (lobby, agent select, in-game with score).
-   
+
 ### Logging (`logging.rs`)
 
 Uses a global `OnceLock<AppHandle>` initialized once at app startup. Emits Tauri events (`"backend-log"`) with `LogPayload { log_type, message }`.
@@ -411,71 +424,71 @@ Frontend listens via `listen("backend-log", ...)` in `App.jsx`, skips messages s
 
 ### Tauri Commands (Complete List)
 
-| Command | Params | Returns | Category |
-|---------|--------|---------|----------|
-| `connect` | — | `PlayerInfo` | Connection |
-| `disconnect` | — | — | Connection |
-| `get_status` | — | `String` | Connection |
-| `get_player` | — | `Option<PlayerInfo>` | Connection |
-| `health_check` | — | `Option<PlayerInfo>` | Connection |
-| `get_token_age` | — | `u64` (seconds) | Connection |
-| `is_valorant_running` | — | `bool` | Process |
-| `find_valorant_path` | — | `String` | Process |
-| `check_node_installed` | — | `bool` | Process |
-| `compute_file_hash` | `path: String` | `String` | File |
-| `force_copy_file` | `source, dest` | — | File |
-| `toggle_devtools` | — | — | Dev |
-| `exit_app` | — | — | App |
-| `check_for_update` | — | `String` (JSON) | Update |
-| `download_and_install_update` | `url, filename` | — | Update |
-| `check_current_game` | — | `String` (JSON) | Game |
-| `select_agent` | `match_id, agent_id` | `String` | Game |
-| `lock_agent` | `match_id, agent_id` | `String` | Game |
-| `pregame_quit` | `match_id` | `String` | Game |
-| `coregame_quit` | `match_id` | `String` | Game |
-| `get_owned_agents` | — | `Vec<String>` | Game |
-| `get_home_stats` | `queue_filter` | `String` (JSON) | Stats |
-| `get_match_page` | `page, page_size` | `String` (JSON) | Stats |
-| `check_loadout` | — | `String` | Stats |
-| `get_player_mmr` | `target_puuid` | `String` (JSON) | Stats |
-| `resolve_player_names` | `puuids: Vec<String>` | `String` (JSON) | Stats |
-| `henrik_get_account` | `puuid, api_key` | `String` (JSON) | Henrik |
-| `henrik_get_mmr` | `puuid, region, api_key` | `String` (JSON) | Henrik |
-| `get_party` | — | `String` (JSON) | Party |
-| `get_friends` | — | `String` (JSON) | Party |
-| `set_party_accessibility` | `open: bool` | `String` | Party |
-| `disable_party_code` | — | `String` | Party |
-| `kick_from_party` | `target_puuid` | `String` | Party |
-| `generate_party_code` | — | `String` | Party |
-| `join_party_by_code` | `code` | `String` | Party |
-| `enter_queue` | — | `String` | Queue |
-| `leave_queue` | — | `String` | Queue |
-| `start_discord_rpc` | — | — | Discord |
-| `stop_discord_rpc` | — | — | Discord |
-| `update_discord_rpc` | `details, rpc_state, large_image, large_text, small_image, small_text` | — | Discord |
-| `xmpp_connect` | — | `String` | XMPP |
-| `xmpp_disconnect` | — | — | XMPP |
-| `xmpp_poll` | — | `String` | XMPP |
-| `xmpp_get_status` | — | `String` (JSON) | XMPP |
-| `xmpp_get_logs` | — | `String` (JSON) | XMPP |
-| `xmpp_send_fake_presence` | `presence_json` | — | XMPP |
-| `xmpp_send_raw` | `data` | — | XMPP |
-| `xmpp_check_local_presences` | — | `String` (JSON) | XMPP |
-| `local_api_discover` | — | `String` (JSON) | XMPP |
-| `get_app_version` | — | `String` | App |
-| `show_window_no_focus` | `label` | — | Window |
-| `cloud_save` | `save_type, data` | `String` (code) | Cloud |
-| `cloud_load` | `code` | `Value` (JSON) | Cloud |
-| `change_queue` | `queue_id` | `String` | Game |
-| `get_custom_configs` | — | `String` (JSON) | Game |
-| `set_custom_settings` | `map, mode, pod, ...` | `String` | Game |
-| `start_custom_game_match` | — | `String` | Game |
-| `get_chat_conversations` | — | `String` (JSON) | Chat |
-| `get_chat_messages` | `cid` | `String` (JSON) | Chat |
-| `send_chat_message` | `cid, message, msg_type` | `String` | Chat |
-| `get_chat_participants` | `cid` | `String` (JSON) | Chat |
-| `invite_to_party` | `target_puuid` | `String` | Party |
-| `request_to_join_party` | `target_puuid` | `String` | Party |
+| Command                       | Params                                                                 | Returns              | Category   |
+| ----------------------------- | ---------------------------------------------------------------------- | -------------------- | ---------- |
+| `connect`                     | —                                                                      | `PlayerInfo`         | Connection |
+| `disconnect`                  | —                                                                      | —                    | Connection |
+| `get_status`                  | —                                                                      | `String`             | Connection |
+| `get_player`                  | —                                                                      | `Option<PlayerInfo>` | Connection |
+| `health_check`                | —                                                                      | `Option<PlayerInfo>` | Connection |
+| `get_token_age`               | —                                                                      | `u64` (seconds)      | Connection |
+| `is_valorant_running`         | —                                                                      | `bool`               | Process    |
+| `find_valorant_path`          | —                                                                      | `String`             | Process    |
+| `check_node_installed`        | —                                                                      | `bool`               | Process    |
+| `compute_file_hash`           | `path: String`                                                         | `String`             | File       |
+| `force_copy_file`             | `source, dest`                                                         | —                    | File       |
+| `toggle_devtools`             | —                                                                      | —                    | Dev        |
+| `exit_app`                    | —                                                                      | —                    | App        |
+| `check_for_update`            | —                                                                      | `String` (JSON)      | Update     |
+| `download_and_install_update` | `url, filename`                                                        | —                    | Update     |
+| `check_current_game`          | —                                                                      | `String` (JSON)      | Game       |
+| `select_agent`                | `match_id, agent_id`                                                   | `String`             | Game       |
+| `lock_agent`                  | `match_id, agent_id`                                                   | `String`             | Game       |
+| `pregame_quit`                | `match_id`                                                             | `String`             | Game       |
+| `coregame_quit`               | `match_id`                                                             | `String`             | Game       |
+| `get_owned_agents`            | —                                                                      | `Vec<String>`        | Game       |
+| `get_home_stats`              | `queue_filter`                                                         | `String` (JSON)      | Stats      |
+| `get_match_page`              | `page, page_size`                                                      | `String` (JSON)      | Stats      |
+| `check_loadout`               | —                                                                      | `String`             | Stats      |
+| `get_player_mmr`              | `target_puuid`                                                         | `String` (JSON)      | Stats      |
+| `resolve_player_names`        | `puuids: Vec<String>`                                                  | `String` (JSON)      | Stats      |
+| `henrik_get_account`          | `puuid, api_key`                                                       | `String` (JSON)      | Henrik     |
+| `henrik_get_mmr`              | `puuid, region, api_key`                                               | `String` (JSON)      | Henrik     |
+| `get_party`                   | —                                                                      | `String` (JSON)      | Party      |
+| `get_friends`                 | —                                                                      | `String` (JSON)      | Party      |
+| `set_party_accessibility`     | `open: bool`                                                           | `String`             | Party      |
+| `disable_party_code`          | —                                                                      | `String`             | Party      |
+| `kick_from_party`             | `target_puuid`                                                         | `String`             | Party      |
+| `generate_party_code`         | —                                                                      | `String`             | Party      |
+| `join_party_by_code`          | `code`                                                                 | `String`             | Party      |
+| `enter_queue`                 | —                                                                      | `String`             | Queue      |
+| `leave_queue`                 | —                                                                      | `String`             | Queue      |
+| `start_discord_rpc`           | —                                                                      | —                    | Discord    |
+| `stop_discord_rpc`            | —                                                                      | —                    | Discord    |
+| `update_discord_rpc`          | `details, rpc_state, large_image, large_text, small_image, small_text` | —                    | Discord    |
+| `xmpp_connect`                | —                                                                      | `String`             | XMPP       |
+| `xmpp_disconnect`             | —                                                                      | —                    | XMPP       |
+| `xmpp_poll`                   | —                                                                      | `String`             | XMPP       |
+| `xmpp_get_status`             | —                                                                      | `String` (JSON)      | XMPP       |
+| `xmpp_get_logs`               | —                                                                      | `String` (JSON)      | XMPP       |
+| `xmpp_send_fake_presence`     | `presence_json`                                                        | —                    | XMPP       |
+| `xmpp_send_raw`               | `data`                                                                 | —                    | XMPP       |
+| `xmpp_check_local_presences`  | —                                                                      | `String` (JSON)      | XMPP       |
+| `local_api_discover`          | —                                                                      | `String` (JSON)      | XMPP       |
+| `get_app_version`             | —                                                                      | `String`             | App        |
+| `show_window_no_focus`        | `label`                                                                | —                    | Window     |
+| `cloud_save`                  | `save_type, data`                                                      | `String` (code)      | Cloud      |
+| `cloud_load`                  | `code`                                                                 | `Value` (JSON)       | Cloud      |
+| `change_queue`                | `queue_id`                                                             | `String`             | Game       |
+| `get_custom_configs`          | —                                                                      | `String` (JSON)      | Game       |
+| `set_custom_settings`         | `map, mode, pod, ...`                                                  | `String`             | Game       |
+| `start_custom_game_match`     | —                                                                      | `String`             | Game       |
+| `get_chat_conversations`      | —                                                                      | `String` (JSON)      | Chat       |
+| `get_chat_messages`           | `cid`                                                                  | `String` (JSON)      | Chat       |
+| `send_chat_message`           | `cid, message, msg_type`                                               | `String`             | Chat       |
+| `get_chat_participants`       | `cid`                                                                  | `String` (JSON)      | Chat       |
+| `invite_to_party`             | `target_puuid`                                                         | `String`             | Party      |
+| `request_to_join_party`       | `target_puuid`                                                         | `String`             | Party      |
 
 ---
 
@@ -487,58 +500,58 @@ Frontend listens via `listen("backend-log", ...)` in `App.jsx`, skips messages s
 
 #### State Variables (all declared with `useState`)
 
-| State | Type | Persistence | Purpose |
-|-------|------|-------------|---------|
-| `status` | `"waiting"` / `"connecting"` / `"connected"` / `"disconnected"` | — | Connection status |
-| `player` | `PlayerInfo \| null` | — | Current player info |
-| `activeTab` | string | — | Current sidebar tab |
-| `showLogs` | bool | `show_logs` | Show Logs tab in sidebar |
-| `devTab` | bool | `dev_tab_enabled` | Show Dev tab in sidebar |
-| `theme` | string | `app_theme` | Current theme name |
-| `simplifiedTheme` | bool | `simplified_theme` | Use solid bg vs gradient |
-| `customTheme` | object | `custom_theme` | Custom theme config |
-| `discordRpc` | bool | `discord_rpc` | Discord RPC enabled |
-| `startWithWindows` | bool | `start_with_windows` | Autostart |
-| `startMinimized` | bool | `start_minimized` | Start in tray |
-| `minimizeToTray` | bool | `minimize_to_tray` | Minimize to tray vs taskbar |
-| `closeWithGame` | bool | `close_with_game` | Exit when Valorant closes |
-| `disableAnimations` | bool | `disable_animations` | Disable all animations |
-| `nodeInstalled` | bool | — | Node.js availability |
-| `updateInfo` | object | — | Available update data |
-| `updating` | bool | — | Update download in progress |
-| `fakeStatusUnsaved` | bool | — | Track unsaved fake status changes |
-| `unsavedModal` | string \| null | — | Pending tab for unsaved changes modal |
-| `logs` | array | — | Application logs (max 200) |
-| `instalockActive` | bool | — | Instalock feature active |
-| `splooshimaApiKey` | string | `splooshima_api_key` | Splooshima API key |
-| `mapDodgeActive` | bool | — | Map dodge feature active |
-| `notificationsEnabled` | bool | `notifications_enabled` | Enable notification overlays |
-| `notificationPosition` | string | `notification_position` | Notification position (top-right, etc.) |
-| `notificationScreen` | string | `notification_screen` | Which monitor shows notifications |
-| `pregameMatchId` | string | — | Current pregame match ID |
-| `autoUnqueue` | bool | `auto_unqueue` | Auto leave queue after dodge |
-| `autoRequeue` | bool | `auto_requeue` | Auto requeue after match end |
-| `selectDelay` | number | `instalock_select_delay` | ms delay before selecting agent |
-| `lockDelay` | number | `instalock_lock_delay` | ms delay before locking agent |
+| State                  | Type                                                            | Persistence              | Purpose                                 |
+| ---------------------- | --------------------------------------------------------------- | ------------------------ | --------------------------------------- |
+| `status`               | `"waiting"` / `"connecting"` / `"connected"` / `"disconnected"` | —                        | Connection status                       |
+| `player`               | `PlayerInfo \| null`                                            | —                        | Current player info                     |
+| `activeTab`            | string                                                          | —                        | Current sidebar tab                     |
+| `showLogs`             | bool                                                            | `show_logs`              | Show Logs tab in sidebar                |
+| `devTab`               | bool                                                            | `dev_tab_enabled`        | Show Dev tab in sidebar                 |
+| `theme`                | string                                                          | `app_theme`              | Current theme name                      |
+| `simplifiedTheme`      | bool                                                            | `simplified_theme`       | Use solid bg vs gradient                |
+| `customTheme`          | object                                                          | `custom_theme`           | Custom theme config                     |
+| `discordRpc`           | bool                                                            | `discord_rpc`            | Discord RPC enabled                     |
+| `startWithWindows`     | bool                                                            | `start_with_windows`     | Autostart                               |
+| `startMinimized`       | bool                                                            | `start_minimized`        | Start in tray                           |
+| `minimizeToTray`       | bool                                                            | `minimize_to_tray`       | Minimize to tray vs taskbar             |
+| `closeWithGame`        | bool                                                            | `close_with_game`        | Exit when Valorant closes               |
+| `disableAnimations`    | bool                                                            | `disable_animations`     | Disable all animations                  |
+| `nodeInstalled`        | bool                                                            | —                        | Node.js availability                    |
+| `updateInfo`           | object                                                          | —                        | Available update data                   |
+| `updating`             | bool                                                            | —                        | Update download in progress             |
+| `fakeStatusUnsaved`    | bool                                                            | —                        | Track unsaved fake status changes       |
+| `unsavedModal`         | string \| null                                                  | —                        | Pending tab for unsaved changes modal   |
+| `logs`                 | array                                                           | —                        | Application logs (max 200)              |
+| `instalockActive`      | bool                                                            | —                        | Instalock feature active                |
+| `splooshimaApiKey`     | string                                                          | `splooshima_api_key`     | Splooshima API key                      |
+| `mapDodgeActive`       | bool                                                            | —                        | Map dodge feature active                |
+| `notificationsEnabled` | bool                                                            | `notifications_enabled`  | Enable notification overlays            |
+| `notificationPosition` | string                                                          | `notification_position`  | Notification position (top-right, etc.) |
+| `notificationScreen`   | string                                                          | `notification_screen`    | Which monitor shows notifications       |
+| `pregameMatchId`       | string                                                          | —                        | Current pregame match ID                |
+| `autoUnqueue`          | bool                                                            | `auto_unqueue`           | Auto leave queue after dodge            |
+| `autoRequeue`          | bool                                                            | `auto_requeue`           | Auto requeue after match end            |
+| `selectDelay`          | number                                                          | `instalock_select_delay` | ms delay before selecting agent         |
+| `lockDelay`            | number                                                          | `instalock_lock_delay`   | ms delay before locking agent           |
 
 #### Key Refs
 
-| Ref | Purpose |
-|-----|---------|
-| `connectingRef` | Prevents concurrent connect attempts |
-| `instalockConfigRef` | Current instalock config (avoids re-render on config change) |
-| `lockedMatchRef` | Match ID that has already been auto-locked (prevents double-lock) |
-| `lockedAgentNameRef` | Name of locked agent (for RPC display) |
-| `mapDodgeRef` | Current dodge config (blacklist Set + maps array) |
-| `dodgedMatchRef` | Match ID already auto-dodged |
-| `gamePhaseRef` | Current game phase: `"pregame"` / `"ingame"` / `null` |
-| `rpcMatchInfoRef` | In-game score data for Discord RPC |
-| `pendingUnqueueRef` | Pending auto-unqueue action |
-| `pendingRequeueRef` | Pending auto-requeue action |
-| `notifWindowRef` | Reference to the notification overlay WebviewWindow |
-| `fakeStatusActionRef` | Ref to FakeStatusPage's save/discard actions (for unsaved modal) |
-| `mapLookupRef` | Map URL → map data lookup (for notification map names) |
-| `notifiedMatchRef` | Match ID already notified (prevents duplicate notifications) |
+| Ref                   | Purpose                                                           |
+| --------------------- | ----------------------------------------------------------------- |
+| `connectingRef`       | Prevents concurrent connect attempts                              |
+| `instalockConfigRef`  | Current instalock config (avoids re-render on config change)      |
+| `lockedMatchRef`      | Match ID that has already been auto-locked (prevents double-lock) |
+| `lockedAgentNameRef`  | Name of locked agent (for RPC display)                            |
+| `mapDodgeRef`         | Current dodge config (blacklist Set + maps array)                 |
+| `dodgedMatchRef`      | Match ID already auto-dodged                                      |
+| `gamePhaseRef`        | Current game phase: `"pregame"` / `"ingame"` / `null`             |
+| `rpcMatchInfoRef`     | In-game score data for Discord RPC                                |
+| `pendingUnqueueRef`   | Pending auto-unqueue action                                       |
+| `pendingRequeueRef`   | Pending auto-requeue action                                       |
+| `notifWindowRef`      | Reference to the notification overlay WebviewWindow               |
+| `fakeStatusActionRef` | Ref to FakeStatusPage's save/discard actions (for unsaved modal)  |
+| `mapLookupRef`        | Map URL → map data lookup (for notification map names)            |
+| `notifiedMatchRef`    | Match ID already notified (prevents duplicate notifications)      |
 
 #### Core Loops (useEffect intervals)
 
@@ -565,6 +578,7 @@ Pages use `AnimatePresence mode="wait"` for tab transitions. Each page is wrappe
 ### Page Components
 
 #### HomePage.jsx
+
 - Shows player card (wide art), rank, RR, level, peak rank.
 - Win/loss stats with bar chart.
 - Competitive match history (paginated, 25 per page).
@@ -573,6 +587,7 @@ Pages use `AnimatePresence mode="wait"` for tab transitions. Each page is wrappe
 - Fetches map data from `valorant-api.com/v1/maps` (cached in module-level `mapCache`).
 
 #### InstalockPage.jsx
+
 - Two sub-tabs: "All Agents" (global default) and "Per-Map" selection.
 - Fetches agents from `valorant-api.com/v1/agents` and maps from `valorant-api.com/v1/maps`.
 - **Role filter bar** — ALL / Duelist / Initiator / Controller / Sentinel buttons with official Valorant role icons from the API.
@@ -587,6 +602,7 @@ Pages use `AnimatePresence mode="wait"` for tab transitions. Each page is wrappe
 - Toggle switch activates/deactivates the feature.
 
 #### MapDodgePage.jsx
+
 - Maps split into **Standard Maps** and **Deathmatch Maps** sections with headers (map icon / crosshair icon + label + divider line).
 - `DM_MAPS` constant: `Set(["Kasbah", "Glitch", "Drift", "Piazza", "District"])`.
 - Toggle per map to add to blacklist.
@@ -595,6 +611,7 @@ Pages use `AnimatePresence mode="wait"` for tab transitions. Each page is wrappe
 - Blacklisted maps shown with red border and crossed-out styling.
 
 #### FakeStatusPage.jsx (~690 lines)
+
 - XMPP-based presence spoofing UI.
 - Four sections: **Status** (online/away/hidden), **Rank & Identity**, **Game State**, **Premier**.
 - On enable: connects XMPP, then sends fake presence every 3s via `setInterval`.
@@ -608,6 +625,7 @@ Pages use `AnimatePresence mode="wait"` for tab transitions. Each page is wrappe
 - Auto-starts XMPP if `fakestatus_enabled` was set in a previous session.
 
 #### PartyPage.jsx
+
 - Shows current party members with cards, ranks, levels.
 - Party management: kick members, open/close party, generate/disable invite code.
 - Friends list with online status, sorted online-first then alphabetical.
@@ -616,12 +634,14 @@ Pages use `AnimatePresence mode="wait"` for tab transitions. Each page is wrappe
 - Detects party leader for permission-gating kick/invite controls.
 
 #### ChatPage.jsx
+
 - In-game chat system using Riot's local chat API.
 - Shows conversations list, messages per conversation, and participants.
 - Send messages to conversations.
 - Uses `get_chat_conversations`, `get_chat_messages`, `send_chat_message`, `get_chat_participants` commands.
 
 #### MatchInfoPage.jsx
+
 - Polls `check_current_game` every 5s when connected.
 - Pregame: shows agent select state with team composition.
 - In-game: shows both teams with player info.
@@ -630,6 +650,7 @@ Pages use `AnimatePresence mode="wait"` for tab transitions. Each page is wrappe
 - Rank images from `valorant-api.com/v1/competitivetiers`.
 
 #### MiscPage.jsx
+
 - **Menu Video Customization**: Replace Valorant's main menu background video.
   - Auto-detects Valorant install path via `find_valorant_path`.
   - Backs up original video before first replacement.
@@ -640,6 +661,7 @@ Pages use `AnimatePresence mode="wait"` for tab transitions. Each page is wrappe
 - **Queue Automation**: Toggle switches for auto-unqueue (after dodge) and auto-requeue (after match).
 
 #### SettingsPage.jsx
+
 - **Timing**: Instalock select delay and lock delay sliders (0-2000ms).
 - **API Key**: Input field for Splooshima API key.
 - **Behavior**: Start with Windows, start minimized, minimize to tray, close with game.
@@ -651,11 +673,13 @@ Pages use `AnimatePresence mode="wait"` for tab transitions. Each page is wrappe
 - **About section**: Shows current version string (fetched via `get_app_version` command).
 
 #### LogsPage.jsx
+
 - Displays app logs with timestamps, type badges (INFO/ERR/MATCH), click-to-copy.
 - Auto-scrolls to bottom on new entries.
 - Clear button resets logs.
 
 #### DevPage.jsx
+
 - **Hidden by default** — Enable via `__VT_DEV()` in browser console (toggles `dev_tab_enabled` in localStorage).
 - Tabbed interface with 4 tabs: **Logs**, **Notifications**, **Cloud**, **State**.
 - **Logs tab**: Same as LogsPage but embedded, with clear button.
@@ -664,6 +688,7 @@ Pages use `AnimatePresence mode="wait"` for tab transitions. Each page is wrappe
 - **State tab**: Debug state inspection and presets for common configurations.
 
 #### NotificationOverlayWindow.jsx
+
 - Entry point for the transparent notification overlay WebviewWindow.
 - Listens for `push-notification` events from the main window.
 - Manages a stack of active notifications (max visible, auto-dismiss).
@@ -671,6 +696,7 @@ Pages use `AnimatePresence mode="wait"` for tab transitions. Each page is wrappe
 - Renders `NotificationToast` components for each active notification.
 
 #### NotificationToast.jsx
+
 - Renders individual notification toasts with animated entrance/exit.
 - Notification types: `match-found` (map splash + name), `locking` (agent icon + countdown), `locked` (agent icon + confirmation), `dodged` (dodge reason), `queue` (requeue/unqueue actions).
 - Each type has distinct styling and iconography.
@@ -680,21 +706,25 @@ Pages use `AnimatePresence mode="wait"` for tab transitions. Each page is wrappe
 ### Shared Components
 
 #### TitleBar.jsx
+
 - Custom window title bar (Tauri `decorations: false`).
 - Drag region for window moving.
 - Minimize button (supports minimize-to-tray).
 - Close button (calls `exit_app` Tauri command, not window close).
 
 #### Sidebar.jsx
+
 - Navigation tabs with animated active indicator (`layoutId="sidebar-active"` spring animation).
 - Tabs: Home, Instalock, Map Dodge, Fake Status, Party, Match Info, Misc, Logs (conditional), Dev (conditional).
 - Bottom section: Dodge button (appears during pregame), player info, refresh button, settings button.
 - Tab change intercepted by App.jsx — if `fakeStatusUnsaved` is true and leaving fake status, shows unsaved changes modal (Save & Apply / Discard / Cancel).
 
 #### Tooltip.jsx
+
 - Reusable hover tooltip component for showing contextual information on hover.
 
 #### PlayerInfo.jsx
+
 - Shows player card thumbnail (8x8 rounded), name#tag, connection status dot.
 - Click name to copy to clipboard (with tooltip).
 - Status colors: green (connected), yellow (connecting/waiting), red (disconnected).
@@ -707,6 +737,7 @@ Two-layer animation disabling:
 2. **CSS**: `.no-animations` class on `<html>` element sets `transition-duration: 0s !important; animation-duration: 0s !important;` on all elements.
 
 For framer-motion animations with explicit `delay` or `staggerChildren` (which `MotionConfig` doesn't fully disable), each component has:
+
 ```jsx
 const noAnim = () => localStorage.getItem("disable_animations") === "true";
 const T0 = { duration: 0 };
@@ -723,42 +754,43 @@ const T0 = { duration: 0 };
 
 All colors use **space-separated RGB triplets** (e.g., `16 10 10`), consumed via Tailwind's `rgb(var(--name) / <alpha-value>)` pattern for opacity support.
 
-| Variable | Tailwind Class | Purpose |
-|----------|---------------|---------|
-| `--base-900` | `bg-base-900` | Darkest background |
-| `--base-800` | `bg-base-800` | Main background |
-| `--base-700` | `bg-base-700` | Card/panel background |
-| `--base-600` | `bg-base-600` | Elevated elements |
-| `--base-500` | `bg-base-500` | Hover states |
-| `--base-400` | `bg-base-400` | Active states |
-| `--border` | `border-border` | Default border color |
-| `--border-light` | `border-border-light` | Lighter border |
-| `--text-primary` | `text-text-primary` | Main text |
-| `--text-secondary` | `text-text-secondary` | Secondary text |
-| `--text-muted` | `text-text-muted` | Muted/subtle text |
-| `--val-red` | `text-val-red`, `bg-val-red` | Accent color (named "red" but changes per theme) |
-| `--val-red-dark` | `bg-val-redDark` | Darker accent |
-| `--accent-blue` | `text-accent-blue`, `bg-accent-blue` | Same as val-red (aliased) |
-| `--status-green` | `text-status-green` | Success/online status |
-| `--status-yellow` | `text-status-yellow` | Warning/connecting status |
-| `--status-red` | `text-status-red` | Error/offline status |
+| Variable           | Tailwind Class                       | Purpose                                          |
+| ------------------ | ------------------------------------ | ------------------------------------------------ |
+| `--base-900`       | `bg-base-900`                        | Darkest background                               |
+| `--base-800`       | `bg-base-800`                        | Main background                                  |
+| `--base-700`       | `bg-base-700`                        | Card/panel background                            |
+| `--base-600`       | `bg-base-600`                        | Elevated elements                                |
+| `--base-500`       | `bg-base-500`                        | Hover states                                     |
+| `--base-400`       | `bg-base-400`                        | Active states                                    |
+| `--border`         | `border-border`                      | Default border color                             |
+| `--border-light`   | `border-border-light`                | Lighter border                                   |
+| `--text-primary`   | `text-text-primary`                  | Main text                                        |
+| `--text-secondary` | `text-text-secondary`                | Secondary text                                   |
+| `--text-muted`     | `text-text-muted`                    | Muted/subtle text                                |
+| `--val-red`        | `text-val-red`, `bg-val-red`         | Accent color (named "red" but changes per theme) |
+| `--val-red-dark`   | `bg-val-redDark`                     | Darker accent                                    |
+| `--accent-blue`    | `text-accent-blue`, `bg-accent-blue` | Same as val-red (aliased)                        |
+| `--status-green`   | `text-status-green`                  | Success/online status                            |
+| `--status-yellow`  | `text-status-yellow`                 | Warning/connecting status                        |
+| `--status-red`     | `text-status-red`                    | Error/offline status                             |
 
 #### Preset Themes (set via `data-theme` attribute on `<html>`)
 
-| Theme | Accent Color | Vibe |
-|-------|-------------|------|
-| `crimson-moon` (default) | Red `#ed4245` | Dark red, Valorant-like |
-| `radianite` | Teal `#00e6b4` | Dark teal/cyan |
-| `midnight-blurple` | Blue/purple `#5865f2` | Discord-like |
-| `chroma-glow` | Pink `#ff73fa` | Dark magenta |
-| `forest` | Green `#43b581` | Dark green |
-| `mars` | Orange `#f26522` | Warm dark orange |
-| `dusk` | Gray `#99aab5` | Neutral/muted |
-| `custom` | User-defined | User picks gradient stops + accent |
+| Theme                    | Accent Color          | Vibe                               |
+| ------------------------ | --------------------- | ---------------------------------- |
+| `crimson-moon` (default) | Red `#ed4245`         | Dark red, Valorant-like            |
+| `radianite`              | Teal `#00e6b4`        | Dark teal/cyan                     |
+| `midnight-blurple`       | Blue/purple `#5865f2` | Discord-like                       |
+| `chroma-glow`            | Pink `#ff73fa`        | Dark magenta                       |
+| `forest`                 | Green `#43b581`       | Dark green                         |
+| `mars`                   | Orange `#f26522`      | Warm dark orange                   |
+| `dusk`                   | Gray `#99aab5`        | Neutral/muted                      |
+| `custom`                 | User-defined          | User picks gradient stops + accent |
 
 #### Custom Theme
 
 Custom themes define:
+
 - `accent` — hex color for the accent.
 - `angle` — gradient angle in degrees.
 - `stops` — array of `{ color: "#hex", pos: 0-100 }` gradient stops.
@@ -776,18 +808,18 @@ Custom themes define:
 
 ### API Domains
 
-| Domain Pattern | Name | Purpose |
-|---------------|------|---------|
-| `127.0.0.1:{port}` | Local API | Riot Client local endpoints (lockfile auth) |
-| `auth.riotgames.com` | RSO | Account info (userinfo) |
-| `pd.{shard}.a.pvp.net` | PD | Player Data — MMR, loadout, match history, store |
-| `glz-{region}-1.{shard}.a.pvp.net` | GLZ | Game Logic Zone — pregame, coregame, party, queue |
-| `riot-geo.pas.si.riotgames.com` | PAS | Player Affinity Service (XMPP routing) |
-| `clientconfig.rpg.riotgames.com` | Client Config | Chat host resolution |
-| `{host}:5223` | XMPP | Chat/presence (TLS) |
-| `valorant-api.com` | Community API | Agent/map/rank assets and metadata (no auth needed) |
-| `api.henrikdev.xyz` | Henrik API | Third-party API for extended player info |
-| `api.github.com` | GitHub | Update checking (latest release) |
+| Domain Pattern                     | Name          | Purpose                                             |
+| ---------------------------------- | ------------- | --------------------------------------------------- |
+| `127.0.0.1:{port}`                 | Local API     | Riot Client local endpoints (lockfile auth)         |
+| `auth.riotgames.com`               | RSO           | Account info (userinfo)                             |
+| `pd.{shard}.a.pvp.net`             | PD            | Player Data — MMR, loadout, match history, store    |
+| `glz-{region}-1.{shard}.a.pvp.net` | GLZ           | Game Logic Zone — pregame, coregame, party, queue   |
+| `riot-geo.pas.si.riotgames.com`    | PAS           | Player Affinity Service (XMPP routing)              |
+| `clientconfig.rpg.riotgames.com`   | Client Config | Chat host resolution                                |
+| `{host}:5223`                      | XMPP          | Chat/presence (TLS)                                 |
+| `valorant-api.com`                 | Community API | Agent/map/rank assets and metadata (no auth needed) |
+| `api.henrikdev.xyz`                | Henrik API    | Third-party API for extended player info            |
+| `api.github.com`                   | GitHub        | Update checking (latest release)                    |
 
 ### Authentication
 
@@ -812,33 +844,33 @@ VT Cloud:     (no auth required)
 
 ## localStorage Keys
 
-| Key | Type | Used By | Description |
-|-----|------|---------|-------------|
-| `app_theme` | string | App.jsx, SettingsPage | Current theme name |
-| `simplified_theme` | `"true"/"false"` | App.jsx, SettingsPage | Solid vs gradient backgrounds |
-| `custom_theme` | JSON | App.jsx, SettingsPage | Custom theme config (accent, angle, stops) |
-| `discord_rpc` | `"true"/"false"` | App.jsx, SettingsPage | Discord RPC enabled |
-| `start_with_windows` | `"true"/"false"` | App.jsx, SettingsPage | Autostart |
-| `start_minimized` | `"true"/"false"` | App.jsx, SettingsPage | Start hidden in tray |
-| `minimize_to_tray` | `"true"/"false"` | App.jsx, SettingsPage | Minimize behavior |
-| `close_with_game` | `"true"/"false"` | App.jsx, SettingsPage | Exit when Valorant closes |
-| `dev_tab_enabled` | `"true"/"false"` | App.jsx | Show Dev tab (set via `__VT_DEV()` in console) |
-| `disable_animations` | `"true"/"false"` | App.jsx, SettingsPage, all pages | Disable all animations |
-| `show_logs` | `"true"/"false"` | App.jsx, SettingsPage | Show Logs tab |
-| `splooshima_api_key` | string | App.jsx, SettingsPage, MatchInfoPage | Splooshima API key |
-| `instalock_select_delay` | number string | App.jsx, SettingsPage | Agent select delay (ms) |
-| `instalock_lock_delay` | number string | App.jsx, SettingsPage | Agent lock delay (ms) |
-| `auto_unqueue` | `"true"/"false"` | App.jsx, MiscPage | Auto leave queue after dodge |
-| `auto_requeue` | `"true"/"false"` | App.jsx, MiscPage | Auto requeue after match |
-| `notifications_enabled` | `"true"/"false"` | App.jsx, SettingsPage | Enable notification overlays |
-| `notification_position` | string | App.jsx, SettingsPage | Notification position (`top-right`, `top-left`, `bottom-right`, `bottom-left`) |
-| `notification_screen` | string | App.jsx, SettingsPage | Which monitor shows notifications (`game`, `primary`, or display index) |
-| `instalock-config` | JSON | InstalockPage | `{ profiles: [...], activeProfile, active }` |
-| `mapdodge-config` | JSON | MapDodgePage, App.jsx | `{ blacklist: [], active }` |
-| `fake-status-config` | JSON | FakeStatusPage | Fake presence settings |
-| `fakestatus_enabled` | `"true"/"false"` | FakeStatusPage | Auto-start XMPP on load |
-| `menu_video_config` | JSON | MiscPage, App.jsx (health check) | `{ backupPath, destPath, hash }` |
-| `skipped_update_version` | string | App.jsx | Version string of a skipped update |
+| Key                      | Type             | Used By                              | Description                                                                    |
+| ------------------------ | ---------------- | ------------------------------------ | ------------------------------------------------------------------------------ |
+| `app_theme`              | string           | App.jsx, SettingsPage                | Current theme name                                                             |
+| `simplified_theme`       | `"true"/"false"` | App.jsx, SettingsPage                | Solid vs gradient backgrounds                                                  |
+| `custom_theme`           | JSON             | App.jsx, SettingsPage                | Custom theme config (accent, angle, stops)                                     |
+| `discord_rpc`            | `"true"/"false"` | App.jsx, SettingsPage                | Discord RPC enabled                                                            |
+| `start_with_windows`     | `"true"/"false"` | App.jsx, SettingsPage                | Autostart                                                                      |
+| `start_minimized`        | `"true"/"false"` | App.jsx, SettingsPage                | Start hidden in tray                                                           |
+| `minimize_to_tray`       | `"true"/"false"` | App.jsx, SettingsPage                | Minimize behavior                                                              |
+| `close_with_game`        | `"true"/"false"` | App.jsx, SettingsPage                | Exit when Valorant closes                                                      |
+| `dev_tab_enabled`        | `"true"/"false"` | App.jsx                              | Show Dev tab (set via `__VT_DEV()` in console)                                 |
+| `disable_animations`     | `"true"/"false"` | App.jsx, SettingsPage, all pages     | Disable all animations                                                         |
+| `show_logs`              | `"true"/"false"` | App.jsx, SettingsPage                | Show Logs tab                                                                  |
+| `splooshima_api_key`     | string           | App.jsx, SettingsPage, MatchInfoPage | Splooshima API key                                                             |
+| `instalock_select_delay` | number string    | App.jsx, SettingsPage                | Agent select delay (ms)                                                        |
+| `instalock_lock_delay`   | number string    | App.jsx, SettingsPage                | Agent lock delay (ms)                                                          |
+| `auto_unqueue`           | `"true"/"false"` | App.jsx, MiscPage                    | Auto leave queue after dodge                                                   |
+| `auto_requeue`           | `"true"/"false"` | App.jsx, MiscPage                    | Auto requeue after match                                                       |
+| `notifications_enabled`  | `"true"/"false"` | App.jsx, SettingsPage                | Enable notification overlays                                                   |
+| `notification_position`  | string           | App.jsx, SettingsPage                | Notification position (`top-right`, `top-left`, `bottom-right`, `bottom-left`) |
+| `notification_screen`    | string           | App.jsx, SettingsPage                | Which monitor shows notifications (`game`, `primary`, or display index)        |
+| `instalock-config`       | JSON             | InstalockPage                        | `{ profiles: [...], activeProfile, active }`                                   |
+| `mapdodge-config`        | JSON             | MapDodgePage, App.jsx                | `{ blacklist: [], active }`                                                    |
+| `fake-status-config`     | JSON             | FakeStatusPage                       | Fake presence settings                                                         |
+| `fakestatus_enabled`     | `"true"/"false"` | FakeStatusPage                       | Auto-start XMPP on load                                                        |
+| `menu_video_config`      | JSON             | MiscPage, App.jsx (health check)     | `{ backupPath, destPath, hash }`                                               |
+| `skipped_update_version` | string           | App.jsx                              | Version string of a skipped update                                             |
 
 **Config export/import** (SettingsPage): Export as `.vt` JSON file or cloud share code. Import from file or share code. Reloads page after import. Supports theme and full config types.
 
@@ -848,16 +880,17 @@ VT Cloud:     (no auth required)
 
 ### valorant-api.com (Community, no auth)
 
-| Endpoint | Used For |
-|----------|---------|
-| `/v1/agents?isPlayableCharacter=true` | Agent list (InstalockPage, MatchInfoPage) |
-| `/v1/maps` | Map list + splash art (InstalockPage, MapDodgePage, HomePage) |
-| `/v1/version` | Client version string (connection.rs) |
-| `/v1/competitivetiers` | Rank icons and names (MatchInfoPage) |
-| `/v1/playercards` | Card art (FakeStatusPage) |
-| `/v1/playertitles` | Title names (FakeStatusPage) |
+| Endpoint                              | Used For                                                      |
+| ------------------------------------- | ------------------------------------------------------------- |
+| `/v1/agents?isPlayableCharacter=true` | Agent list (InstalockPage, MatchInfoPage)                     |
+| `/v1/maps`                            | Map list + splash art (InstalockPage, MapDodgePage, HomePage) |
+| `/v1/version`                         | Client version string (connection.rs)                         |
+| `/v1/competitivetiers`                | Rank icons and names (MatchInfoPage)                          |
+| `/v1/playercards`                     | Card art (FakeStatusPage)                                     |
+| `/v1/playertitles`                    | Title names (FakeStatusPage)                                  |
 
 Image CDN patterns:
+
 ```
 https://media.valorant-api.com/agents/{uuid}/displayicon.png
 https://media.valorant-api.com/agents/{uuid}/displayiconsmall.png
@@ -870,21 +903,21 @@ https://media.valorant-api.com/maps/{uuid}/listviewicon.png
 
 ### Splooshima API (requires API key)
 
-| Endpoint | Used For |
-|----------|---------|
+| Endpoint          | Used For                              |
+| ----------------- | ------------------------------------- |
 | Various endpoints | Extended player info and account data |
 
 ### VT Cloud API (`vt-cloud.ajaxfnc.com`, no auth)
 
-| Endpoint | Method | Used For |
-|----------|--------|---------|
-| `/save` | POST | Save share code data (profile, theme, config) |
-| `/load/{code}` | GET | Load data by share code |
+| Endpoint       | Method | Used For                                      |
+| -------------- | ------ | --------------------------------------------- |
+| `/save`        | POST   | Save share code data (profile, theme, config) |
+| `/load/{code}` | GET    | Load data by share code                       |
 
 ### GitHub API (no auth)
 
-| Endpoint | Used For |
-|----------|---------|
+| Endpoint                                           | Used For          |
+| -------------------------------------------------- | ----------------- |
 | `/repos/AjaxFNC-YT/Valorant-Thing/releases/latest` | Auto-update check |
 
 ---
@@ -919,14 +952,18 @@ https://media.valorant-api.com/maps/{uuid}/listviewicon.png
 ### Frontend Utility Modules
 
 #### `cloud.js`
+
 DOM-only file operations (cannot be done in Rust):
+
 - `exportVtFile(type, data, filename)` — Creates a `.vt` JSON file download via Blob + anchor click.
 - `readVtFile(file)` — Reads a `.vt` file via FileReader, parses JSON, validates `type` + `data` fields.
 
 Cloud save/load (HTTP) is handled in Rust (`cloud.rs`), not JS.
 
 #### `matchCache.js`
+
 In-memory player data cache with 10-minute TTL for MatchInfoPage:
+
 - `getCached(puuid, key)` — Returns cached value or undefined if expired.
 - `setCache(puuid, key, value)` — Stores value with timestamp.
 
@@ -943,6 +980,7 @@ In-memory player data cache with 10-minute TTL for MatchInfoPage:
 ### Invoke Pattern
 
 Frontend always calls Rust via `invoke()`:
+
 ```jsx
 import { invoke } from "@tauri-apps/api/core";
 
@@ -972,6 +1010,7 @@ try {
 ### Ref Pattern for Intervals
 
 State that's read inside `setInterval` or `setTimeout` callbacks uses refs to avoid stale closures:
+
 ```jsx
 const [value, setValue] = useState(initial);
 const valueRef = useRef(value);
@@ -986,6 +1025,7 @@ if (valueRef.current) { ... }
 ## Window Configuration
 
 From `tauri.conf.json`:
+
 - **Size**: 1100 x 700, not resizable, not maximizable.
 - **Decorations**: false (custom title bar).
 - **Transparent**: true (for rounded corners).

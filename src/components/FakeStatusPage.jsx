@@ -4,18 +4,35 @@ import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
 
 const TIER_UUID = "03621f52-342b-cf4e-4f86-9350a49c6d04";
-const rankIcon = (tier) => `https://media.valorant-api.com/competitivetiers/${TIER_UUID}/${tier}/smallicon.png`;
+const rankIcon = (tier) =>
+  `https://media.valorant-api.com/competitivetiers/${TIER_UUID}/${tier}/smallicon.png`;
 
 const RANKS = [
   { tier: 0, name: "Unranked" },
-  { tier: 3, name: "Iron 1" }, { tier: 4, name: "Iron 2" }, { tier: 5, name: "Iron 3" },
-  { tier: 6, name: "Bronze 1" }, { tier: 7, name: "Bronze 2" }, { tier: 8, name: "Bronze 3" },
-  { tier: 9, name: "Silver 1" }, { tier: 10, name: "Silver 2" }, { tier: 11, name: "Silver 3" },
-  { tier: 12, name: "Gold 1" }, { tier: 13, name: "Gold 2" }, { tier: 14, name: "Gold 3" },
-  { tier: 15, name: "Platinum 1" }, { tier: 16, name: "Platinum 2" }, { tier: 17, name: "Platinum 3" },
-  { tier: 18, name: "Diamond 1" }, { tier: 19, name: "Diamond 2" }, { tier: 20, name: "Diamond 3" },
-  { tier: 21, name: "Ascendant 1" }, { tier: 22, name: "Ascendant 2" }, { tier: 23, name: "Ascendant 3" },
-  { tier: 24, name: "Immortal 1" }, { tier: 25, name: "Immortal 2" }, { tier: 26, name: "Immortal 3" },
+  { tier: 3, name: "Iron 1" },
+  { tier: 4, name: "Iron 2" },
+  { tier: 5, name: "Iron 3" },
+  { tier: 6, name: "Bronze 1" },
+  { tier: 7, name: "Bronze 2" },
+  { tier: 8, name: "Bronze 3" },
+  { tier: 9, name: "Silver 1" },
+  { tier: 10, name: "Silver 2" },
+  { tier: 11, name: "Silver 3" },
+  { tier: 12, name: "Gold 1" },
+  { tier: 13, name: "Gold 2" },
+  { tier: 14, name: "Gold 3" },
+  { tier: 15, name: "Platinum 1" },
+  { tier: 16, name: "Platinum 2" },
+  { tier: 17, name: "Platinum 3" },
+  { tier: 18, name: "Diamond 1" },
+  { tier: 19, name: "Diamond 2" },
+  { tier: 20, name: "Diamond 3" },
+  { tier: 21, name: "Ascendant 1" },
+  { tier: 22, name: "Ascendant 2" },
+  { tier: 23, name: "Ascendant 3" },
+  { tier: 24, name: "Immortal 1" },
+  { tier: 25, name: "Immortal 2" },
+  { tier: 26, name: "Immortal 3" },
   { tier: 27, name: "Radiant" },
 ];
 
@@ -26,7 +43,7 @@ const QUEUES = [
   { id: "spikerush", label: "Spike Rush" },
   { id: "deathmatch", label: "Deathmatch" },
   { id: "swiftplay", label: "Swiftplay" },
-  { id: "hurm", label: "Team Deathmatch" }, 
+  { id: "hurm", label: "Team Deathmatch" },
   { id: "premier", label: "Premier" },
   { id: "ggteam", label: "Escalation" },
   { id: "skirmish2v2", label: "Skirmish: 2v2" },
@@ -75,31 +92,49 @@ const SESSION_STATES = [
 ];
 
 const CONFIG_KEY = "fake-status-config";
-function saveConfig(config) { localStorage.setItem(CONFIG_KEY, JSON.stringify(config)); }
-function loadConfig() { try { return JSON.parse(localStorage.getItem(CONFIG_KEY)); } catch { return null; } }
+function saveConfig(config) {
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+}
+function loadConfig() {
+  try {
+    return JSON.parse(localStorage.getItem(CONFIG_KEY));
+  } catch {
+    return null;
+  }
+}
 
 function Toggle({ enabled, onChange, disabled }) {
   return (
-    <button disabled={disabled} onClick={() => onChange(!enabled)}
+    <button
+      disabled={disabled}
+      onClick={() => onChange(!enabled)}
       className={`relative w-9 h-5 rounded-full transition-colors duration-200 shrink-0 ${disabled ? "bg-base-500 opacity-50 cursor-not-allowed" : enabled ? "bg-val-red" : "bg-base-500"}`}
     >
-      <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${disabled ? "translate-x-0.5" : enabled ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+      <div
+        className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${disabled ? "translate-x-0.5" : enabled ? "translate-x-[18px]" : "translate-x-0.5"}`}
+      />
     </button>
   );
 }
 
 function NumInput({ value, onChange, className, ...props }) {
   const [local, setLocal] = useState(String(value));
-  useEffect(() => { setLocal(String(value)); }, [value]);
+  useEffect(() => {
+    setLocal(String(value));
+  }, [value]);
   return (
     <input
       type="number"
       value={local}
-      onChange={e => {
+      onChange={(e) => {
         setLocal(e.target.value);
         if (e.target.value !== "") onChange(Number(e.target.value));
       }}
-      onBlur={() => { if (local === "") { setLocal(String(value)); } }}
+      onBlur={() => {
+        if (local === "") {
+          setLocal(String(value));
+        }
+      }}
       className={className}
       {...props}
     />
@@ -110,10 +145,14 @@ function Field({ label, children, tooltip }) {
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-1">
-        <label className="text-[10px] font-body text-text-muted uppercase tracking-wider">{label}</label>
+        <label className="text-[10px] font-body text-text-muted uppercase tracking-wider">
+          {label}
+        </label>
         {tooltip && (
           <Tooltip text={tooltip}>
-            <span className="flex items-center justify-center w-3.5 h-3.5 rounded-full bg-base-500/50 text-[8px] font-bold text-text-muted/70 cursor-help select-none leading-none">?</span>
+            <span className="flex items-center justify-center w-3.5 h-3.5 rounded-full bg-base-500/50 text-[8px] font-bold text-text-muted/70 cursor-help select-none leading-none">
+              ?
+            </span>
           </Tooltip>
         )}
       </div>
@@ -128,17 +167,27 @@ function CustomSelect({ value, onChange, options, renderOption }) {
   const btnRef = useRef(null);
   const dropRef = useRef(null);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
-  const selected = options.find(o => o.id === value || o.tier === value) || options[0];
+  const selected = options.find((o) => o.id === value || o.tier === value) || options[0];
 
   useEffect(() => {
-    const handler = (e) => { if (containerRef.current && !containerRef.current.contains(e.target) && dropRef.current && !dropRef.current.contains(e.target)) setOpen(false); };
+    const handler = (e) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target) &&
+        dropRef.current &&
+        !dropRef.current.contains(e.target)
+      )
+        setOpen(false);
+    };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   useEffect(() => {
     if (!open) return;
-    const onScroll = (e) => { if (dropRef.current && !dropRef.current.contains(e.target)) setOpen(false); };
+    const onScroll = (e) => {
+      if (dropRef.current && !dropRef.current.contains(e.target)) setOpen(false);
+    };
     window.addEventListener("scroll", onScroll, true);
     return () => window.removeEventListener("scroll", onScroll, true);
   }, [open]);
@@ -161,20 +210,40 @@ function CustomSelect({ value, onChange, options, renderOption }) {
 
   return (
     <div ref={containerRef}>
-      <button ref={btnRef} type="button" onClick={() => setOpen(v => !v)}
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center gap-2 px-2.5 py-1.5 bg-base-800 border border-border rounded-lg text-xs font-body text-text-primary hover:border-val-red/40 transition-colors"
       >
-        <span className="flex-1 text-left flex items-center gap-2">{renderOption ? renderOption(selected) : selected.name || selected.label}</span>
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`text-text-muted transition-transform shrink-0 ${open ? "rotate-180" : ""}`}>
+        <span className="flex-1 text-left flex items-center gap-2">
+          {renderOption ? renderOption(selected) : selected.name || selected.label}
+        </span>
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          className={`text-text-muted transition-transform shrink-0 ${open ? "rotate-180" : ""}`}
+        >
           <path d="M6 9l6 6 6-6" />
         </svg>
       </button>
       {open && (
-        <div ref={dropRef} className="fixed z-[9999] bg-base-800 border border-border rounded-lg shadow-xl overflow-y-auto"
+        <div
+          ref={dropRef}
+          className="fixed z-[9999] bg-base-800 border border-border rounded-lg shadow-xl overflow-y-auto"
           style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxH }}
         >
-          {options.map(o => (
-            <button key={o[valKey]} onClick={() => { onChange(o[valKey]); setOpen(false); }}
+          {options.map((o) => (
+            <button
+              key={o[valKey]}
+              onClick={() => {
+                onChange(o[valKey]);
+                setOpen(false);
+              }}
               className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-body hover:bg-base-600 transition-colors ${o[valKey] === value ? "bg-base-600 text-text-primary" : "text-text-secondary"}`}
             >
               {renderOption ? renderOption(o) : o.name || o.label}
@@ -186,7 +255,8 @@ function CustomSelect({ value, onChange, options, renderOption }) {
   );
 }
 
-const inputClass = "w-full px-2.5 py-1.5 bg-base-800 border border-border rounded-lg text-xs font-body text-text-primary placeholder:text-text-muted/40 outline-none focus:border-val-red/60 transition-colors";
+const inputClass =
+  "w-full px-2.5 py-1.5 bg-base-800 border border-border rounded-lg text-xs font-body text-text-primary placeholder:text-text-muted/40 outline-none focus:border-val-red/60 transition-colors";
 
 function getQueueLabel(queueId) {
   if (QUEUE_NAMES[queueId]) return QUEUE_NAMES[queueId];
@@ -215,14 +285,24 @@ function ApiSearch({ value, onChange, endpoint, nameKey, iconKey, placeholder })
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
 
   useEffect(() => {
-    const handler = (e) => { if (containerRef.current && !containerRef.current.contains(e.target) && dropRef.current && !dropRef.current.contains(e.target)) setOpen(false); };
+    const handler = (e) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target) &&
+        dropRef.current &&
+        !dropRef.current.contains(e.target)
+      )
+        setOpen(false);
+    };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   useEffect(() => {
     if (!open) return;
-    const onScroll = (e) => { if (dropRef.current && !dropRef.current.contains(e.target)) setOpen(false); };
+    const onScroll = (e) => {
+      if (dropRef.current && !dropRef.current.contains(e.target)) setOpen(false);
+    };
     window.addEventListener("scroll", onScroll, true);
     return () => window.removeEventListener("scroll", onScroll, true);
   }, [open]);
@@ -244,13 +324,17 @@ function ApiSearch({ value, onChange, endpoint, nameKey, iconKey, placeholder })
   const loadItems = async () => {
     if (items.length > 0) return;
     setLoading(true);
-    try { setItems(await fetchApi(endpoint)); } catch {} 
+    try {
+      setItems(await fetchApi(endpoint));
+    } catch (e) {
+      console.warn("[FakeStatus] suppressed:", e);
+    }
     setLoading(false);
   };
 
   useEffect(() => {
     if (value && items.length > 0) {
-      const match = items.find(i => i.uuid === value);
+      const match = items.find((i) => i.uuid === value);
       if (match) {
         setSelectedName(match[nameKey] || "");
         if (iconKey) setSelectedIcon(match[iconKey]);
@@ -258,46 +342,76 @@ function ApiSearch({ value, onChange, endpoint, nameKey, iconKey, placeholder })
     }
   }, [value, items]);
 
-  useEffect(() => { loadItems(); }, []);
+  useEffect(() => {
+    loadItems();
+  }, []);
 
   const filtered = query
-    ? items.filter(i => (i[nameKey] || "").toLowerCase().includes(query.toLowerCase())).slice(0, 50)
+    ? items
+        .filter((i) => (i[nameKey] || "").toLowerCase().includes(query.toLowerCase()))
+        .slice(0, 50)
     : items.slice(0, 50);
 
   return (
     <div ref={containerRef}>
       <div className="flex items-center gap-1.5">
-        {selectedIcon && <img src={selectedIcon} alt="" className="w-6 h-6 rounded object-cover shrink-0" />}
+        {selectedIcon && (
+          <img src={selectedIcon} alt="" className="w-6 h-6 rounded object-cover shrink-0" />
+        )}
         <input
           ref={inputRef}
-          value={open ? query : (selectedName || "")}
-          onChange={e => { setQuery(e.target.value); if (!open) setOpen(true); }}
-          onFocus={() => { setOpen(true); setQuery(""); loadItems(); }}
+          value={open ? query : selectedName || ""}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            if (!open) setOpen(true);
+          }}
+          onFocus={() => {
+            setOpen(true);
+            setQuery("");
+            loadItems();
+          }}
           placeholder={placeholder}
           className={inputClass}
         />
         {value && (
-          <button onClick={() => { onChange(""); setSelectedName(""); setSelectedIcon(null); setQuery(""); }}
-            className="text-text-muted hover:text-text-secondary text-xs shrink-0 px-1">✕</button>
+          <button
+            onClick={() => {
+              onChange("");
+              setSelectedName("");
+              setSelectedIcon(null);
+              setQuery("");
+            }}
+            className="text-text-muted hover:text-text-secondary text-xs shrink-0 px-1"
+          >
+            ✕
+          </button>
         )}
       </div>
       {open && (
-        <div ref={dropRef} className="fixed z-[9999] bg-base-800 border border-border rounded-lg shadow-xl overflow-y-auto"
+        <div
+          ref={dropRef}
+          className="fixed z-[9999] bg-base-800 border border-border rounded-lg shadow-xl overflow-y-auto"
           style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxH }}
         >
           {loading && <p className="text-[10px] text-text-muted text-center py-3">Loading...</p>}
-          {!loading && filtered.length === 0 && <p className="text-[10px] text-text-muted text-center py-3">No results</p>}
-          {filtered.map(item => (
-            <button key={item.uuid} onClick={() => {
-              onChange(item.uuid);
-              setSelectedName(item[nameKey] || "");
-              if (iconKey) setSelectedIcon(item[iconKey]);
-              setOpen(false);
-              setQuery("");
-            }}
+          {!loading && filtered.length === 0 && (
+            <p className="text-[10px] text-text-muted text-center py-3">No results</p>
+          )}
+          {filtered.map((item) => (
+            <button
+              key={item.uuid}
+              onClick={() => {
+                onChange(item.uuid);
+                setSelectedName(item[nameKey] || "");
+                if (iconKey) setSelectedIcon(item[iconKey]);
+                setOpen(false);
+                setQuery("");
+              }}
               className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-body hover:bg-base-600 transition-colors ${item.uuid === value ? "bg-base-600 text-text-primary" : "text-text-secondary"}`}
             >
-              {iconKey && item[iconKey] && <img src={item[iconKey]} alt="" className="w-5 h-5 rounded object-cover shrink-0" />}
+              {iconKey && item[iconKey] && (
+                <img src={item[iconKey]} alt="" className="w-5 h-5 rounded object-cover shrink-0" />
+              )}
               <span className="truncate">{item[nameKey] || "(unnamed)"}</span>
             </button>
           ))}
@@ -306,7 +420,6 @@ function ApiSearch({ value, onChange, endpoint, nameKey, iconKey, placeholder })
     </div>
   );
 }
-
 
 export default function FakeStatusPage({ connected, showLogsSetting, onUnsavedChange, actionRef }) {
   const [xmppStatus, setXmppStatus] = useState(null);
@@ -359,7 +472,7 @@ export default function FakeStatusPage({ connected, showLogsSetting, onUnsavedCh
 
   const hasUnsaved = active && JSON.stringify(presence) !== JSON.stringify(savedPresence);
 
-  const update = (key, val) => setPresence(p => ({ ...p, [key]: val }));
+  const update = (key, val) => setPresence((p) => ({ ...p, [key]: val }));
   presenceRef.current = presence;
   savedPresenceRef.current = savedPresence;
 
@@ -379,20 +492,26 @@ export default function FakeStatusPage({ connected, showLogsSetting, onUnsavedCh
     if (onUnsavedChange) onUnsavedChange(hasUnsaved);
   }, [hasUnsaved]);
 
-  useEffect(() => { saveConfig(presence); }, [presence]);
+  useEffect(() => {
+    saveConfig(presence);
+  }, [presence]);
 
   const fetchStatus = async () => {
     try {
       const raw = await invoke("xmpp_get_status");
       setXmppStatus(JSON.parse(raw));
-    } catch {}
+    } catch (e) {
+      console.warn("[FakeStatus] suppressed:", e);
+    }
   };
 
   const fetchLogs = async () => {
     try {
       const raw = await invoke("xmpp_get_logs");
       setLogs(JSON.parse(raw));
-    } catch {}
+    } catch (e) {
+      console.warn("[FakeStatus] suppressed:", e);
+    }
   };
 
   const poll = async () => {
@@ -400,12 +519,16 @@ export default function FakeStatusPage({ connected, showLogsSetting, onUnsavedCh
       await invoke("xmpp_poll");
       await fetchLogs();
       await fetchStatus();
-    } catch {}
+    } catch (e) {
+      console.warn("[FakeStatus] suppressed:", e);
+    }
   };
 
   const hasResumed = useRef(false);
 
-  useEffect(() => { fetchStatus(); }, []);
+  useEffect(() => {
+    fetchStatus();
+  }, []);
 
   useEffect(() => {
     if (!hasResumed.current && xmppStatus?.connected) {
@@ -416,7 +539,13 @@ export default function FakeStatusPage({ connected, showLogsSetting, onUnsavedCh
   }, [xmppStatus]);
 
   useEffect(() => {
-    if (!autoStarted.current && connected && !active && !connecting && localStorage.getItem("fakestatus_enabled") === "true") {
+    if (
+      !autoStarted.current &&
+      connected &&
+      !active &&
+      !connecting &&
+      localStorage.getItem("fakestatus_enabled") === "true"
+    ) {
       autoStarted.current = true;
       handleToggle(true);
     }
@@ -430,7 +559,8 @@ export default function FakeStatusPage({ connected, showLogsSetting, onUnsavedCh
   }, [xmppStatus?.connected]);
 
   useEffect(() => {
-    if (showLogs && isAtBottomRef.current) logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (showLogs && isAtBottomRef.current)
+      logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs.length, showLogs]);
 
   const handleLogScroll = () => {
@@ -458,7 +588,11 @@ export default function FakeStatusPage({ connected, showLogsSetting, onUnsavedCh
         if (!xmppStatus?.connected) {
           await invoke("xmpp_connect");
           if (cancelRef.current) {
-            try { await invoke("xmpp_disconnect"); } catch {}
+            try {
+              await invoke("xmpp_disconnect");
+            } catch (e) {
+              console.warn("[FakeStatus] suppressed:", e);
+            }
             setConnecting(false);
             return;
           }
@@ -466,7 +600,10 @@ export default function FakeStatusPage({ connected, showLogsSetting, onUnsavedCh
           await fetchStatus();
           await fetchLogs();
         }
-        if (cancelRef.current) { setConnecting(false); return; }
+        if (cancelRef.current) {
+          setConnecting(false);
+          return;
+        }
         setConnectingMsg("Sending presence...");
         await sendPresence(presenceRef.current);
         setSavedPresence({ ...presenceRef.current });
@@ -474,16 +611,28 @@ export default function FakeStatusPage({ connected, showLogsSetting, onUnsavedCh
         localStorage.setItem("fakestatus_enabled", "true");
       } catch (e) {
         const errMsg = typeof e === "string" ? e : e?.message || "Failed to enable";
-        if (errMsg.toLowerCase().includes("jwt") || errMsg.toLowerCase().includes("token") || errMsg.includes("auth failed") || errMsg.includes("not-authorized")) {
+        if (
+          errMsg.toLowerCase().includes("jwt") ||
+          errMsg.toLowerCase().includes("token") ||
+          errMsg.includes("auth failed") ||
+          errMsg.includes("not-authorized")
+        ) {
           try {
             setConnectingMsg("Refreshing access token...");
             await invoke("xmpp_disconnect").catch(() => {});
             await invoke("connect");
-            if (cancelRef.current) { setConnecting(false); return; }
+            if (cancelRef.current) {
+              setConnecting(false);
+              return;
+            }
             setConnectingMsg("Reconnecting to XMPP...");
             await invoke("xmpp_connect");
             if (cancelRef.current) {
-              try { await invoke("xmpp_disconnect"); } catch {}
+              try {
+                await invoke("xmpp_disconnect");
+              } catch (e) {
+                console.warn("[FakeStatus] suppressed:", e);
+              }
               setConnecting(false);
               return;
             }
@@ -496,7 +645,10 @@ export default function FakeStatusPage({ connected, showLogsSetting, onUnsavedCh
             setActive(true);
             localStorage.setItem("fakestatus_enabled", "true");
           } catch (retryErr) {
-            setError("Token refresh failed: " + (typeof retryErr === "string" ? retryErr : retryErr?.message || "Unknown error"));
+            setError(
+              "Token refresh failed: " +
+                (typeof retryErr === "string" ? retryErr : retryErr?.message || "Unknown error")
+            );
             await fetchLogs();
           }
         } else {
@@ -512,13 +664,19 @@ export default function FakeStatusPage({ connected, showLogsSetting, onUnsavedCh
       try {
         await invoke("xmpp_disconnect");
         await fetchStatus();
-      } catch {}
+      } catch (e) {
+        console.warn("[FakeStatus] suppressed:", e);
+      }
     }
   };
 
   const handleCancelConnect = async () => {
     cancelRef.current = true;
-    try { await invoke("xmpp_disconnect"); } catch {}
+    try {
+      await invoke("xmpp_disconnect");
+    } catch (e) {
+      console.warn("[FakeStatus] suppressed:", e);
+    }
     setConnecting(false);
     await fetchStatus();
   };
@@ -536,12 +694,21 @@ export default function FakeStatusPage({ connected, showLogsSetting, onUnsavedCh
     return () => clearInterval(sendRef.current);
   }, [active, xmppStatus?.connected]);
 
-
   if (!connected) {
     return (
       <div className="flex-1 flex items-center justify-center p-5">
         <div className="text-center space-y-2">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-muted mx-auto">
+          <svg
+            width="32"
+            height="32"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-text-muted mx-auto"
+          >
             <path d="M1 1l22 22" />
             <path d="M16.72 11.06A10.94 10.94 0 0119 12.55" />
             <path d="M5 12.55a10.94 10.94 0 015.17-2.39" />
@@ -551,7 +718,9 @@ export default function FakeStatusPage({ connected, showLogsSetting, onUnsavedCh
             <line x1="12" y1="20" x2="12.01" y2="20" />
           </svg>
           <p className="text-sm font-display text-text-muted">Waiting for Valorant</p>
-          <p className="text-[11px] font-body text-text-muted/60">Open Valorant and it will connect automatically</p>
+          <p className="text-[11px] font-body text-text-muted/60">
+            Open Valorant and it will connect automatically
+          </p>
         </div>
       </div>
     );
@@ -559,205 +728,369 @@ export default function FakeStatusPage({ connected, showLogsSetting, onUnsavedCh
 
   return (
     <>
-    {connecting && (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div className="text-center space-y-4">
-          <div className="w-12 h-12 mx-auto border-2 border-val-red/30 border-t-val-red rounded-full animate-spin" />
-          <div className="space-y-1">
-            <p className="text-sm font-display font-semibold text-white">Establishing Connection</p>
-            <p className="text-xs font-body text-white/60">{connectingMsg}</p>
+      {connecting && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="text-center space-y-4">
+            <div className="w-12 h-12 mx-auto border-2 border-val-red/30 border-t-val-red rounded-full animate-spin" />
+            <div className="space-y-1">
+              <p className="text-sm font-display font-semibold text-white">
+                Establishing Connection
+              </p>
+              <p className="text-xs font-body text-white/60">{connectingMsg}</p>
+            </div>
+            <button
+              onClick={handleCancelConnect}
+              className="px-6 py-2 rounded-lg bg-white/10 border border-white/20 text-xs font-display font-semibold text-white/80 hover:text-white hover:bg-white/15 transition-colors"
+            >
+              Cancel
+            </button>
           </div>
-          <button onClick={handleCancelConnect}
-            className="px-6 py-2 rounded-lg bg-white/10 border border-white/20 text-xs font-display font-semibold text-white/80 hover:text-white hover:bg-white/15 transition-colors"
-          >
-            Cancel
-          </button>
         </div>
-      </div>
-    )}
-    <div className="flex-1 flex flex-col min-h-0 p-4 gap-3 relative">
-      <div className="flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-muted">
-            <circle cx="12" cy="12" r="2" />
-            <path d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49" />
-            <path d="M19.07 4.93a10 10 0 010 14.14m-14.14 0a10 10 0 010-14.14" />
-          </svg>
-          <h2 className="text-sm font-display font-semibold text-text-primary">Fake Status</h2>
-        </div>
-        <div className="flex items-center gap-2">
-          {hasUnsaved && !showLogs && (
-            <>
-              <button
-                onClick={() => setPresence(savedPresence)}
-                className="px-2.5 py-1 rounded-lg border border-border text-[10px] font-display font-medium text-text-muted hover:text-text-primary transition-colors"
-              >
-                Reset
-              </button>
+      )}
+      <div className="flex-1 flex flex-col min-h-0 p-4 gap-3 relative">
+        <div className="flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              className="text-text-muted"
+            >
+              <circle cx="12" cy="12" r="2" />
+              <path d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49" />
+              <path d="M19.07 4.93a10 10 0 010 14.14m-14.14 0a10 10 0 010-14.14" />
+            </svg>
+            <h2 className="text-sm font-display font-semibold text-text-primary">Fake Status</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            {hasUnsaved && !showLogs && (
+              <>
+                <button
+                  onClick={() => setPresence(savedPresence)}
+                  className="px-2.5 py-1 rounded-lg border border-border text-[10px] font-display font-medium text-text-muted hover:text-text-primary transition-colors"
+                >
+                  Reset
+                </button>
+                <button
+                  onClick={() => {
+                    setSavedPresence(presence);
+                    if (xmppStatus?.connected) sendPresence(presence).catch(() => {});
+                  }}
+                  className="px-2.5 py-1 rounded-lg border border-val-red/40 text-[10px] font-display font-semibold text-val-red hover:bg-val-red/10 transition-colors"
+                >
+                  Save & Apply
+                </button>
+              </>
+            )}
+            {showLogsSetting && (
               <button
                 onClick={() => {
-                  setSavedPresence(presence);
-                  if (xmppStatus?.connected) sendPresence(presence).catch(() => {});
+                  setShowLogs((v) => !v);
+                  if (!showLogs) fetchLogs();
                 }}
-                className="px-2.5 py-1 rounded-lg border border-val-red/40 text-[10px] font-display font-semibold text-val-red hover:bg-val-red/10 transition-colors"
+                className={`px-2.5 py-1.5 rounded-lg border text-xs font-display font-semibold transition-colors ${showLogs ? "bg-accent-blue/15 border-accent-blue/30 text-accent-blue" : "bg-base-600 border-border text-text-muted hover:text-text-secondary"}`}
               >
-                Save & Apply
+                Logs
               </button>
-            </>
-          )}
-          {showLogsSetting && (
-            <button onClick={() => { setShowLogs(v => !v); if (!showLogs) fetchLogs(); }}
-              className={`px-2.5 py-1.5 rounded-lg border text-xs font-display font-semibold transition-colors ${showLogs ? "bg-accent-blue/15 border-accent-blue/30 text-accent-blue" : "bg-base-600 border-border text-text-muted hover:text-text-secondary"}`}
+            )}
+            <span
+              className={`text-xs font-display tracking-wide ${active ? "text-val-red" : "text-text-muted"}`}
             >
-              Logs
-            </button>
-          )}
-          <span className={`text-xs font-display tracking-wide ${active ? "text-val-red" : "text-text-muted"}`}>
-            {active ? "Active" : "Inactive"}
-          </span>
-          <Toggle enabled={active} onChange={handleToggle} disabled={!connected} />
-        </div>
-      </div>
-
-      {error && (
-        <div className="px-3 py-2 rounded-lg bg-status-red/10 border border-status-red/20 text-xs font-body text-status-red shrink-0">{error}</div>
-      )}
-
-      {!showLogs && (
-        <motion.div initial="hidden" animate="show" variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }} className="flex-1 overflow-y-auto space-y-3 pr-1">
-          <motion.div variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }} transition={{ duration: 0.2 }} className="p-4 rounded-xl bg-base-700 border border-border space-y-4">
-            <h3 className="text-xs font-display font-medium text-text-secondary uppercase tracking-wider">Status</h3>
-            <CustomSelect
-              value={presence.statusMode === "away" && presence.sessionLoopState === "INGAME" ? "online" : presence.statusMode}
-              onChange={v => update("statusMode", v)}
-              options={STATUS_MODES.filter(m => !(m.id === "away" && presence.sessionLoopState === "INGAME"))}
-              renderOption={m => (
-                <span className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${m.id === "online" ? "bg-status-green" : m.id === "away" ? "bg-yellow-400" : "bg-text-muted/40"}`} />
-                  {m.name}
-                  {m.id === "hidden" && (
-                    <Tooltip text="Hides you from the friends list entirely">
-                      <span className="flex items-center justify-center w-3.5 h-3.5 rounded-full bg-base-500/50 text-[8px] font-bold text-text-muted/70 cursor-help leading-none ml-0.5">?</span>
-                    </Tooltip>
-                  )}
-                  {m.id === "invisible" && (
-                    <Tooltip text="Appear offline to friends while staying connected to chat (XMPP unavailable)">
-                      <span className="flex items-center justify-center w-3.5 h-3.5 rounded-full bg-base-500/50 text-[8px] font-bold text-text-muted/70 cursor-help leading-none ml-0.5">?</span>
-                    </Tooltip>
-                  )}
-                </span>
-              )}
-            />
-          </motion.div>
-
-          <motion.div variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }} transition={{ duration: 0.2 }} className="p-4 rounded-xl bg-base-700 border border-border space-y-4">
-            <h3 className="text-xs font-display font-medium text-text-secondary uppercase tracking-wider">Rank & Identity</h3>
-            <div className="grid grid-cols-3 gap-3">
-              <Field label="Rank">
-                <CustomSelect value={presence.competitiveTier} onChange={v => update("competitiveTier", v)} options={RANKS}
-                  renderOption={r => <><img src={rankIcon(r.tier)} alt="" className="w-5 h-5" />{r.name}</>}
-                />
-              </Field>
-              <Field label="Rank #">
-                <NumInput value={presence.leaderboardPosition} onChange={v => update("leaderboardPosition", v)} placeholder="0" className={inputClass} />
-              </Field>
-              <Field label="Account Level">
-                <NumInput value={presence.accountLevel} onChange={v => update("accountLevel", v)} className={inputClass} />
-              </Field>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Card" tooltip="Only visible to other players">
-                <ApiSearch value={presence.playerCardId} onChange={v => update("playerCardId", v)} endpoint="playercards" nameKey="displayName" iconKey="smallArt" placeholder="Search card..." />
-              </Field>
-              <Field label="Nametag" tooltip="Only visible to other players">
-                <ApiSearch value={presence.playerTitleId} onChange={v => update("playerTitleId", v)} endpoint="playertitles" nameKey="titleText" placeholder="Search title..." />
-              </Field>
-            </div>
-          </motion.div>
-
-          <motion.div variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }} transition={{ duration: 0.2 }} className="p-4 rounded-xl bg-base-700 border border-border space-y-4">
-            <h3 className="text-xs font-display font-medium text-text-secondary uppercase tracking-wider">Game State</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Session State">
-                <CustomSelect value={presence.sessionLoopState} onChange={v => update("sessionLoopState", v)} options={SESSION_STATES}
-                  renderOption={s => s.name}
-                />
-              </Field>
-              <Field label="Queue">
-                <CustomSelect value={presence.queueId} onChange={v => update("queueId", v)} options={QUEUES}
-                  renderOption={q => q.label}
-                />
-              </Field>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Party Size">
-                <NumInput value={presence.partySize} onChange={v => update("partySize", v)} className={inputClass} />
-              </Field>
-              <Field label="Max Party Size">
-                <NumInput value={presence.maxPartySize} onChange={v => update("maxPartySize", v)} className={inputClass} />
-              </Field>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Team Score">
-                <NumInput value={presence.partyOwnerMatchScoreAllyTeam} onChange={v => update("partyOwnerMatchScoreAllyTeam", v)} className={inputClass} />
-              </Field>
-              <Field label="Enemy Score">
-                <NumInput value={presence.partyOwnerMatchScoreEnemyTeam} onChange={v => update("partyOwnerMatchScoreEnemyTeam", v)} className={inputClass} />
-              </Field>
-            </div>
-          </motion.div>
-
-          <div className="p-4 rounded-xl bg-base-700 border border-border space-y-4">
-            <h3 className="text-xs font-display font-medium text-text-secondary uppercase tracking-wider">Premier</h3>
-            <div className="grid grid-cols-3 gap-3">
-              <Field label="Division">
-                <CustomSelect value={presence.premierDivision} onChange={v => update("premierDivision", v)} options={PREMIER_DIVISIONS}
-                  renderOption={d => <><span className="w-5 h-5 flex items-center justify-center rounded text-xs font-bold shrink-0" style={{ color: d.color }}>{d.icon}</span>{d.name}</>}
-                />
-              </Field>
-              <Field label="Roster Name">
-                <input value={presence.rosterName} onChange={e => update("rosterName", e.target.value)} placeholder="Team name..." className={inputClass} />
-              </Field>
-              <Field label="Score">
-                <NumInput value={presence.premierScore} onChange={v => update("premierScore", v)} className={inputClass} />
-              </Field>
-            </div>
+              {active ? "Active" : "Inactive"}
+            </span>
+            <Toggle enabled={active} onChange={handleToggle} disabled={!connected} />
           </div>
-        </motion.div>
-      )}
+        </div>
 
-      {showLogs && (
-        <div className="flex-1 min-h-0 flex flex-col gap-2">
-          <div className="flex-1 min-h-0 rounded-xl bg-base-800 border border-border overflow-hidden flex flex-col">
-            <div className="px-3 py-2 border-b border-border flex items-center justify-between shrink-0">
-              <p className="text-xs font-display font-medium text-text-secondary">XMPP Log</p>
-              <div className="flex items-center gap-2">
-                {["all", "own_presence", "f_debug", "debug", "sent", "system"].map(f => (
-                  <button key={f} onClick={() => setLogFilter(f)} className={`text-[9px] font-mono px-1.5 py-0.5 rounded border transition-colors ${
-                    logFilter === f ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" : "text-text-muted border-transparent hover:text-text-secondary"
-                  }`}>{f}</button>
-                ))}
-                <span className="text-[10px] font-body text-text-muted">{logs.length}</span>
+        {error && (
+          <div className="px-3 py-2 rounded-lg bg-status-red/10 border border-status-red/20 text-xs font-body text-status-red shrink-0">
+            {error}
+          </div>
+        )}
+
+        {!showLogs && (
+          <motion.div
+            initial="hidden"
+            animate="show"
+            variants={{ hidden: {}, show: { transition: { staggerChildren: 0.06 } } }}
+            className="flex-1 overflow-y-auto space-y-3 pr-1"
+          >
+            <motion.div
+              variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
+              transition={{ duration: 0.2 }}
+              className="p-4 rounded-xl bg-base-700 border border-border space-y-4"
+            >
+              <h3 className="text-xs font-display font-medium text-text-secondary uppercase tracking-wider">
+                Status
+              </h3>
+              <CustomSelect
+                value={
+                  presence.statusMode === "away" && presence.sessionLoopState === "INGAME"
+                    ? "online"
+                    : presence.statusMode
+                }
+                onChange={(v) => update("statusMode", v)}
+                options={STATUS_MODES.filter(
+                  (m) => !(m.id === "away" && presence.sessionLoopState === "INGAME")
+                )}
+                renderOption={(m) => (
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={`w-2 h-2 rounded-full shrink-0 ${m.id === "online" ? "bg-status-green" : m.id === "away" ? "bg-yellow-400" : "bg-text-muted/40"}`}
+                    />
+                    {m.name}
+                    {m.id === "hidden" && (
+                      <Tooltip text="Hides you from the friends list entirely">
+                        <span className="flex items-center justify-center w-3.5 h-3.5 rounded-full bg-base-500/50 text-[8px] font-bold text-text-muted/70 cursor-help leading-none ml-0.5">
+                          ?
+                        </span>
+                      </Tooltip>
+                    )}
+                    {m.id === "invisible" && (
+                      <Tooltip text="Appear offline to friends while staying connected to chat (XMPP unavailable)">
+                        <span className="flex items-center justify-center w-3.5 h-3.5 rounded-full bg-base-500/50 text-[8px] font-bold text-text-muted/70 cursor-help leading-none ml-0.5">
+                          ?
+                        </span>
+                      </Tooltip>
+                    )}
+                  </span>
+                )}
+              />
+            </motion.div>
+
+            <motion.div
+              variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
+              transition={{ duration: 0.2 }}
+              className="p-4 rounded-xl bg-base-700 border border-border space-y-4"
+            >
+              <h3 className="text-xs font-display font-medium text-text-secondary uppercase tracking-wider">
+                Rank & Identity
+              </h3>
+              <div className="grid grid-cols-3 gap-3">
+                <Field label="Rank">
+                  <CustomSelect
+                    value={presence.competitiveTier}
+                    onChange={(v) => update("competitiveTier", v)}
+                    options={RANKS}
+                    renderOption={(r) => (
+                      <>
+                        <img src={rankIcon(r.tier)} alt="" className="w-5 h-5" />
+                        {r.name}
+                      </>
+                    )}
+                  />
+                </Field>
+                <Field label="Rank #">
+                  <NumInput
+                    value={presence.leaderboardPosition}
+                    onChange={(v) => update("leaderboardPosition", v)}
+                    placeholder="0"
+                    className={inputClass}
+                  />
+                </Field>
+                <Field label="Account Level">
+                  <NumInput
+                    value={presence.accountLevel}
+                    onChange={(v) => update("accountLevel", v)}
+                    className={inputClass}
+                  />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Card" tooltip="Only visible to other players">
+                  <ApiSearch
+                    value={presence.playerCardId}
+                    onChange={(v) => update("playerCardId", v)}
+                    endpoint="playercards"
+                    nameKey="displayName"
+                    iconKey="smallArt"
+                    placeholder="Search card..."
+                  />
+                </Field>
+                <Field label="Nametag" tooltip="Only visible to other players">
+                  <ApiSearch
+                    value={presence.playerTitleId}
+                    onChange={(v) => update("playerTitleId", v)}
+                    endpoint="playertitles"
+                    nameKey="titleText"
+                    placeholder="Search title..."
+                  />
+                </Field>
+              </div>
+            </motion.div>
+
+            <motion.div
+              variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
+              transition={{ duration: 0.2 }}
+              className="p-4 rounded-xl bg-base-700 border border-border space-y-4"
+            >
+              <h3 className="text-xs font-display font-medium text-text-secondary uppercase tracking-wider">
+                Game State
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Session State">
+                  <CustomSelect
+                    value={presence.sessionLoopState}
+                    onChange={(v) => update("sessionLoopState", v)}
+                    options={SESSION_STATES}
+                    renderOption={(s) => s.name}
+                  />
+                </Field>
+                <Field label="Queue">
+                  <CustomSelect
+                    value={presence.queueId}
+                    onChange={(v) => update("queueId", v)}
+                    options={QUEUES}
+                    renderOption={(q) => q.label}
+                  />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Party Size">
+                  <NumInput
+                    value={presence.partySize}
+                    onChange={(v) => update("partySize", v)}
+                    className={inputClass}
+                  />
+                </Field>
+                <Field label="Max Party Size">
+                  <NumInput
+                    value={presence.maxPartySize}
+                    onChange={(v) => update("maxPartySize", v)}
+                    className={inputClass}
+                  />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Team Score">
+                  <NumInput
+                    value={presence.partyOwnerMatchScoreAllyTeam}
+                    onChange={(v) => update("partyOwnerMatchScoreAllyTeam", v)}
+                    className={inputClass}
+                  />
+                </Field>
+                <Field label="Enemy Score">
+                  <NumInput
+                    value={presence.partyOwnerMatchScoreEnemyTeam}
+                    onChange={(v) => update("partyOwnerMatchScoreEnemyTeam", v)}
+                    className={inputClass}
+                  />
+                </Field>
+              </div>
+            </motion.div>
+
+            <div className="p-4 rounded-xl bg-base-700 border border-border space-y-4">
+              <h3 className="text-xs font-display font-medium text-text-secondary uppercase tracking-wider">
+                Premier
+              </h3>
+              <div className="grid grid-cols-3 gap-3">
+                <Field label="Division">
+                  <CustomSelect
+                    value={presence.premierDivision}
+                    onChange={(v) => update("premierDivision", v)}
+                    options={PREMIER_DIVISIONS}
+                    renderOption={(d) => (
+                      <>
+                        <span
+                          className="w-5 h-5 flex items-center justify-center rounded text-xs font-bold shrink-0"
+                          style={{ color: d.color }}
+                        >
+                          {d.icon}
+                        </span>
+                        {d.name}
+                      </>
+                    )}
+                  />
+                </Field>
+                <Field label="Roster Name">
+                  <input
+                    value={presence.rosterName}
+                    onChange={(e) => update("rosterName", e.target.value)}
+                    placeholder="Team name..."
+                    className={inputClass}
+                  />
+                </Field>
+                <Field label="Score">
+                  <NumInput
+                    value={presence.premierScore}
+                    onChange={(v) => update("premierScore", v)}
+                    className={inputClass}
+                  />
+                </Field>
               </div>
             </div>
-            <div ref={logContainerRef} onScroll={handleLogScroll} className="flex-1 overflow-y-auto p-2 space-y-1 font-mono text-[11px]">
-              {logs.length === 0 && <p className="text-text-muted text-center py-8 font-body text-xs">No logs yet</p>}
-              {logs.filter(l => logFilter === "all" || l.direction === logFilter).map((log, i) => (
-                <div key={i} className={`flex items-start gap-2 px-2 py-1 rounded hover:bg-base-700/50 ${log.direction === "own_presence" ? "bg-yellow-500/5 border-l-2 border-yellow-500/40" : ""}`}>
-                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase border shrink-0 ${
-                    { sent: "bg-accent-blue/20 text-accent-blue border-accent-blue/30", recv: "bg-status-green/20 text-status-green border-status-green/30", system: "bg-val-red/20 text-val-red border-val-red/30", error: "bg-status-red/20 text-status-red border-status-red/30", own_presence: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30", debug: "bg-purple-500/20 text-purple-400 border-purple-500/30", f_debug: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30" }[log.direction] || "bg-val-red/20 text-val-red border-val-red/30"
-                  }`}>{log.direction}</span>
-                  <span className="text-text-muted/50 shrink-0 text-[9px] tabular-nums leading-5">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                  <pre className="text-text-secondary whitespace-pre-wrap break-all leading-5 flex-1 select-all">{log.data}</pre>
+          </motion.div>
+        )}
+
+        {showLogs && (
+          <div className="flex-1 min-h-0 flex flex-col gap-2">
+            <div className="flex-1 min-h-0 rounded-xl bg-base-800 border border-border overflow-hidden flex flex-col">
+              <div className="px-3 py-2 border-b border-border flex items-center justify-between shrink-0">
+                <p className="text-xs font-display font-medium text-text-secondary">XMPP Log</p>
+                <div className="flex items-center gap-2">
+                  {["all", "own_presence", "f_debug", "debug", "sent", "system"].map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setLogFilter(f)}
+                      className={`text-[9px] font-mono px-1.5 py-0.5 rounded border transition-colors ${
+                        logFilter === f
+                          ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+                          : "text-text-muted border-transparent hover:text-text-secondary"
+                      }`}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                  <span className="text-[10px] font-body text-text-muted">{logs.length}</span>
                 </div>
-              ))}
-              <div ref={logEndRef} />
+              </div>
+              <div
+                ref={logContainerRef}
+                onScroll={handleLogScroll}
+                className="flex-1 overflow-y-auto p-2 space-y-1 font-mono text-[11px]"
+              >
+                {logs.length === 0 && (
+                  <p className="text-text-muted text-center py-8 font-body text-xs">No logs yet</p>
+                )}
+                {logs
+                  .filter((l) => logFilter === "all" || l.direction === logFilter)
+                  .map((log, i) => (
+                    <div
+                      key={i}
+                      className={`flex items-start gap-2 px-2 py-1 rounded hover:bg-base-700/50 ${log.direction === "own_presence" ? "bg-yellow-500/5 border-l-2 border-yellow-500/40" : ""}`}
+                    >
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase border shrink-0 ${
+                          {
+                            sent: "bg-accent-blue/20 text-accent-blue border-accent-blue/30",
+                            recv: "bg-status-green/20 text-status-green border-status-green/30",
+                            system: "bg-val-red/20 text-val-red border-val-red/30",
+                            error: "bg-status-red/20 text-status-red border-status-red/30",
+                            own_presence: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+                            debug: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+                            f_debug: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+                          }[log.direction] || "bg-val-red/20 text-val-red border-val-red/30"
+                        }`}
+                      >
+                        {log.direction}
+                      </span>
+                      <span className="text-text-muted/50 shrink-0 text-[9px] tabular-nums leading-5">
+                        {new Date(log.timestamp).toLocaleTimeString()}
+                      </span>
+                      <pre className="text-text-secondary whitespace-pre-wrap break-all leading-5 flex-1 select-all">
+                        {log.data}
+                      </pre>
+                    </div>
+                  ))}
+                <div ref={logEndRef} />
+              </div>
             </div>
           </div>
-        </div>
-      )}
-
-    </div>
+        )}
+      </div>
     </>
   );
 }

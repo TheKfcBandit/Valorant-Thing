@@ -11,8 +11,14 @@ export function useApiLookup(getter) {
   const [v, setV] = useState(null);
   useEffect(() => {
     let alive = true;
-    getter().then((r) => { if (alive) setV(r); }).catch(() => {});
-    return () => { alive = false; };
+    getter()
+      .then((r) => {
+        if (alive) setV(r);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, [getter]);
   return v || {};
 }

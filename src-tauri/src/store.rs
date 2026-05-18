@@ -21,17 +21,29 @@ struct StorefrontCacheFile {
 
 fn save_storefront_to_disk(app: &AppHandle, raw: &str) {
     // Best-effort. A failed write should never break a successful fetch.
-    let path = match cache_path(app, "store-cache.json") { Ok(p) => p, Err(e) => {
-        riot::logging::log_error(&format!("[StoreCache] path: {}", e)); return;
-    }};
-    let entry = StorefrontCacheFile { raw: raw.to_string(), fetched_at_ms: now_ms() };
-    let serialized = match serde_json::to_string(&entry) { Ok(s) => s, Err(e) => {
-        riot::logging::log_error(&format!("[StoreCache] serialize: {}", e)); return;
-    }};
+    let path = match cache_path(app, "store-cache.json") {
+        Ok(p) => p,
+        Err(e) => {
+            riot::logging::log_error(&format!("[StoreCache] path: {}", e));
+            return;
+        }
+    };
+    let entry = StorefrontCacheFile {
+        raw: raw.to_string(),
+        fetched_at_ms: now_ms(),
+    };
+    let serialized = match serde_json::to_string(&entry) {
+        Ok(s) => s,
+        Err(e) => {
+            riot::logging::log_error(&format!("[StoreCache] serialize: {}", e));
+            return;
+        }
+    };
     let tmp = path.with_extension("json.tmp");
     let _ = std::fs::remove_file(&tmp);
     if let Err(e) = std::fs::write(&tmp, serialized) {
-        riot::logging::log_error(&format!("[StoreCache] write tmp: {}", e)); return;
+        riot::logging::log_error(&format!("[StoreCache] write tmp: {}", e));
+        return;
     }
     if let Err(e) = std::fs::rename(&tmp, &path) {
         riot::logging::log_error(&format!("[StoreCache] rename: {}", e));
@@ -40,7 +52,9 @@ fn save_storefront_to_disk(app: &AppHandle, raw: &str) {
 
 fn load_storefront_from_disk(app: &AppHandle) -> Option<StorefrontCacheFile> {
     let path = cache_path(app, "store-cache.json").ok()?;
-    if !path.exists() { return None; }
+    if !path.exists() {
+        return None;
+    }
     let s = std::fs::read_to_string(&path).ok()?;
     serde_json::from_str(&s).ok()
 }
@@ -85,7 +99,14 @@ fn fetch_storefront_inner(state: &Mutex<ConnectionState>) -> Result<String, Stri
     // /store/v3/storefront/{puuid} requires POST with an empty JSON body. The
     // older v2 endpoint was GET, but v2 is deprecated. Using GET on v3 returns
     // 405 Method Not Allowed, which silently breaks the entire Store page.
-    riot::pd_post(&shard, &path, "{}", &access_token, &entitlements, &client_version)
+    riot::pd_post(
+        &shard,
+        &path,
+        "{}",
+        &access_token,
+        &entitlements,
+        &client_version,
+    )
 }
 
 fn extract_offer_ids(raw: &str) -> (Vec<String>, Vec<String>) {
@@ -150,12 +171,18 @@ fn collect_candidates(raw: &str, wishlist: &Mutex<Vec<String>>) -> Vec<WishlistH
     let mut hits = Vec::new();
     for id in daily {
         if wl.contains(&id) {
-            hits.push(WishlistHit { offer_id: id, kind: "daily" });
+            hits.push(WishlistHit {
+                offer_id: id,
+                kind: "daily",
+            });
         }
     }
     for id in nm {
         if wl.contains(&id) {
-            hits.push(WishlistHit { offer_id: id, kind: "night-market" });
+            hits.push(WishlistHit {
+                offer_id: id,
+                kind: "night-market",
+            });
         }
     }
     hits
@@ -167,10 +194,13 @@ fn utc_day_key(secs: i64) -> String {
 }
 
 fn emit_and_notify(app: &AppHandle, raw: &str, hits: &[WishlistHit]) {
-    let _ = app.emit("store-update", StoreUpdate {
-        raw: raw.to_string(),
-        fetched_at_ms: now_ms(),
-    });
+    let _ = app.emit(
+        "store-update",
+        StoreUpdate {
+            raw: raw.to_string(),
+            fetched_at_ms: now_ms(),
+        },
+    );
     for hit in hits {
         let _ = app.emit("wishlist-hit", hit.clone());
     }
@@ -237,7 +267,8 @@ pub fn spawn_storefront_poller(
                         save_storefront_to_disk(&app2, &raw);
                         riot::logging::log_info(&format!(
                             "[Store] Fetched storefront for {} ({} fresh hits)",
-                            day_key, fresh.len()
+                            day_key,
+                            fresh.len()
                         ));
                     }
                     Ok(Err(e)) => {
@@ -267,7 +298,11 @@ pub async fn get_storefront(
     match fresh {
         Ok(raw) => {
             save_storefront_to_disk(&app_for_save, &raw);
-            Ok(StorefrontResult { raw, fetched_at_ms: now_ms(), stale_since_ms: None })
+            Ok(StorefrontResult {
+                raw,
+                fetched_at_ms: now_ms(),
+                stale_since_ms: None,
+            })
         }
         Err(live_err) => {
             // Phase A of #18: fall back to the on-disk cache so the user sees
@@ -458,7 +493,8 @@ mod tests {
 
     #[test]
     fn collect_candidates_is_case_insensitive() {
-        let raw = r#"{"SkinsPanelLayout":{"SingleItemStoreOffers":[{"OfferID":"ABC-Mixed-Case"}]}}"#;
+        let raw =
+            r#"{"SkinsPanelLayout":{"SingleItemStoreOffers":[{"OfferID":"ABC-Mixed-Case"}]}}"#;
         // Wishlist stored upper-case
         let wl = Mutex::new(vec!["ABC-MIXED-CASE".to_string()]);
         let hits = collect_candidates(raw, &wl);

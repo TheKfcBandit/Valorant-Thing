@@ -26,6 +26,4 @@
 
 import { loadoutModule } from "./loadoutModule.jsx";
 
-export const LIVE_MODULES = [
-  loadoutModule,
-];
+export const LIVE_MODULES = [loadoutModule];

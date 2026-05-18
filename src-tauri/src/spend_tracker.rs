@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::AppHandle;
 
-use crate::riot::{self, ConnectionState};
 use crate::riot::logging::{log_error, log_info};
+use crate::riot::{self, ConnectionState};
 use crate::util::{cache_path, now_ms};
 
 const SKIN_LEVEL_ITEM_TYPE: &str = "3ad1b2b2-acdb-4524-852f-954a76ddae0a";
@@ -51,7 +51,9 @@ fn spend_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 fn ensure_loaded(app: &AppHandle, state: &Mutex<SpendState>) -> Result<(), String> {
     {
         let s = state.lock().map_err(|e| e.to_string())?;
-        if s.loaded { return Ok(()); }
+        if s.loaded {
+            return Ok(());
+        }
     }
     let path = spend_path(app)?;
     let data: SpendData = if path.exists() {
@@ -89,13 +91,17 @@ fn fetch_owned_skin_levels(state: &Mutex<ConnectionState>) -> Result<HashSet<Str
     let mut out = HashSet::new();
     if let Some(arr) = json["Entitlements"].as_array() {
         for e in arr {
-            if let Some(id) = e["ItemID"].as_str() { out.insert(id.to_lowercase()); }
+            if let Some(id) = e["ItemID"].as_str() {
+                out.insert(id.to_lowercase());
+            }
         }
     } else if let Some(groups) = json["EntitlementsByTypes"].as_array() {
         for g in groups {
             if let Some(arr) = g["Entitlements"].as_array() {
                 for e in arr {
-                    if let Some(id) = e["ItemID"].as_str() { out.insert(id.to_lowercase()); }
+                    if let Some(id) = e["ItemID"].as_str() {
+                        out.insert(id.to_lowercase());
+                    }
                 }
             }
         }
@@ -103,10 +109,14 @@ fn fetch_owned_skin_levels(state: &Mutex<ConnectionState>) -> Result<HashSet<Str
     Ok(out)
 }
 
-fn fetch_offer_catalog(state: &Mutex<ConnectionState>) -> Result<HashMap<String, OfferCost>, String> {
+fn fetch_offer_catalog(
+    state: &Mutex<ConnectionState>,
+) -> Result<HashMap<String, OfferCost>, String> {
     let (access_token, entitlements, shard, client_version) = {
         let s = state.lock().map_err(|e| e.to_string())?;
-        if !s.connected { return Err("Not connected".to_string()); }
+        if !s.connected {
+            return Err("Not connected".to_string());
+        }
         (
             s.access_token.clone().ok_or("No access_token")?,
             s.entitlements.clone().ok_or("No entitlements")?,
@@ -114,7 +124,13 @@ fn fetch_offer_catalog(state: &Mutex<ConnectionState>) -> Result<HashMap<String,
             s.client_version.clone().ok_or("No client_version")?,
         )
     };
-    let raw = riot::pd_get(&shard, "/store/v1/offers/", &access_token, &entitlements, &client_version)?;
+    let raw = riot::pd_get(
+        &shard,
+        "/store/v1/offers/",
+        &access_token,
+        &entitlements,
+        &client_version,
+    )?;
     let json: Value = serde_json::from_str(&raw).map_err(|e| format!("parse offers: {}", e))?;
     let mut by_reward_id: HashMap<String, OfferCost> = HashMap::new();
     if let Some(offers) = json["Offers"].as_array() {
@@ -134,7 +150,9 @@ fn fetch_offer_catalog(state: &Mutex<ConnectionState>) -> Result<HashMap<String,
                             Some(existing) => existing.vp == 0 && oc.vp > 0,
                             None => true,
                         };
-                        if prefer_new { by_reward_id.insert(key, oc.clone()); }
+                        if prefer_new {
+                            by_reward_id.insert(key, oc.clone());
+                        }
                     }
                 }
             }
@@ -152,15 +170,20 @@ pub async fn get_spend_summary(
     ensure_loaded(&app, &spend)?;
 
     let state_for_owned = std::sync::Arc::clone(&state);
-    let owned = tauri::async_runtime::spawn_blocking(move || fetch_owned_skin_levels(&state_for_owned))
-        .await
-        .map_err(|e| format!("Task failed: {}", e))??;
+    let owned =
+        tauri::async_runtime::spawn_blocking(move || fetch_owned_skin_levels(&state_for_owned))
+            .await
+            .map_err(|e| format!("Task failed: {}", e))??;
 
     let (had_prior, new_items) = {
         let s = spend.lock().map_err(|e| e.to_string())?;
         let had = s.data.tracking_since_ms.is_some();
         let prior = &s.data.last_owned;
-        let news: Vec<String> = owned.iter().filter(|id| !prior.contains(*id)).cloned().collect();
+        let news: Vec<String> = owned
+            .iter()
+            .filter(|id| !prior.contains(*id))
+            .cloned()
+            .collect();
         (had, news)
     };
 
@@ -189,17 +212,22 @@ pub async fn get_spend_summary(
     if !new_items.is_empty() {
         let need_catalog = {
             let s = spend.lock().map_err(|e| e.to_string())?;
-            new_items.iter().any(|id| !s.data.offer_cache.contains_key(id))
+            new_items
+                .iter()
+                .any(|id| !s.data.offer_cache.contains_key(id))
         };
         if need_catalog {
             let state_for_cat = std::sync::Arc::clone(&state);
-            let catalog = tauri::async_runtime::spawn_blocking(move || fetch_offer_catalog(&state_for_cat))
-                .await
-                .map_err(|e| format!("Task failed: {}", e))?;
+            let catalog =
+                tauri::async_runtime::spawn_blocking(move || fetch_offer_catalog(&state_for_cat))
+                    .await
+                    .map_err(|e| format!("Task failed: {}", e))?;
             match catalog {
                 Ok(cat) => {
                     let mut s = spend.lock().map_err(|e| e.to_string())?;
-                    for (k, v) in cat { s.data.offer_cache.insert(k, v); }
+                    for (k, v) in cat {
+                        s.data.offer_cache.insert(k, v);
+                    }
                 }
                 Err(e) => log_error(&format!("[Spend] catalog fetch failed: {}", e)),
             }
@@ -226,10 +254,15 @@ pub async fn get_spend_summary(
 
     // Build summary.
     let s = spend.lock().map_err(|e| e.to_string())?;
-    let (vp_total, rp_total, kc_total) = s.data.purchases.iter()
-        .fold((0u64, 0u64, 0u64), |acc, p| (acc.0 + p.vp, acc.1 + p.rp, acc.2 + p.kc));
+    let (vp_total, rp_total, kc_total) =
+        s.data.purchases.iter().fold((0u64, 0u64, 0u64), |acc, p| {
+            (acc.0 + p.vp, acc.1 + p.rp, acc.2 + p.kc)
+        });
     let month_cutoff = now - 30 * 24 * 3600 * 1000;
-    let (vp_month, rp_month) = s.data.purchases.iter()
+    let (vp_month, rp_month) = s
+        .data
+        .purchases
+        .iter()
         .filter(|p| p.date_ms >= month_cutoff)
         .fold((0u64, 0u64), |acc, p| (acc.0 + p.vp, acc.1 + p.rp));
 

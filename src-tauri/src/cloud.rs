@@ -14,7 +14,10 @@ pub async fn cloud_save(save_type: String, data: Value) -> Result<String, String
         .map_err(|e| format!("Request failed: {}", e))?;
 
     let status = res.status();
-    let json: Value = res.json().await.map_err(|e| format!("Parse failed: {}", e))?;
+    let json: Value = res
+        .json()
+        .await
+        .map_err(|e| format!("Parse failed: {}", e))?;
 
     if !status.is_success() {
         return Err(json["error"].as_str().unwrap_or("Save failed").to_string());
@@ -37,7 +40,10 @@ pub async fn cloud_load(code: String) -> Result<Value, String> {
         .map_err(|e| format!("Request failed: {}", e))?;
 
     let status = res.status();
-    let json: Value = res.json().await.map_err(|e| format!("Parse failed: {}", e))?;
+    let json: Value = res
+        .json()
+        .await
+        .map_err(|e| format!("Parse failed: {}", e))?;
 
     if !status.is_success() {
         return Err(json["error"].as_str().unwrap_or("Load failed").to_string());

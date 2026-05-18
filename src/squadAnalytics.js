@@ -17,13 +17,13 @@ function isRanked(queueId = "") {
 
 export function computeFitness(cachedMatches, friendPuuids) {
   if (!Array.isArray(cachedMatches) || cachedMatches.length === 0) return {};
-  const friends = new Set((friendPuuids || []).map(p => String(p).toLowerCase()));
+  const friends = new Set((friendPuuids || []).map((p) => String(p).toLowerCase()));
   if (friends.size === 0) return {};
 
   // Establish your overall ranked winrate baseline.
-  const ranked = cachedMatches.filter(m => isRanked(m.queueId));
+  const ranked = cachedMatches.filter((m) => isRanked(m.queueId));
   const baselineGames = ranked.length;
-  const baselineWins = ranked.filter(m => m.won).length;
+  const baselineWins = ranked.filter((m) => m.won).length;
   const baselineWR = baselineGames > 0 ? baselineWins / baselineGames : 0.5;
 
   // Aggregate per-friend stats.

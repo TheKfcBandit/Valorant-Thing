@@ -10,8 +10,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
-use crate::riot::{self, ConnectionState};
 use crate::riot::logging::log_error;
+use crate::riot::{self, ConnectionState};
 use crate::util::{cache_path as util_cache_path, now_ms};
 
 const MAX_PRESETS: usize = 50;
@@ -43,7 +43,9 @@ fn cache_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 fn ensure_loaded(app: &AppHandle, state: &Mutex<PresetsState>) -> Result<(), String> {
     {
         let s = state.lock().map_err(|e| e.to_string())?;
-        if s.loaded { return Ok(()); }
+        if s.loaded {
+            return Ok(());
+        }
     }
     let path = cache_path(app)?;
     let data: PresetsFile = if path.exists() {
@@ -51,10 +53,17 @@ fn ensure_loaded(app: &AppHandle, state: &Mutex<PresetsState>) -> Result<(), Str
             Ok(s) => match serde_json::from_str(&s) {
                 Ok(d) => d,
                 Err(e) => {
-                    let ts = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+                    let ts = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
                     let corrupt = path.with_extension(format!("json.corrupt-{}", ts));
                     let _ = std::fs::rename(&path, &corrupt);
-                    log_error(&format!("[Presets] parse failed, backed up to {} ({})", corrupt.display(), e));
+                    log_error(&format!(
+                        "[Presets] parse failed, backed up to {} ({})",
+                        corrupt.display(),
+                        e
+                    ));
                     PresetsFile::default()
                 }
             },
@@ -90,7 +99,9 @@ fn make_id() -> String {
     // human-scale preset counts. Format: "p{epoch_ms}-{rand}" so they sort
     // naturally too.
     let ms = now_ms();
-    let rand: u32 = (ms as u32).wrapping_mul(2654435761).wrapping_add(0x9E3779B9);
+    let rand: u32 = (ms as u32)
+        .wrapping_mul(2654435761)
+        .wrapping_add(0x9E3779B9);
     format!("p{}-{:x}", ms, rand)
 }
 
@@ -122,7 +133,10 @@ pub async fn save_loadout_preset(
     {
         let s = state.lock().map_err(|e| e.to_string())?;
         if s.data.presets.len() >= MAX_PRESETS {
-            return Err(format!("Preset limit reached ({}), delete one first", MAX_PRESETS));
+            return Err(format!(
+                "Preset limit reached ({}), delete one first",
+                MAX_PRESETS
+            ));
         }
     }
     // Pull the live loadout from Riot.
@@ -155,9 +169,13 @@ pub async fn apply_loadout_preset(
     ensure_loaded(&app, &state)?;
     let loadout_json = {
         let s = state.lock().map_err(|e| e.to_string())?;
-        s.data.presets.iter().find(|p| p.id == preset_id)
+        s.data
+            .presets
+            .iter()
+            .find(|p| p.id == preset_id)
             .ok_or_else(|| "Preset not found".to_string())?
-            .loadout_json.clone()
+            .loadout_json
+            .clone()
     };
     // set_loadout expects only the writeable subset (Guns/Sprays/Identity/Incognito),
     // which is what the frontend sends. But our save_loadout_preset stored the FULL
@@ -193,7 +211,8 @@ pub async fn delete_loadout_preset(
 // includes server-side fields like Version, Subject, etc.). Project to the
 // writeable subset the existing LoadoutPage already uses.
 fn project_writeable(full_json: &str) -> Result<String, String> {
-    let v: serde_json::Value = serde_json::from_str(full_json).map_err(|e| format!("parse: {}", e))?;
+    let v: serde_json::Value =
+        serde_json::from_str(full_json).map_err(|e| format!("parse: {}", e))?;
     let body = serde_json::json!({
         "Guns": v.get("Guns").cloned().unwrap_or(serde_json::Value::Null),
         "Sprays": v.get("Sprays").cloned().unwrap_or(serde_json::Value::Null),

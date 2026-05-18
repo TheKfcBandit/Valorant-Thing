@@ -28,14 +28,22 @@ export function computeHighlights(match) {
 
   // Deathmatch has different scaling.
   if (DEATHMATCH_QUEUES.has(queue)) {
-    if (k >= 40) out.push({ id: "dm-w", label: "DM Champ", color: "text-yellow-400", hint: "40+ kills" });
-    else if (k >= 30) out.push({ id: "dm-strong", label: "Sharpshooter", color: "text-accent-blue", hint: "30+ kills" });
+    if (k >= 40)
+      out.push({ id: "dm-w", label: "DM Champ", color: "text-yellow-400", hint: "40+ kills" });
+    else if (k >= 30)
+      out.push({
+        id: "dm-strong",
+        label: "Sharpshooter",
+        color: "text-accent-blue",
+        hint: "30+ kills",
+      });
     return out;
   }
 
   // Escalation / TDM / other modes — kill thresholds only.
   if (ESCALATION_QUEUES.has(queue)) {
-    if (k >= 30) out.push({ id: "carry", label: "Carried", color: "text-yellow-400", hint: "30+ kills" });
+    if (k >= 30)
+      out.push({ id: "carry", label: "Carried", color: "text-yellow-400", hint: "30+ kills" });
     return out;
   }
 
@@ -55,18 +63,33 @@ export function computeHighlights(match) {
 
   // Untouchable — low deaths.
   if (totalRounds >= 9 && d <= (isShort ? 5 : 9)) {
-    out.push({ id: "untouchable", label: "Untouchable", color: "text-accent-blue", hint: `only ${d} deaths` });
+    out.push({
+      id: "untouchable",
+      label: "Untouchable",
+      color: "text-accent-blue",
+      hint: `only ${d} deaths`,
+    });
   }
 
   // High KDA.
   const kda = d > 0 ? (k + a) / d : k + a;
   if (kda >= 2.5 && totalRounds >= 9) {
-    out.push({ id: "kda", label: "High KDA", color: "text-green-400", hint: `${kda.toFixed(1)} KDA` });
+    out.push({
+      id: "kda",
+      label: "High KDA",
+      color: "text-green-400",
+      hint: `${kda.toFixed(1)} KDA`,
+    });
   }
 
   // Carried — kills exceed your team's round wins (unusual ratio).
   if (rw > 0 && k >= rw + 4 && won) {
-    out.push({ id: "carry", label: "Carried", color: "text-yellow-400", hint: `${k}K with ${rw} rounds` });
+    out.push({
+      id: "carry",
+      label: "Carried",
+      color: "text-yellow-400",
+      hint: `${k}K with ${rw} rounds`,
+    });
   }
 
   // Team Player — heavy assist contribution.
@@ -103,7 +126,7 @@ export function computeScoreboardBadges(details) {
   if (players.length === 0) return out;
 
   // Skip team-less modes (deathmatch etc.) — same heuristic as the modal.
-  const teamIds = new Set(players.map(p => String(p.teamId || "").toLowerCase()));
+  const teamIds = new Set(players.map((p) => String(p.teamId || "").toLowerCase()));
   if (teams.length < 2 || teamIds.size < 2) return out;
 
   const add = (puuid, badge) => {
@@ -119,11 +142,21 @@ export function computeScoreboardBadges(details) {
   let topScorePuuid = null;
   for (const p of players) {
     const s = p.stats?.score || 0;
-    if (s > topScore) { topScore = s; topScoreCount = 1; topScorePuuid = p.subject; }
-    else if (s === topScore) { topScoreCount += 1; }
+    if (s > topScore) {
+      topScore = s;
+      topScoreCount = 1;
+      topScorePuuid = p.subject;
+    } else if (s === topScore) {
+      topScoreCount += 1;
+    }
   }
   if (topScoreCount === 1 && topScorePuuid) {
-    add(topScorePuuid, { id: "mvp", label: "MVP", color: "text-yellow-400", hint: `${topScore} score` });
+    add(topScorePuuid, {
+      id: "mvp",
+      label: "MVP",
+      color: "text-yellow-400",
+      hint: `${topScore} score`,
+    });
   }
 
   // Aggregate per-puuid stats from roundResults (Sharpshooter + Multi-Kill).
@@ -156,11 +189,22 @@ export function computeScoreboardBadges(details) {
     const total = e.hs + e.body + e.leg;
     if (total < MIN_SHOTS_FOR_HS) continue;
     const pct = e.hs / total;
-    if (pct > topPct) { topPct = pct; topPctCount = 1; topPctPuuid = puuid; topPctVal = pct; }
-    else if (pct === topPct) { topPctCount += 1; }
+    if (pct > topPct) {
+      topPct = pct;
+      topPctCount = 1;
+      topPctPuuid = puuid;
+      topPctVal = pct;
+    } else if (pct === topPct) {
+      topPctCount += 1;
+    }
   }
   if (topPctCount === 1 && topPctPuuid) {
-    add(topPctPuuid, { id: "sharp", label: "Sharpshooter", color: "text-accent-blue", hint: `${Math.round(topPctVal * 100)}% HS` });
+    add(topPctPuuid, {
+      id: "sharp",
+      label: "Sharpshooter",
+      color: "text-accent-blue",
+      hint: `${Math.round(topPctVal * 100)}% HS`,
+    });
   }
 
   // Best Multi-Kill — highest single-round kill count, must be >= MIN_MULTIKILL.
@@ -168,11 +212,21 @@ export function computeScoreboardBadges(details) {
   let topMultiCount = 0;
   let topMultiPuuid = null;
   for (const [puuid, e] of agg) {
-    if (e.maxKills > topMulti) { topMulti = e.maxKills; topMultiCount = 1; topMultiPuuid = puuid; }
-    else if (e.maxKills === topMulti && topMulti >= MIN_MULTIKILL) { topMultiCount += 1; }
+    if (e.maxKills > topMulti) {
+      topMulti = e.maxKills;
+      topMultiCount = 1;
+      topMultiPuuid = puuid;
+    } else if (e.maxKills === topMulti && topMulti >= MIN_MULTIKILL) {
+      topMultiCount += 1;
+    }
   }
   if (topMultiCount === 1 && topMultiPuuid && topMulti >= MIN_MULTIKILL) {
-    add(topMultiPuuid, { id: "multi", label: "Best Multi-Kill", color: "text-green-400", hint: `${topMulti}K in one round` });
+    add(topMultiPuuid, {
+      id: "multi",
+      label: "Best Multi-Kill",
+      color: "text-green-400",
+      hint: `${topMulti}K in one round`,
+    });
   }
 
   return out;

@@ -20,7 +20,9 @@ fn cache_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 fn ensure_loaded(app: &AppHandle, state: &Mutex<MatchCacheState>) -> Result<(), String> {
     {
         let s = state.lock().map_err(|e| e.to_string())?;
-        if s.loaded { return Ok(()); }
+        if s.loaded {
+            return Ok(());
+        }
     }
     let path = cache_path(app)?;
     let map = if path.exists() {
@@ -87,8 +89,13 @@ pub async fn match_history_put(
     state: tauri::State<'_, Mutex<MatchCacheState>>,
     entry: Value,
 ) -> Result<bool, String> {
-    let match_id = entry["matchId"].as_str().ok_or("missing matchId")?.to_string();
-    if match_id.is_empty() { return Err("empty matchId".to_string()); }
+    let match_id = entry["matchId"]
+        .as_str()
+        .ok_or("missing matchId")?
+        .to_string();
+    if match_id.is_empty() {
+        return Err("empty matchId".to_string());
+    }
     ensure_loaded(&app, &state)?;
     let inserted = {
         let mut s = state.lock().map_err(|e| e.to_string())?;
@@ -112,13 +119,19 @@ pub async fn match_history_put_many(
         let mut s = state.lock().map_err(|e| e.to_string())?;
         for entry in entries {
             if let Some(mid) = entry["matchId"].as_str() {
-                if mid.is_empty() { continue; }
-                if !s.by_id.contains_key(mid) { new_count += 1; }
+                if mid.is_empty() {
+                    continue;
+                }
+                if !s.by_id.contains_key(mid) {
+                    new_count += 1;
+                }
                 s.by_id.insert(mid.to_string(), entry);
             }
         }
     }
-    if new_count > 0 { persist(&app, &state)?; }
+    if new_count > 0 {
+        persist(&app, &state)?;
+    }
     Ok(new_count)
 }
 
@@ -133,7 +146,9 @@ pub async fn match_history_list(
     let s = state.lock().map_err(|e| e.to_string())?;
     // Skip entries with missing/non-numeric dateMs rather than mixing them
     // into the head of the sort (where 0 would land them).
-    let mut items: Vec<&Value> = s.by_id.values()
+    let mut items: Vec<&Value> = s
+        .by_id
+        .values()
         .filter(|v| v.get("dateMs").and_then(|d| d.as_i64()).is_some())
         .collect();
     items.sort_by(|a, b| {

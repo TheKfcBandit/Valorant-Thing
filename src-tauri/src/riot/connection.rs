@@ -2,10 +2,12 @@ use base64::Engine;
 use std::sync::Mutex;
 use std::time::Instant;
 
+use super::http::{authed_get, https_get, local_get, pd_get};
+use super::logging::{log_error, log_info};
+use super::process::{
+    is_pid_alive, is_riot_client_running, parse_client_version, parse_region_shard, read_lockfile,
+};
 use super::types::{ConnectionState, PlayerInfo};
-use super::http::{local_get, https_get, authed_get, pd_get};
-use super::process::{read_lockfile, is_pid_alive, is_riot_client_running, parse_region_shard, parse_client_version};
-use super::logging::{log_info, log_error};
 
 pub fn connect_and_store(state: &Mutex<ConnectionState>) -> Result<PlayerInfo, String> {
     log_info("[Connect] Reading lockfile...");
@@ -20,11 +22,17 @@ pub fn connect_and_store(state: &Mutex<ConnectionState>) -> Result<PlayerInfo, S
         base64::engine::general_purpose::STANDARD.encode(format!("riot:{}", password))
     );
 
-    log_info(&format!("[Connect] Fetching entitlements (port={}, pid={})...", port, pid));
+    log_info(&format!(
+        "[Connect] Fetching entitlements (port={}, pid={})...",
+        port, pid
+    ));
     let tokens_raw = match local_get(port, &local_auth, "/entitlements/v1/token") {
         Ok(r) => r,
         Err(e) if e.contains("ECONNREFUSED") || e.contains("connect ECONNREFUSED") => {
-            return Err(format!("Riot Client API refused connection on port {} (restart Riot Client)", port));
+            return Err(format!(
+                "Riot Client API refused connection on port {} (restart Riot Client)",
+                port
+            ));
         }
         Err(e) => return Err(e),
     };
@@ -68,7 +76,10 @@ pub fn connect_and_store(state: &Mutex<ConnectionState>) -> Result<PlayerInfo, S
     let (region, shard) = parse_region_shard()?;
 
     let client_version = parse_client_version().unwrap_or_else(|e| {
-        log_error(&format!("[Connect] ShooterGame.log version parse failed: {}, falling back to valorant-api", e));
+        log_error(&format!(
+            "[Connect] ShooterGame.log version parse failed: {}, falling back to valorant-api",
+            e
+        ));
         match https_get("https://valorant-api.com/v1/version") {
             Ok(body) => {
                 let clean = body.trim().trim_end_matches('\0');
@@ -88,7 +99,13 @@ pub fn connect_and_store(state: &Mutex<ConnectionState>) -> Result<PlayerInfo, S
     let mut player_card_url: Option<String> = None;
     let mut loadout_debug: Option<String> = None;
     let loadout_path = format!("/personalization/v2/players/{}/playerloadout", puuid);
-    match pd_get(&shard, &loadout_path, &access_token, &entitlements_jwt, &client_version) {
+    match pd_get(
+        &shard,
+        &loadout_path,
+        &access_token,
+        &entitlements_jwt,
+        &client_version,
+    ) {
         Ok(raw) => {
             loadout_debug = Some(raw.clone());
             if let Ok(loadout) = serde_json::from_str::<serde_json::Value>(&raw) {
@@ -171,7 +188,10 @@ pub fn health_check(state: &Mutex<ConnectionState>) -> Option<PlayerInfo> {
         if needs_refresh {
             log_info("[Health] Token expired, refreshing...");
             if let Err(e) = refresh_tokens(state) {
-                log_error(&format!("[Health] Token refresh failed: {}, disconnecting", e));
+                log_error(&format!(
+                    "[Health] Token refresh failed: {}, disconnecting",
+                    e
+                ));
                 disconnect(state);
                 return None;
             }
@@ -200,7 +220,10 @@ pub fn health_check(state: &Mutex<ConnectionState>) -> Option<PlayerInfo> {
             }
             log_error("[Health] Token validation failed, refreshing...");
             if let Err(e) = refresh_tokens(state) {
-                log_error(&format!("[Health] Token refresh also failed: {}, disconnecting", e));
+                log_error(&format!(
+                    "[Health] Token refresh also failed: {}, disconnecting",
+                    e
+                ));
                 disconnect(state);
                 return None;
             }
@@ -222,9 +245,16 @@ fn validate_token(state: &Mutex<ConnectionState>) -> bool {
             Ok(s) => s,
             Err(_) => return false,
         };
-        match (&s.shard, &s.access_token, &s.entitlements, &s.client_version, &s.puuid) {
-            (Some(sh), Some(at), Some(et), Some(cv), Some(pu)) =>
-                (sh.clone(), at.clone(), et.clone(), cv.clone(), pu.clone()),
+        match (
+            &s.shard,
+            &s.access_token,
+            &s.entitlements,
+            &s.client_version,
+            &s.puuid,
+        ) {
+            (Some(sh), Some(at), Some(et), Some(cv), Some(pu)) => {
+                (sh.clone(), at.clone(), et.clone(), cv.clone(), pu.clone())
+            }
             _ => return false,
         }
     };
@@ -243,7 +273,10 @@ fn validate_token(state: &Mutex<ConnectionState>) -> bool {
                 log_error(&format!("[Health] Token check error: {}", e));
                 return false;
             }
-            log_error(&format!("[Health] Token check request failed: {} (network issue, keeping token)", e));
+            log_error(&format!(
+                "[Health] Token check request failed: {} (network issue, keeping token)",
+                e
+            ));
             true
         }
     }
@@ -259,13 +292,22 @@ fn refresh_tokens(state: &Mutex<ConnectionState>) -> Result<(), String> {
         base64::engine::general_purpose::STANDARD.encode(format!("riot:{}", password))
     );
 
-    log_info(&format!("[Health] Refreshing tokens (port={}, pid={})...", port, pid));
+    log_info(&format!(
+        "[Health] Refreshing tokens (port={}, pid={})...",
+        port, pid
+    ));
     let tokens_raw = local_get(port, &local_auth, "/entitlements/v1/token")?;
     let tokens: serde_json::Value =
         serde_json::from_str(&tokens_raw).map_err(|e| format!("Parse tokens: {}", e))?;
 
-    let access_token = tokens["accessToken"].as_str().ok_or("No accessToken")?.to_string();
-    let entitlements_jwt = tokens["token"].as_str().ok_or("No entitlements token")?.to_string();
+    let access_token = tokens["accessToken"]
+        .as_str()
+        .ok_or("No accessToken")?
+        .to_string();
+    let entitlements_jwt = tokens["token"]
+        .as_str()
+        .ok_or("No entitlements token")?
+        .to_string();
 
     let mut s = state.lock().map_err(|e| e.to_string())?;
     s.port = Some(port);

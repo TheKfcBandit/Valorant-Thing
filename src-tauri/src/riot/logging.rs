@@ -1,6 +1,6 @@
+use serde::Serialize;
 use std::sync::OnceLock;
 use tauri::{AppHandle, Emitter};
-use serde::Serialize;
 
 static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 
@@ -16,10 +16,13 @@ pub fn init(handle: AppHandle) {
 
 pub fn emit_log(log_type: &str, message: &str) {
     if let Some(handle) = APP_HANDLE.get() {
-        let _ = handle.emit("backend-log", LogPayload {
-            log_type: log_type.to_string(),
-            message: message.to_string(),
-        });
+        let _ = handle.emit(
+            "backend-log",
+            LogPayload {
+                log_type: log_type.to_string(),
+                message: message.to_string(),
+            },
+        );
     }
 }
 

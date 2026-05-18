@@ -58,8 +58,10 @@ function socketItemId(loadout, weaponUuid, socketUuid) {
   return null;
 }
 
-const getEquippedSkinLevelUuid = (loadout, weaponUuid) => socketItemId(loadout, weaponUuid, SOCKET_SKIN_LEVEL);
-const getEquippedBuddyUuid = (loadout, weaponUuid) => socketItemId(loadout, weaponUuid, SOCKET_BUDDY_LEVEL);
+const getEquippedSkinLevelUuid = (loadout, weaponUuid) =>
+  socketItemId(loadout, weaponUuid, SOCKET_SKIN_LEVEL);
+const getEquippedBuddyUuid = (loadout, weaponUuid) =>
+  socketItemId(loadout, weaponUuid, SOCKET_BUDDY_LEVEL);
 
 // Both endpoints return Loadouts[]; coregame nests the per-player payload
 // under .Loadout, pregame puts it on the entry directly. Either way Subject
@@ -101,9 +103,16 @@ function CardSlot({ player, data: loadout }) {
             title={weaponName ? `${weaponName}: ${skinMeta?.name || "default"}` : ""}
           >
             {skinMeta?.icon ? (
-              <img src={skinMeta.icon} alt="" className="w-full h-full object-contain" loading="lazy" />
+              <img
+                src={skinMeta.icon}
+                alt=""
+                className="w-full h-full object-contain"
+                loading="lazy"
+              />
             ) : (
-              <span className="text-[7px] font-body text-text-muted/60">{(weaponName[0] || "?").toUpperCase()}</span>
+              <span className="text-[7px] font-body text-text-muted/60">
+                {(weaponName[0] || "?").toUpperCase()}
+              </span>
             )}
           </div>
         );
@@ -125,7 +134,9 @@ function DialogSection({ player, data: loadout }) {
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-xs font-display font-medium text-text-secondary uppercase tracking-wider mb-2">Weapons</h3>
+        <h3 className="text-xs font-display font-medium text-text-secondary uppercase tracking-wider mb-2">
+          Weapons
+        </h3>
         <div className="grid grid-cols-3 gap-2">
           {ALL_WEAPONS.map((uuid) => {
             const lvlId = getEquippedSkinLevelUuid(loadout, uuid);
@@ -134,24 +145,47 @@ function DialogSection({ player, data: loadout }) {
             const buddyMeta = buddyId ? accessoryLookup[buddyId] : null;
             const weaponName = weaponLookup[uuid]?.displayName || "";
             return (
-              <div key={uuid} className="p-2 rounded-lg bg-base-700 border border-border flex flex-col gap-1.5">
+              <div
+                key={uuid}
+                className="p-2 rounded-lg bg-base-700 border border-border flex flex-col gap-1.5"
+              >
                 <div className="h-10 flex items-center justify-center bg-base-600/40 rounded">
                   {skinMeta?.icon ? (
-                    <img src={skinMeta.icon} alt="" className="max-h-9 max-w-full object-contain" loading="lazy" />
+                    <img
+                      src={skinMeta.icon}
+                      alt=""
+                      className="max-h-9 max-w-full object-contain"
+                      loading="lazy"
+                    />
                   ) : (
                     <span className="text-[10px] font-body text-text-muted/60">default</span>
                   )}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] font-display font-semibold text-text-muted uppercase tracking-wide">{weaponName}</p>
-                  <p className="text-[11px] font-body text-text-primary truncate" title={skinMeta?.name || "Default"}>
+                  <p className="text-[10px] font-display font-semibold text-text-muted uppercase tracking-wide">
+                    {weaponName}
+                  </p>
+                  <p
+                    className="text-[11px] font-body text-text-primary truncate"
+                    title={skinMeta?.name || "Default"}
+                  >
                     {skinMeta?.name || "Default"}
                   </p>
                 </div>
                 {buddyMeta?.image && (
                   <div className="flex items-center gap-1.5 pt-1 border-t border-border/40">
-                    <img src={buddyMeta.image} alt="" className="w-4 h-4 object-contain" loading="lazy" />
-                    <span className="text-[9px] font-body text-text-muted truncate" title={buddyMeta.name}>{buddyMeta.name}</span>
+                    <img
+                      src={buddyMeta.image}
+                      alt=""
+                      className="w-4 h-4 object-contain"
+                      loading="lazy"
+                    />
+                    <span
+                      className="text-[9px] font-body text-text-muted truncate"
+                      title={buddyMeta.name}
+                    >
+                      {buddyMeta.name}
+                    </span>
                   </div>
                 )}
               </div>
@@ -162,21 +196,34 @@ function DialogSection({ player, data: loadout }) {
 
       {sprays.length > 0 && (
         <div>
-          <h3 className="text-xs font-display font-medium text-text-secondary uppercase tracking-wider mb-2">Sprays</h3>
+          <h3 className="text-xs font-display font-medium text-text-secondary uppercase tracking-wider mb-2">
+            Sprays
+          </h3>
           <div className="flex gap-2">
             {sprays.map((s, i) => {
               const sprayId = (s?.SprayID || "").toLowerCase();
               const meta = sprayId ? accessoryLookup[sprayId] : null;
               return (
-                <div key={i} className="flex-1 p-2 rounded-lg bg-base-700 border border-border flex flex-col items-center gap-1">
+                <div
+                  key={i}
+                  className="flex-1 p-2 rounded-lg bg-base-700 border border-border flex flex-col items-center gap-1"
+                >
                   <div className="w-12 h-12 flex items-center justify-center bg-base-600/40 rounded">
                     {meta?.image ? (
-                      <img src={meta.image} alt="" className="max-h-11 max-w-full object-contain" loading="lazy" />
+                      <img
+                        src={meta.image}
+                        alt=""
+                        className="max-h-11 max-w-full object-contain"
+                        loading="lazy"
+                      />
                     ) : (
                       <span className="text-[10px] font-body text-text-muted/60">—</span>
                     )}
                   </div>
-                  <span className="text-[10px] font-body text-text-muted truncate w-full text-center" title={meta?.name}>
+                  <span
+                    className="text-[10px] font-body text-text-muted truncate w-full text-center"
+                    title={meta?.name}
+                  >
                     {meta?.name || "—"}
                   </span>
                 </div>
@@ -185,7 +232,6 @@ function DialogSection({ player, data: loadout }) {
           </div>
         </div>
       )}
-
     </div>
   );
 }

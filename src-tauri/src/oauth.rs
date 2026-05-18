@@ -60,8 +60,7 @@ pub async fn oauth_signin(
 
     let data_dir = auth_data_dir(&app)?;
     if !data_dir.exists() {
-        std::fs::create_dir_all(&data_dir)
-            .map_err(|e| format!("mkdir webview data: {}", e))?;
+        std::fs::create_dir_all(&data_dir).map_err(|e| format!("mkdir webview data: {}", e))?;
     }
 
     let authorize_url: Url = AUTHORIZE_URL
@@ -107,23 +106,19 @@ pub async fn oauth_signin(
         }
     });
 
-    let captured_url = match tokio::time::timeout(
-        Duration::from_secs(SIGNIN_TIMEOUT_SECS),
-        rx,
-    )
-    .await
-    {
-        Ok(Ok(url)) => url,
-        Ok(Err(_)) => {
-            // Sender dropped — user closed the webview without completing.
-            let _ = win.close();
-            return Err("Sign-in cancelled.".to_string());
-        }
-        Err(_) => {
-            let _ = win.close();
-            return Err("Sign-in timed out.".to_string());
-        }
-    };
+    let captured_url =
+        match tokio::time::timeout(Duration::from_secs(SIGNIN_TIMEOUT_SECS), rx).await {
+            Ok(Ok(url)) => url,
+            Ok(Err(_)) => {
+                // Sender dropped — user closed the webview without completing.
+                let _ = win.close();
+                return Err("Sign-in cancelled.".to_string());
+            }
+            Err(_) => {
+                let _ = win.close();
+                return Err("Sign-in timed out.".to_string());
+            }
+        };
     let _ = win.close();
 
     let (access_token, _id_token) = parse_tokens_from_redirect(&captured_url).ok_or_else(|| {
@@ -131,7 +126,8 @@ pub async fn oauth_signin(
             "[OAuth] Could not parse tokens from redirect URL (length={})",
             captured_url.len()
         ));
-        "Riot returned an unexpected redirect format. Try again, or sign in via the Riot Client.".to_string()
+        "Riot returned an unexpected redirect format. Try again, or sign in via the Riot Client."
+            .to_string()
     })?;
 
     let state_for_finalize = Arc::clone(&state);
@@ -240,7 +236,13 @@ fn finalize_oauth_session(
     // HomePage falls back to a placeholder card.
     let mut player_card_url: Option<String> = None;
     let loadout_path = format!("/personalization/v2/players/{}/playerloadout", puuid);
-    if let Ok(raw) = riot::pd_get(&shard, &loadout_path, access_token, &entitlements_jwt, &client_version) {
+    if let Ok(raw) = riot::pd_get(
+        &shard,
+        &loadout_path,
+        access_token,
+        &entitlements_jwt,
+        &client_version,
+    ) {
         if let Ok(v) = serde_json::from_str::<Value>(&raw) {
             if let Some(card_id) = v["Identity"]["PlayerCardID"].as_str() {
                 let url = format!(
@@ -281,12 +283,13 @@ fn fetch_entitlements(
         .send()
         .map_err(|e| format!("entitlements request: {}", e))?;
     let status = resp.status();
-    let body = resp.text().map_err(|e| format!("entitlements read: {}", e))?;
+    let body = resp
+        .text()
+        .map_err(|e| format!("entitlements read: {}", e))?;
     if !status.is_success() {
         return Err(format!("Entitlements call failed: HTTP {}", status));
     }
-    let v: Value =
-        serde_json::from_str(&body).map_err(|e| format!("entitlements parse: {}", e))?;
+    let v: Value = serde_json::from_str(&body).map_err(|e| format!("entitlements parse: {}", e))?;
     v["entitlements_token"]
         .as_str()
         .ok_or("No entitlements_token in response".to_string())
@@ -325,9 +328,7 @@ fn fetch_userinfo(
     Ok((puuid, game_name, game_tag))
 }
 
-fn fetch_client_version_fallback(
-    client: &reqwest::blocking::Client,
-) -> Result<String, String> {
+fn fetch_client_version_fallback(client: &reqwest::blocking::Client) -> Result<String, String> {
     let body = client
         .get("https://valorant-api.com/v1/version")
         .send()
