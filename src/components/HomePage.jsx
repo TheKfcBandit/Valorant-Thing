@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
 import { computeHighlights, computeScoreboardBadges } from "../matchHighlights";
 import { noAnim, T0 } from "../utils/animation";
 import { MODE_NAMES } from "../utils/gameMode";
 import { rankIcon, rankName } from "../utils/rank";
+import { ROUND_GLYPH, getRoundOutcome, formatRoundTooltip } from "../utils/roundResult";
 import { getMaps } from "../valApiSkins";
 
 const CUSTOM_AGENT_ICONS = {
@@ -681,6 +682,7 @@ function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
   const roundsPlayed = Math.max(1, details?.matchInfo?.roundsPlayed || 0);
   const players = Array.isArray(details?.players) ? details.players : [];
   const teams = Array.isArray(details?.teams) ? details.teams : [];
+  const roundResults = Array.isArray(details?.roundResults) ? details.roundResults : [];
   const scoreboardBadges = useMemo(() => computeScoreboardBadges(details), [details]);
 
   // Group by team. Deathmatch/escalation/etc. have no real team structure —
@@ -691,14 +693,14 @@ function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
   const hasTeams = !!selfPuuid && teams.length >= 2 && teamIds.size >= 2;
   const sortedFlat = [...players].sort((a, b) => (b.stats?.score || 0) - (a.stats?.score || 0));
 
+  const selfPlayer = hasTeams ? players.find(p => p.subject === selfPuuid) : null;
+  const selfTeam = String(selfPlayer?.teamId || "").toLowerCase();
+
   let leftTeam = [];
   let rightTeam = [];
   let leftWon = false;
   let rightWon = false;
   if (hasTeams) {
-    // Self's team on the left.
-    const selfPlayer = players.find(p => p.subject === selfPuuid);
-    const selfTeam = String(selfPlayer?.teamId || "").toLowerCase();
     const otherTeam = teams.find(t => String(t.teamId).toLowerCase() !== selfTeam)?.teamId;
     leftTeam = players
       .filter(p => String(p.teamId || "").toLowerCase() === selfTeam)
@@ -755,6 +757,9 @@ function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
                 <div key={i} className="h-9 rounded bg-base-700 border border-border" />
               ))}
             </div>
+          )}
+          {details && hasTeams && selfTeam && roundResults.length > 0 && (
+            <RoundsStrip rounds={roundResults} selfTeam={selfTeam} players={players} queueId={match.queueId} />
           )}
           {details && hasTeams && (
             <div className="grid grid-cols-2 gap-4">
@@ -821,6 +826,55 @@ function ScoreboardColumn({ label, players, roundsPlayed, selfPuuid, badges }) {
           );
         })}
       </ul>
+    </div>
+  );
+}
+
+function RoundsStrip({ rounds, selfTeam, players, queueId }) {
+  const nameByPuuid = useMemo(() => {
+    const m = new Map();
+    for (const p of players || []) {
+      if (!p?.subject) continue;
+      const tag = p.tagLine ? `#${p.tagLine}` : "";
+      m.set(p.subject, p.gameName ? `${p.gameName}${tag}` : p.subject.slice(0, 8));
+    }
+    return m;
+  }, [players]);
+
+  // Side swap after round 12 for the standard 13-round-half modes only.
+  const showHalfSpacer = (queueId === "competitive" || queueId === "unrated") && rounds.length >= 13;
+
+  return (
+    <div className="mb-4">
+      <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider mb-2">Rounds</p>
+      <div className="flex flex-wrap gap-0.5 items-center">
+        {rounds.map((r, idx) => {
+          const outcome = getRoundOutcome(r, selfTeam);
+          const tone = outcome === "won"
+            ? "bg-green-500/15 border-green-500/40 text-green-300"
+            : outcome === "lost"
+              ? "bg-red-500/15 border-red-500/40 text-red-300"
+              : "bg-base-700/40 border-border text-text-muted";
+          const code = r?.roundResultCode;
+          const glyph = code && ROUND_GLYPH[code];
+          return (
+            <Fragment key={idx}>
+              {showHalfSpacer && idx === 12 && (
+                <div className="w-1.5 h-7 shrink-0" aria-hidden="true" />
+              )}
+              <div
+                title={formatRoundTooltip(r, nameByPuuid)}
+                className={`relative w-7 h-7 rounded border flex items-center justify-center text-[10px] font-mono font-semibold tabular-nums shrink-0 ${tone}`}
+              >
+                {idx + 1}
+                {glyph && (
+                  <span className="absolute bottom-0 right-0.5 text-[7px] font-display leading-none opacity-70">{glyph}</span>
+                )}
+              </div>
+            </Fragment>
+          );
+        })}
+      </div>
     </div>
   );
 }
