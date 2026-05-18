@@ -1,0 +1,3 @@
+# Defaults. Gate via `cargo clippy --no-deps -- -D warnings` in CI.
+# Reserve this file for project-specific allow/deny tuning when concrete
+# pain shows up — not preemptive style opinions.
