@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
 import { noAnim, T0 } from "../utils/animation";
+import { useAsyncEffect } from "../hooks/useAsyncEffect";
 import { rankIcon, rankName } from "../utils/rank";
 
 // Pull a field from an object using a list of possible key spellings. The
@@ -200,40 +201,37 @@ export default function PremierPage({ connected, player, playerIsStale }) {
   // First mount: try the cache so the page paints instantly when Valorant
   // isn't running yet. Then fire the live fetch (which will overwrite both
   // the UI and the cache on success).
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
+  useAsyncEffect(
+    async (isCancelled) => {
       try {
         const snap = await invoke("get_cached_premier");
-        if (!cancelled && snap) {
+        if (!isCancelled() && snap) {
           hydrateFromBundle(snap.player, snap.division, snap.conference);
           setFromCache(true);
           setCacheTs(snap.saved_at_ms || 0);
         }
-      } catch {
+      } catch (e) {
         /* no cache yet — fine */
+        console.warn("[Premier] cache load failed:", e);
       }
       if (connected) {
         await fetchLive();
-      } else if (!cancelled) {
+      } else if (!isCancelled()) {
         setLoading(false);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [connected, fetchLive, hydrateFromBundle]);
+    },
+    [connected, fetchLive, hydrateFromBundle]
+  );
 
   // Per-member MMR — fired in parallel, tolerant of individual failures so one
   // bad lookup doesn't blank the whole roster.
-  useEffect(() => {
-    if (!connected || !team?.members?.length) return;
-    let cancelled = false;
-    (async () => {
+  useAsyncEffect(
+    async (isCancelled) => {
+      if (!connected || !team?.members?.length) return;
       const results = await Promise.allSettled(
         team.members.map((m) => invoke("get_player_mmr", { targetPuuid: m.puuid }))
       );
-      if (cancelled) return;
+      if (isCancelled()) return;
       const next = {};
       results.forEach((r, idx) => {
         if (r.status !== "fulfilled") return;
@@ -243,16 +241,14 @@ export default function PremierPage({ connected, player, playerIsStale }) {
             tier: parsed.currenttier ?? 0,
             rr: parsed.ranking_in_tier ?? 0,
           };
-        } catch {
-          /* skip bad payload */
+        } catch (e) {
+          console.warn("[Premier] bad MMR payload:", e);
         }
       });
       setMemberMmr(next);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [connected, team?.id, team?.members?.length]);
+    },
+    [connected, team?.id, team?.members?.length]
+  );
 
   const myPlacement = useMemo(() => {
     if (!team) return null;

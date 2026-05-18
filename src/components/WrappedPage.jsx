@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
 import { noAnim, T0 } from "../utils/animation";
+import { useAsyncEffect } from "../hooks/useAsyncEffect";
 import { getAgentLookup, getMaps } from "../valApiSkins";
 
 function isCompetitiveQueue(q) {
@@ -110,21 +111,15 @@ export default function WrappedPage() {
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await invoke("match_history_list", { limit: 1000 });
-        if (!cancelled) setMatches(res?.matches || []);
-      } catch (e) {
-        console.warn("[Wrapped] history fetch failed:", e);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  useAsyncEffect(async (isCancelled) => {
+    try {
+      const res = await invoke("match_history_list", { limit: 1000 });
+      if (!isCancelled()) setMatches(res?.matches || []);
+    } catch (e) {
+      console.warn("[Wrapped] history fetch failed:", e);
+    } finally {
+      if (!isCancelled()) setLoading(false);
+    }
   }, []);
 
   const summary = useMemo(() => summarize(matches), [matches]);

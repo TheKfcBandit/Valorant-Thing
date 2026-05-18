@@ -6,7 +6,8 @@ import { noAnim, T0 } from "../utils/animation";
 import { MODE_NAMES } from "../utils/gameMode";
 import { rankIcon, rankName } from "../utils/rank";
 import { ROUND_GLYPH, getRoundOutcome, formatRoundTooltip } from "../utils/roundResult";
-import { normalizeRrEntry, normalizeRrResponse } from "../riotShapes";
+import { normalizeRrEntry } from "../riotShapes";
+import { useAsyncEffect } from "../hooks/useAsyncEffect";
 import { getMaps } from "../valApiSkins";
 
 const CUSTOM_AGENT_ICONS = {
@@ -157,42 +158,30 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
   // Seed match history from the file-backed cache so Home renders something
   // even when Valorant isn't running. fetchMatches will merge live entries
   // on top once a connection is established.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await invoke("match_history_list", { limit: 100 });
-        const cached = res?.matches || [];
-        if (!cancelled && cached.length > 0) {
-          setMatches((prev) => mergeMatches(prev || [], cached));
-        }
-      } catch (e) {
-        console.warn("[History] cache load failed:", e);
+  useAsyncEffect(async (isCancelled) => {
+    try {
+      const res = await invoke("match_history_list", { limit: 100 });
+      const cached = res?.matches || [];
+      if (!isCancelled() && cached.length > 0) {
+        setMatches((prev) => mergeMatches(prev || [], cached));
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    } catch (e) {
+      console.warn("[History] cache load failed:", e);
+    }
   }, []);
 
   // Same pattern as the match-history seed above — render the RR chart from
   // cache before login so reopening the app shows a trend immediately.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await invoke("rr_history_list", { limit: 50 });
-        const cached = Array.isArray(res?.matches) ? res.matches : [];
-        if (!cancelled && cached.length > 0) {
-          setRrHistory(cached.map(normalizeRrEntry));
-        }
-      } catch (e) {
-        console.warn("[RR] cache load failed:", e);
+  useAsyncEffect(async (isCancelled) => {
+    try {
+      const res = await invoke("rr_history_list", { limit: 50 });
+      const cached = Array.isArray(res?.matches) ? res.matches : [];
+      if (!isCancelled() && cached.length > 0) {
+        setRrHistory(cached.map(normalizeRrEntry));
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    } catch (e) {
+      console.warn("[RR] cache load failed:", e);
+    }
   }, []);
 
   const fetchPenalties = useCallback(async () => {
@@ -854,21 +843,18 @@ function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
   const [details, setDetails] = useState(null);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
+  useAsyncEffect(
+    async (isCancelled) => {
       try {
         const raw = await invoke("get_match_details", { matchId: match.matchId });
-        if (cancelled) return;
+        if (isCancelled()) return;
         setDetails(JSON.parse(raw));
       } catch (e) {
-        if (!cancelled) setError(typeof e === "string" ? e : e?.message || "Failed to load");
+        if (!isCancelled()) setError(typeof e === "string" ? e : e?.message || "Failed to load");
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [match.matchId]);
+    },
+    [match.matchId]
+  );
 
   useEffect(() => {
     const onKey = (e) => {
