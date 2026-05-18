@@ -5,9 +5,34 @@
 // fails loudly if they're wrong.
 //
 // Add a normalizer here whenever a new component starts reading raw
-// Riot fields. The shape's field-name source is documented in val.md
-// under "Field-name conventions" so future contributors know which
-// endpoints are PascalCase vs camelCase.
+// Riot fields. Don't sprinkle PascalCase access through component code.
+//
+// ---------------------------------------------------------------------
+// Field-name conventions per endpoint
+// ---------------------------------------------------------------------
+// Different Riot endpoints return different case conventions. Verified
+// from in-repo usage; "(inferred)" = read from the public schema at
+// https://valapidocs.techchrism.me/, not yet captured in dev.
+//
+//   /match-history/v1/history/{puuid}            camelCase
+//     History[].matchId, gameStartTime, queueId
+//   /match-details/v1/matches/{matchId}          mixed
+//     top-level: matchInfo, players, teams, roundResults (camel)
+//     player fields & round outcome fields PascalCase within (inferred)
+//   /mmr/v1/players/{puuid}                      PascalCase
+//     LatestCompetitiveUpdate.TierAfterUpdate, RankedRatingAfterUpdate
+//   /mmr/v1/players/{puuid}/competitiveupdates   PascalCase
+//     Matches[].MatchID, TierAfterUpdate, RankedRatingEarned, MatchStartTime
+//   /pregame/v1/matches/{matchId}                PascalCase
+//     ID, MapID, MatchmakingData.QueueID, AllyTeam.Players[].Subject, TeamID
+//   /core-game/v1/matches/{matchId}              PascalCase
+//     MatchID, MapID, Players[].Subject, Teams[].TeamID
+//   /parties/v1/parties/{partyId}                PascalCase (inferred,
+//     wrapped by riot/party on the backend)
+//   /store/v2/storefront/{puuid}                 PascalCase
+//     FeaturedBundle, SkinsPanelLayout, BonusStore
+//   /restrictions/v3/penalties                   PascalCase
+//     Penalties[].Type, Expiry
 
 // ---------------------------------------------------------------------
 // /mmr/v1/players/{puuid}/competitiveupdates  (PascalCase)
