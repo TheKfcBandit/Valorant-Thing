@@ -10,6 +10,7 @@ mod discord;
 mod cloud;
 mod store;
 mod match_cache;
+mod rr_cache;
 mod spend_tracker;
 mod coach;
 mod identity_cache;
@@ -865,6 +866,7 @@ pub fn run() {
         .manage(Arc::new(Mutex::new(riot::xmpp::XmppState::default())))
         .manage::<store::WishlistShared>(Arc::new(Mutex::new(Vec::new())))
         .manage(Mutex::new(match_cache::MatchCacheState::default()))
+        .manage(Mutex::new(rr_cache::RrCacheState::default()))
         .manage(Mutex::new(spend_tracker::SpendState::default()))
         .manage(Mutex::new(identity_cache::IdentityCacheState::default()))
         .manage(Mutex::new(loadout_presets::PresetsState::default()))
@@ -1009,6 +1011,9 @@ pub fn run() {
             match_cache::match_history_put_many,
             match_cache::match_history_list,
             match_cache::match_history_stats,
+            rr_cache::rr_history_put_many,
+            rr_cache::rr_history_list,
+            rr_cache::rr_history_stats,
             spend_tracker::get_spend_summary,
             coach::coach_analyze,
             identity_cache::get_cached_identity,

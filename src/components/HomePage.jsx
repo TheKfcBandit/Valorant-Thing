@@ -168,6 +168,24 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
     return () => { cancelled = true; };
   }, []);
 
+  // Same pattern as the match-history seed above — render the RR chart from
+  // cache before login so reopening the app shows a trend immediately.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await invoke("rr_history_list", { limit: 50 });
+        const cached = Array.isArray(res?.matches) ? res.matches : [];
+        if (!cancelled && cached.length > 0) {
+          setRrHistory(cached);
+        }
+      } catch (e) {
+        console.warn("[RR] cache load failed:", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const fetchPenalties = useCallback(async () => {
     if (!connected) return;
     try {
@@ -201,10 +219,23 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
       const matches = Array.isArray(json?.Matches) ? json.Matches : [];
       // Filter out placement-tier-zero entries: they collapse the y-axis to 0.
       const usable = matches.filter(m => (m?.TierAfterUpdate || 0) > 0);
-      setRrHistory(usable);
+      try {
+        await invoke("rr_history_put_many", { entries: usable });
+      } catch (e) {
+        console.warn("[RR] cache put failed:", e);
+      }
     } catch (e) {
       console.warn("[RR] history fetch failed:", e);
-      setRrHistory([]);
+    }
+    // Render from cache regardless of whether the API call succeeded — the
+    // cache is the source of truth for the chart, the API just refreshes the
+    // head of the window.
+    try {
+      const res = await invoke("rr_history_list", { limit: 50 });
+      const merged = Array.isArray(res?.matches) ? res.matches : [];
+      setRrHistory(merged);
+    } catch (e) {
+      console.warn("[RR] cache list failed:", e);
     }
   }, [connected]);
 
