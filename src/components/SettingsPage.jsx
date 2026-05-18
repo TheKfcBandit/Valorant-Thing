@@ -7,6 +7,7 @@ import { exportVtFile, readVtFile } from "../cloud";
 
 import { noAnim, T0 } from "../utils/animation";
 import { rgbToHex } from "../utils/color";
+import { Label } from "./ui/Label";
 const THEMES = [
   {
     id: "crimson-moon",
@@ -690,9 +691,7 @@ export default function SettingsPage({
         className="rounded-xl bg-base-700 border border-border divide-y divide-border"
       >
         <div className="px-4 pt-3 pb-1">
-          <h2 className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
-            Riot Account (offline mode)
-          </h2>
+          <Label as="h2">Riot Account (offline mode)</Label>
         </div>
         <div className="p-4 space-y-3">
           {valorantConnected && !oauthSession ? (
@@ -743,9 +742,7 @@ export default function SettingsPage({
         className="rounded-xl bg-base-700 border border-border divide-y divide-border"
       >
         <div className="px-4 pt-3 pb-1">
-          <h2 className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
-            Splooshima API
-          </h2>
+          <Label as="h2">Splooshima API</Label>
         </div>
         <div className="p-4 space-y-3">
           <p className="text-xs font-body text-text-muted">
@@ -784,9 +781,7 @@ export default function SettingsPage({
         className="rounded-xl bg-base-700 border border-border divide-y divide-border"
       >
         <div className="px-4 pt-3 pb-1">
-          <h2 className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
-            Timing
-          </h2>
+          <Label as="h2">Timing</Label>
         </div>
         <div className="p-4 space-y-4">
           <DelaySlider
@@ -836,9 +831,7 @@ export default function SettingsPage({
         className="rounded-xl bg-base-700 border border-border divide-y divide-border"
       >
         <div className="px-4 pt-3 pb-1">
-          <h2 className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
-            Notifications
-          </h2>
+          <Label as="h2">Notifications</Label>
         </div>
         <div className="flex items-center justify-between p-4">
           <div>
@@ -976,9 +969,7 @@ export default function SettingsPage({
         className="rounded-xl bg-base-700 border border-border divide-y divide-border"
       >
         <div className="px-4 pt-3 pb-1">
-          <h2 className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
-            Startup
-          </h2>
+          <Label as="h2">Startup</Label>
         </div>
         <div className="flex items-center justify-between p-4">
           <div>
@@ -1011,9 +1002,7 @@ export default function SettingsPage({
         className="rounded-xl bg-base-700 border border-border divide-y divide-border"
       >
         <div className="px-4 pt-3 pb-1">
-          <h2 className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
-            Misc
-          </h2>
+          <Label as="h2">Misc</Label>
         </div>
         <div className="flex items-center justify-between p-4">
           <div>
@@ -1052,9 +1041,7 @@ export default function SettingsPage({
         className="rounded-xl bg-base-700 border border-border divide-y divide-border"
       >
         <div className="px-4 pt-3 pb-1">
-          <h2 className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
-            Debug
-          </h2>
+          <Label as="h2">Debug</Label>
         </div>
         <div className="flex items-center justify-between p-4">
           <div>
@@ -1073,9 +1060,7 @@ export default function SettingsPage({
         className="rounded-xl bg-base-700 border border-border divide-y divide-border"
       >
         <div className="px-4 pt-3 pb-1">
-          <h2 className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
-            Theme
-          </h2>
+          <Label as="h2">Theme</Label>
         </div>
         <div className="p-4 space-y-3">
           <div className="grid grid-cols-4 gap-2">
@@ -1382,9 +1367,7 @@ export default function SettingsPage({
         className="rounded-xl bg-base-700 border border-border divide-y divide-border"
       >
         <div className="px-4 pt-3 pb-1">
-          <h2 className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
-            Config
-          </h2>
+          <Label as="h2">Config</Label>
         </div>
         <div className="p-4 space-y-3">
           <p className="text-xs font-body text-text-muted">
@@ -1502,9 +1485,7 @@ export default function SettingsPage({
         className="rounded-xl bg-base-700 border border-border divide-y divide-border"
       >
         <div className="px-4 pt-3 pb-1">
-          <h2 className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
-            About
-          </h2>
+          <Label as="h2">About</Label>
         </div>
         <div className="p-4 space-y-1">
           <p className="text-xs font-body text-text-secondary">Valorant Thing v{appVersion}</p>

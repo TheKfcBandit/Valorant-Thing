@@ -8,6 +8,7 @@ import { rankIcon, rankName } from "../utils/rank";
 import { ROUND_GLYPH, getRoundOutcome, formatRoundTooltip } from "../utils/roundResult";
 import { normalizeRrEntry } from "../riotShapes";
 import { useAsyncEffect } from "../hooks/useAsyncEffect";
+import { Label } from "./ui/Label";
 import { getMaps } from "../valApiSkins";
 
 const CUSTOM_AGENT_ICONS = {
@@ -481,9 +482,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
-                  Spent (last 30 days)
-                </p>
+                <Label>Spent (last 30 days)</Label>
                 <p className="text-base font-display font-bold text-text-primary tabular-nums mt-0.5">
                   {Number(spend.thisMonthVp || 0).toLocaleString()}{" "}
                   <span className="text-xs text-text-muted">VP</span>
@@ -784,9 +783,7 @@ function RRChart({ matches }) {
       className="rounded-xl border border-border bg-base-700/60 p-3"
     >
       <div className="flex items-baseline justify-between mb-2">
-        <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
-          RR Trend
-        </p>
+        <Label>RR Trend</Label>
         <p
           className={`text-[10px] font-mono tabular-nums ${totalDelta >= 0 ? "text-green-400" : "text-red-400"}`}
         >
@@ -1026,9 +1023,7 @@ function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
 function ScoreboardColumn({ label, players, roundsPlayed, selfPuuid, badges }) {
   return (
     <div>
-      <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider mb-2">
-        {label}
-      </p>
+      <Label className="mb-2">{label}</Label>
       <ul className="space-y-1">
         {players.map((p) => {
           const isSelf = p.subject === selfPuuid;
@@ -1108,9 +1103,7 @@ function RoundsStrip({ rounds, selfTeam, players, queueId }) {
 
   return (
     <div className="mb-4">
-      <p className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider mb-2">
-        Rounds
-      </p>
+      <Label className="mb-2">Rounds</Label>
       <div className="flex flex-wrap gap-0.5 items-center">
         {rounds.map((r, idx) => {
           const outcome = getRoundOutcome(r, selfTeam);
