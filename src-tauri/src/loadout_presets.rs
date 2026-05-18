@@ -1,18 +1,16 @@
-// #27: file-backed loadout presets. Save the current in-game loadout under
-// a name, apply any preset back to the live game via the existing
-// set_loadout command. Stored at <appDataDir>/loadout-presets.json with the
-// same atomic-rename + corrupt-file backup pattern as identity_cache /
-// match_cache.
+// #27: file-backed loadout presets. Save the current in-game loadout
+// under a name, apply any preset back to the live game via the existing
+// set_loadout command. Storage/persistence inherited from
+// value_cache::Cache.
 
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
-use crate::riot::logging::log_error;
 use crate::riot::{self, ConnectionState};
-use crate::util::{cache_path as util_cache_path, now_ms};
+use crate::util::now_ms;
+use crate::value_cache::Cache;
 
 const MAX_PRESETS: usize = 50;
 const MAX_NAME_LEN: usize = 60;
@@ -26,72 +24,14 @@ pub struct Preset {
 }
 
 #[derive(Default, Serialize, Deserialize)]
-struct PresetsFile {
-    presets: Vec<Preset>,
+pub struct PresetsFile {
+    pub presets: Vec<Preset>,
 }
 
-#[derive(Default)]
-pub struct PresetsState {
-    data: PresetsFile,
-    loaded: bool,
-}
+pub type PresetsCache = Cache<PresetsFile>;
 
-fn cache_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
-    util_cache_path(app, "loadout-presets.json")
-}
-
-fn ensure_loaded(app: &AppHandle, state: &Mutex<PresetsState>) -> Result<(), String> {
-    {
-        let s = state.lock().map_err(|e| e.to_string())?;
-        if s.loaded {
-            return Ok(());
-        }
-    }
-    let path = cache_path(app)?;
-    let data: PresetsFile = if path.exists() {
-        match std::fs::read_to_string(&path) {
-            Ok(s) => match serde_json::from_str(&s) {
-                Ok(d) => d,
-                Err(e) => {
-                    let ts = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .map(|d| d.as_secs())
-                        .unwrap_or(0);
-                    let corrupt = path.with_extension(format!("json.corrupt-{}", ts));
-                    let _ = std::fs::rename(&path, &corrupt);
-                    log_error(&format!(
-                        "[Presets] parse failed, backed up to {} ({})",
-                        corrupt.display(),
-                        e
-                    ));
-                    PresetsFile::default()
-                }
-            },
-            Err(e) => {
-                log_error(&format!("[Presets] read failed: {}", e));
-                PresetsFile::default()
-            }
-        }
-    } else {
-        PresetsFile::default()
-    };
-    let mut s = state.lock().map_err(|e| e.to_string())?;
-    s.data = data;
-    s.loaded = true;
-    Ok(())
-}
-
-fn persist(app: &AppHandle, state: &Mutex<PresetsState>) -> Result<(), String> {
-    let path = cache_path(app)?;
-    let snapshot = {
-        let s = state.lock().map_err(|e| e.to_string())?;
-        serde_json::to_string(&s.data).map_err(|e| format!("serialize: {}", e))?
-    };
-    let tmp = path.with_extension("json.tmp");
-    let _ = std::fs::remove_file(&tmp);
-    std::fs::write(&tmp, snapshot).map_err(|e| format!("write tmp: {}", e))?;
-    std::fs::rename(&tmp, &path).map_err(|e| format!("rename: {}", e))?;
-    Ok(())
+pub fn new_cache() -> PresetsCache {
+    Cache::new("loadout-presets.json", "[Presets]")
 }
 
 fn make_id() -> String {
@@ -108,17 +48,15 @@ fn make_id() -> String {
 #[tauri::command]
 pub async fn list_loadout_presets(
     app: AppHandle,
-    state: tauri::State<'_, Mutex<PresetsState>>,
+    cache: tauri::State<'_, PresetsCache>,
 ) -> Result<Vec<Preset>, String> {
-    ensure_loaded(&app, &state)?;
-    let s = state.lock().map_err(|e| e.to_string())?;
-    Ok(s.data.presets.clone())
+    cache.read(&app, |file| file.presets.clone())
 }
 
 #[tauri::command]
 pub async fn save_loadout_preset(
     app: AppHandle,
-    state: tauri::State<'_, Mutex<PresetsState>>,
+    cache: tauri::State<'_, PresetsCache>,
     conn: tauri::State<'_, std::sync::Arc<Mutex<ConnectionState>>>,
     name: String,
 ) -> Result<Preset, String> {
@@ -129,15 +67,13 @@ pub async fn save_loadout_preset(
     if trimmed.len() > MAX_NAME_LEN {
         return Err(format!("Preset name too long (max {} chars)", MAX_NAME_LEN));
     }
-    ensure_loaded(&app, &state)?;
-    {
-        let s = state.lock().map_err(|e| e.to_string())?;
-        if s.data.presets.len() >= MAX_PRESETS {
-            return Err(format!(
-                "Preset limit reached ({}), delete one first",
-                MAX_PRESETS
-            ));
-        }
+    // Pre-check the limit before doing the (potentially slow) live fetch.
+    let at_limit = cache.read(&app, |file| file.presets.len() >= MAX_PRESETS)?;
+    if at_limit {
+        return Err(format!(
+            "Preset limit reached ({}), delete one first",
+            MAX_PRESETS
+        ));
     }
     // Pull the live loadout from Riot.
     let conn_clone = std::sync::Arc::clone(&conn);
@@ -151,35 +87,32 @@ pub async fn save_loadout_preset(
         saved_at_ms: now_ms(),
         loadout_json,
     };
-    {
-        let mut s = state.lock().map_err(|e| e.to_string())?;
-        s.data.presets.push(preset.clone());
-    }
-    persist(&app, &state)?;
-    Ok(preset)
+    let to_return = preset.clone();
+    cache.write(&app, |file| {
+        file.presets.push(preset);
+        ((), true)
+    })?;
+    Ok(to_return)
 }
 
 #[tauri::command]
 pub async fn apply_loadout_preset(
     app: AppHandle,
-    state: tauri::State<'_, Mutex<PresetsState>>,
+    cache: tauri::State<'_, PresetsCache>,
     conn: tauri::State<'_, std::sync::Arc<Mutex<ConnectionState>>>,
     preset_id: String,
 ) -> Result<(), String> {
-    ensure_loaded(&app, &state)?;
-    let loadout_json = {
-        let s = state.lock().map_err(|e| e.to_string())?;
-        s.data
-            .presets
+    let loadout_json = cache.read(&app, |file| {
+        file.presets
             .iter()
             .find(|p| p.id == preset_id)
-            .ok_or_else(|| "Preset not found".to_string())?
-            .loadout_json
-            .clone()
-    };
-    // set_loadout expects only the writeable subset (Guns/Sprays/Identity/Incognito),
-    // which is what the frontend sends. But our save_loadout_preset stored the FULL
-    // get_loadout response. Project to the writeable subset before applying.
+            .map(|p| p.loadout_json.clone())
+    })?;
+    let loadout_json = loadout_json.ok_or_else(|| "Preset not found".to_string())?;
+    // set_loadout expects only the writeable subset (Guns/Sprays/Identity/
+    // Incognito), which is what the frontend sends. But save_loadout_preset
+    // stored the FULL get_loadout response. Project to the writeable subset
+    // before applying.
     let body = project_writeable(&loadout_json)?;
     let conn_clone = std::sync::Arc::clone(&conn);
     tauri::async_runtime::spawn_blocking(move || riot::set_loadout(&conn_clone, &body))
@@ -191,20 +124,22 @@ pub async fn apply_loadout_preset(
 #[tauri::command]
 pub async fn delete_loadout_preset(
     app: AppHandle,
-    state: tauri::State<'_, Mutex<PresetsState>>,
+    cache: tauri::State<'_, PresetsCache>,
     preset_id: String,
 ) -> Result<(), String> {
-    ensure_loaded(&app, &state)?;
-    {
-        let mut s = state.lock().map_err(|e| e.to_string())?;
-        let before = s.data.presets.len();
-        s.data.presets.retain(|p| p.id != preset_id);
-        if s.data.presets.len() == before {
-            return Err("Preset not found".to_string());
-        }
-    }
-    persist(&app, &state)?;
-    Ok(())
+    cache.write(&app, |file| {
+        let before = file.presets.len();
+        file.presets.retain(|p| p.id != preset_id);
+        let removed = file.presets.len() != before;
+        (
+            if removed {
+                Ok(())
+            } else {
+                Err("Preset not found".to_string())
+            },
+            removed,
+        )
+    })?
 }
 
 // The set_loadout endpoint rejects the full get_loadout response (which

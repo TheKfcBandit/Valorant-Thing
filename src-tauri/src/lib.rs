@@ -19,6 +19,7 @@ mod rr_cache;
 mod spend_tracker;
 mod store;
 mod util;
+mod value_cache;
 
 type SharedState = Arc<Mutex<riot::ConnectionState>>;
 type DiscordShared = Arc<Mutex<discord::DiscordState>>;
@@ -28,7 +29,7 @@ type XmppShared = Arc<Mutex<riot::xmpp::XmppState>>;
 async fn connect(
     app: tauri::AppHandle,
     state: tauri::State<'_, SharedState>,
-    identity: tauri::State<'_, Mutex<identity_cache::IdentityCacheState>>,
+    identity: tauri::State<'_, identity_cache::IdentityCache>,
 ) -> Result<riot::PlayerInfo, String> {
     let state_clone = Arc::clone(&state);
     let info = tauri::async_runtime::spawn_blocking(move || riot::connect_and_store(&state_clone))
@@ -976,7 +977,7 @@ async fn get_premier_conference(
 #[tauri::command]
 async fn cache_premier_bundle(
     app: tauri::AppHandle,
-    cache: tauri::State<'_, Mutex<premier_cache::PremierCacheState>>,
+    cache: tauri::State<'_, premier_cache::PremierCache>,
     player: String,
     division: String,
     conference: String,
@@ -1033,12 +1034,12 @@ pub fn run() {
         .manage(Arc::new(Mutex::new(discord::DiscordState::default())))
         .manage(Arc::new(Mutex::new(riot::xmpp::XmppState::default())))
         .manage::<store::WishlistShared>(Arc::new(Mutex::new(Vec::new())))
-        .manage(Mutex::new(match_cache::MatchCacheState::default()))
-        .manage(Mutex::new(rr_cache::RrCacheState::default()))
+        .manage(match_cache::new_cache())
+        .manage(rr_cache::new_cache())
         .manage(Mutex::new(spend_tracker::SpendState::default()))
-        .manage(Mutex::new(identity_cache::IdentityCacheState::default()))
-        .manage(Mutex::new(loadout_presets::PresetsState::default()))
-        .manage(Mutex::new(premier_cache::PremierCacheState::default()))
+        .manage(identity_cache::new_cache())
+        .manage(loadout_presets::new_cache())
+        .manage(premier_cache::new_cache())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,

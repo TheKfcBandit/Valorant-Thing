@@ -1,17 +1,13 @@
-// Phase A of #18 — persists last-seen PlayerInfo so the home page +
+// Phase A of #18 — persists last-seen PlayerInfo so the home page and
 // other identity-keyed UI keep working when Valorant is closed.
-//
-// Same file-backed atomic-rename + corrupt-file backup pattern as
-// match_cache.rs. Storage: <appDataDir>/identity.json.
-
-use std::sync::Mutex;
+// Storage/persistence inherited from value_cache::Cache.
 
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
-use crate::riot::logging::log_error;
 use crate::riot::PlayerInfo;
-use crate::util::{cache_path as util_cache_path, now_ms};
+use crate::util::now_ms;
+use crate::value_cache::Cache;
 
 #[derive(Default, Serialize, Deserialize, Clone)]
 pub struct IdentitySnapshot {
@@ -22,87 +18,20 @@ pub struct IdentitySnapshot {
     pub shard: String,
     pub client_version: String,
     pub player_card_url: Option<String>,
-    /// Wall-clock millis when this snapshot was last refreshed by a live connect.
+    /// Wall-clock millis when this snapshot was last refreshed by a live
+    /// connect.
     pub saved_at_ms: i64,
 }
 
-#[derive(Default)]
-pub struct IdentityCacheState {
-    pub snapshot: Option<IdentitySnapshot>,
-    pub loaded: bool,
-}
+pub type IdentityCache = Cache<Option<IdentitySnapshot>>;
 
-fn cache_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
-    util_cache_path(app, "identity.json")
-}
-
-fn ensure_loaded(app: &AppHandle, state: &Mutex<IdentityCacheState>) -> Result<(), String> {
-    {
-        let s = state.lock().map_err(|e| e.to_string())?;
-        if s.loaded {
-            return Ok(());
-        }
-    }
-    let path = cache_path(app)?;
-    let snap: Option<IdentitySnapshot> = if path.exists() {
-        match std::fs::read_to_string(&path) {
-            Ok(s) => match serde_json::from_str::<IdentitySnapshot>(&s) {
-                Ok(snap) => Some(snap),
-                Err(e) => {
-                    let ts = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .map(|d| d.as_secs())
-                        .unwrap_or(0);
-                    let corrupt = path.with_extension(format!("json.corrupt-{}", ts));
-                    let backup_note = match std::fs::rename(&path, &corrupt) {
-                        Ok(_) => format!("backed up to {}", corrupt.display()),
-                        Err(re) => format!("backup also failed: {}", re),
-                    };
-                    log_error(&format!(
-                        "[IdentityCache] parse failed ({}); starting empty; {}",
-                        e, backup_note
-                    ));
-                    None
-                }
-            },
-            Err(e) => {
-                log_error(&format!("[IdentityCache] read failed: {}", e));
-                None
-            }
-        }
-    } else {
-        None
-    };
-    let mut s = state.lock().map_err(|e| e.to_string())?;
-    s.snapshot = snap;
-    s.loaded = true;
-    Ok(())
-}
-
-fn persist(app: &AppHandle, state: &Mutex<IdentityCacheState>) -> Result<(), String> {
-    let path = cache_path(app)?;
-    let snapshot = {
-        let s = state.lock().map_err(|e| e.to_string())?;
-        match &s.snapshot {
-            Some(snap) => serde_json::to_string(snap).map_err(|e| format!("serialize: {}", e))?,
-            None => return Ok(()),
-        }
-    };
-    let tmp = path.with_extension("json.tmp");
-    let _ = std::fs::remove_file(&tmp);
-    std::fs::write(&tmp, snapshot).map_err(|e| format!("write tmp: {}", e))?;
-    std::fs::rename(&tmp, &path).map_err(|e| format!("rename: {}", e))?;
-    Ok(())
+pub fn new_cache() -> IdentityCache {
+    Cache::new("identity.json", "[IdentityCache]")
 }
 
 /// Save a fresh PlayerInfo snapshot. Called from connect_and_store after a
 /// successful live connect.
-pub fn save(
-    app: &AppHandle,
-    state: &Mutex<IdentityCacheState>,
-    info: &PlayerInfo,
-) -> Result<(), String> {
-    ensure_loaded(app, state)?;
+pub fn save(app: &AppHandle, cache: &IdentityCache, info: &PlayerInfo) -> Result<(), String> {
     let snap = IdentitySnapshot {
         puuid: info.puuid.clone(),
         game_name: info.game_name.clone(),
@@ -113,21 +42,18 @@ pub fn save(
         player_card_url: info.player_card_url.clone(),
         saved_at_ms: now_ms(),
     };
-    {
-        let mut s = state.lock().map_err(|e| e.to_string())?;
-        s.snapshot = Some(snap);
-    }
-    persist(app, state)
+    cache.write(app, |slot| {
+        *slot = Some(snap);
+        ((), true)
+    })
 }
 
 #[tauri::command]
 pub async fn get_cached_identity(
     app: AppHandle,
-    state: tauri::State<'_, Mutex<IdentityCacheState>>,
+    cache: tauri::State<'_, IdentityCache>,
 ) -> Result<Option<IdentitySnapshot>, String> {
-    ensure_loaded(&app, &state)?;
-    let s = state.lock().map_err(|e| e.to_string())?;
-    Ok(s.snapshot.clone())
+    cache.read(&app, |slot| slot.clone())
 }
 
 #[cfg(test)]

@@ -1,15 +1,13 @@
-// Phase A of #18, extended for #23 — persists the last good Premier roster /
-// division / conference responses so the Premier tab can render when Valorant
-// is closed. Same file-backed atomic-rename + corrupt-file backup pattern as
-// identity_cache.rs / match_cache.rs. Storage: <appDataDir>/premier.json.
-
-use std::sync::Mutex;
+// Phase A of #18, extended for #23 — persists the last good Premier
+// roster / division / conference responses so the Premier tab can render
+// when Valorant is closed. Storage/persistence inherited from
+// value_cache::Cache.
 
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
-use crate::riot::logging::log_error;
-use crate::util::{cache_path as util_cache_path, now_ms};
+use crate::util::now_ms;
+use crate::value_cache::Cache;
 
 #[derive(Default, Serialize, Deserialize, Clone)]
 pub struct PremierSnapshot {
@@ -25,73 +23,10 @@ pub struct PremierSnapshot {
     pub saved_at_ms: i64,
 }
 
-#[derive(Default)]
-pub struct PremierCacheState {
-    pub snapshot: Option<PremierSnapshot>,
-    pub loaded: bool,
-}
+pub type PremierCache = Cache<Option<PremierSnapshot>>;
 
-fn cache_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
-    util_cache_path(app, "premier.json")
-}
-
-fn ensure_loaded(app: &AppHandle, state: &Mutex<PremierCacheState>) -> Result<(), String> {
-    {
-        let s = state.lock().map_err(|e| e.to_string())?;
-        if s.loaded {
-            return Ok(());
-        }
-    }
-    let path = cache_path(app)?;
-    let snap: Option<PremierSnapshot> = if path.exists() {
-        match std::fs::read_to_string(&path) {
-            Ok(s) => match serde_json::from_str::<PremierSnapshot>(&s) {
-                Ok(snap) => Some(snap),
-                Err(e) => {
-                    let ts = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .map(|d| d.as_secs())
-                        .unwrap_or(0);
-                    let corrupt = path.with_extension(format!("json.corrupt-{}", ts));
-                    let backup_note = match std::fs::rename(&path, &corrupt) {
-                        Ok(_) => format!("backed up to {}", corrupt.display()),
-                        Err(re) => format!("backup also failed: {}", re),
-                    };
-                    log_error(&format!(
-                        "[PremierCache] parse failed ({}); starting empty; {}",
-                        e, backup_note
-                    ));
-                    None
-                }
-            },
-            Err(e) => {
-                log_error(&format!("[PremierCache] read failed: {}", e));
-                None
-            }
-        }
-    } else {
-        None
-    };
-    let mut s = state.lock().map_err(|e| e.to_string())?;
-    s.snapshot = snap;
-    s.loaded = true;
-    Ok(())
-}
-
-fn persist(app: &AppHandle, state: &Mutex<PremierCacheState>) -> Result<(), String> {
-    let path = cache_path(app)?;
-    let snapshot = {
-        let s = state.lock().map_err(|e| e.to_string())?;
-        match &s.snapshot {
-            Some(snap) => serde_json::to_string(snap).map_err(|e| format!("serialize: {}", e))?,
-            None => return Ok(()),
-        }
-    };
-    let tmp = path.with_extension("json.tmp");
-    let _ = std::fs::remove_file(&tmp);
-    std::fs::write(&tmp, snapshot).map_err(|e| format!("write tmp: {}", e))?;
-    std::fs::rename(&tmp, &path).map_err(|e| format!("rename: {}", e))?;
-    Ok(())
+pub fn new_cache() -> PremierCache {
+    Cache::new("premier.json", "[PremierCache]")
 }
 
 /// Save a fresh Premier snapshot. Returns `Err` on disk failure; callers
@@ -99,33 +34,29 @@ fn persist(app: &AppHandle, state: &Mutex<PremierCacheState>) -> Result<(), Stri
 /// propagating to the frontend (see `cache_premier_bundle` in lib.rs).
 pub fn save(
     app: &AppHandle,
-    state: &Mutex<PremierCacheState>,
+    cache: &PremierCache,
     player: String,
     division: String,
     conference: String,
 ) -> Result<(), String> {
-    ensure_loaded(app, state)?;
     let snap = PremierSnapshot {
         player,
         division,
         conference,
         saved_at_ms: now_ms(),
     };
-    {
-        let mut s = state.lock().map_err(|e| e.to_string())?;
-        s.snapshot = Some(snap);
-    }
-    persist(app, state)
+    cache.write(app, |slot| {
+        *slot = Some(snap);
+        ((), true)
+    })
 }
 
 #[tauri::command]
 pub async fn get_cached_premier(
     app: AppHandle,
-    state: tauri::State<'_, Mutex<PremierCacheState>>,
+    cache: tauri::State<'_, PremierCache>,
 ) -> Result<Option<PremierSnapshot>, String> {
-    ensure_loaded(&app, &state)?;
-    let s = state.lock().map_err(|e| e.to_string())?;
-    Ok(s.snapshot.clone())
+    cache.read(&app, |slot| slot.clone())
 }
 
 #[cfg(test)]

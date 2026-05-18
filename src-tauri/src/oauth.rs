@@ -18,7 +18,7 @@ use serde_json::Value;
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 use tokio::sync::oneshot;
 
-use crate::identity_cache::{self, IdentityCacheState};
+use crate::identity_cache::{self, IdentityCache};
 use crate::riot::{self, ConnectionState, PlayerInfo};
 
 const AUTHORIZE_URL: &str = "https://auth.riotgames.com/authorize\
@@ -52,7 +52,7 @@ fn auth_data_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 pub async fn oauth_signin(
     app: AppHandle,
     state: tauri::State<'_, Arc<Mutex<ConnectionState>>>,
-    identity: tauri::State<'_, Mutex<IdentityCacheState>>,
+    identity: tauri::State<'_, IdentityCache>,
 ) -> Result<PlayerInfo, String> {
     if app.get_webview_window("oauth").is_some() {
         return Err("Sign-in already in progress.".to_string());
