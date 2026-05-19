@@ -6,11 +6,24 @@ use crate::util::now_ms;
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
 
+// Pixel-detection thresholds for spike-timer red — only consumed by the
+// Windows-only `is_red_at` / `scan_spike_region` (Win32 GetPixel). On
+// other targets these constants are genuinely unused, so cfg-gate them
+// to match their callers.
+#[cfg(target_os = "windows")]
 const MIN_RED: u8 = 120;
+#[cfg(target_os = "windows")]
 const MAX_GREEN: u8 = 30;
+#[cfg(target_os = "windows")]
 const MAX_BLUE: u8 = 30;
+#[cfg(target_os = "windows")]
 const RED_DOMINANCE: u8 = 90;
+#[cfg(target_os = "windows")]
 const REQUIRED_HITS: u32 = 2;
+
+// Cross-platform timing — used by the polling loop in start_bomb_tracker.
+// The non-Windows scan_spike_region stub always returns false, so these
+// still drive a (no-op) idle loop on Linux/macOS rather than being dead.
 const COOLDOWN_SECS: u64 = 50;
 const POLL_MS: u64 = 16;
 const FG_CHECK_MS: u64 = 250;
