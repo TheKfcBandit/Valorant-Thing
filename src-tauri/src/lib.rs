@@ -1019,7 +1019,14 @@ pub fn run() {
             .copied()
             .or_else(|| info.payload().downcast_ref::<String>().map(|s| s.as_str()))
             .unwrap_or("<non-string payload>");
-        riot::logging::log_error(&format!("[panic] {} at {}", payload, location));
+        let line = format!("[panic] {} at {}", payload, location);
+        // Always print to stderr — the frontend emitter only works once
+        // logging::init() has run inside .setup(). Anything that panics
+        // before that point (icon load, AppUserModelID extern, .manage
+        // chain) would otherwise vanish, since this hook replaces the
+        // default stderr-print behavior. Cheap, always-correct fallback.
+        eprintln!("{}", line);
+        riot::logging::log_error(&line);
     }));
 
     #[cfg(windows)]
