@@ -12,10 +12,23 @@ use tauri::AppHandle;
 
 use crate::value_cache::Cache;
 
-pub type MatchCache = Cache<HashMap<String, Value>>;
+// Newtype rather than `pub type` so this cache has a distinct TypeId from
+// rr_cache::RrCache, which also wraps Cache<HashMap<String, Value>>. Tauri's
+// `.manage()` is keyed on TypeId; two transparent aliases of the same
+// concrete type panic with "state for type 'X' is already being managed".
+// Deref lets the existing `cache.read(...)` / `cache.write(...)` call sites
+// stay byte-identical.
+pub struct MatchCache(Cache<HashMap<String, Value>>);
+
+impl std::ops::Deref for MatchCache {
+    type Target = Cache<HashMap<String, Value>>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 pub fn new_cache() -> MatchCache {
-    Cache::new("match-cache.json", "[MatchCache]")
+    MatchCache(Cache::new("match-cache.json", "[MatchCache]"))
 }
 
 #[tauri::command]

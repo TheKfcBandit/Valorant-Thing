@@ -13,10 +13,21 @@ use tauri::AppHandle;
 
 use crate::value_cache::Cache;
 
-pub type RrCache = Cache<HashMap<String, Value>>;
+// Newtype rather than `pub type` so this cache has a distinct TypeId from
+// match_cache::MatchCache, which also wraps Cache<HashMap<String, Value>>.
+// See match_cache.rs for the full rationale — short version: Tauri's
+// `.manage()` panics on duplicate TypeId at startup.
+pub struct RrCache(Cache<HashMap<String, Value>>);
+
+impl std::ops::Deref for RrCache {
+    type Target = Cache<HashMap<String, Value>>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 pub fn new_cache() -> RrCache {
-    Cache::new("rr-history.json", "[RrCache]")
+    RrCache(Cache::new("rr-history.json", "[RrCache]"))
 }
 
 #[tauri::command]
