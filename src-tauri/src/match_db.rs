@@ -206,10 +206,7 @@ fn extract_row(entry: &Value) -> Option<Row> {
     let kills = entry.get("kills").and_then(|v| v.as_i64()).unwrap_or(0);
     let deaths = entry.get("deaths").and_then(|v| v.as_i64()).unwrap_or(0);
     let assists = entry.get("assists").and_then(|v| v.as_i64()).unwrap_or(0);
-    let rounds_won = entry
-        .get("roundsWon")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0);
+    let rounds_won = entry.get("roundsWon").and_then(|v| v.as_i64()).unwrap_or(0);
     let rounds_lost = entry
         .get("roundsLost")
         .and_then(|v| v.as_i64())
@@ -291,8 +288,7 @@ pub async fn match_history_put_many(
         let mut new_count = 0u32;
         {
             let mut stmt = tx.prepare(INSERT_OR_REPLACE_SQL)?;
-            let mut exists_stmt =
-                tx.prepare("SELECT 1 FROM matches WHERE match_id = ?1")?;
+            let mut exists_stmt = tx.prepare("SELECT 1 FROM matches WHERE match_id = ?1")?;
             for entry in entries {
                 let row = match extract_row(&entry) {
                     Some(r) => r,
@@ -367,7 +363,11 @@ pub async fn match_history_list(
         // `matches.len()` diverge and break pagination math).
         let parse = |s: String| -> rusqlite::Result<Value> {
             serde_json::from_str(&s).map_err(|e| {
-                rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(e))
+                rusqlite::Error::FromSqlConversionFailure(
+                    0,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
             })
         };
         let mut stmt = conn.prepare(sql)?;
@@ -508,10 +508,8 @@ pub async fn match_history_aggregate(
              FROM recent",
             where_sql
         );
-        let overall: Value = conn.query_row(
-            &overall_sql,
-            params_from_iter(params_vec.iter()),
-            |r| {
+        let overall: Value =
+            conn.query_row(&overall_sql, params_from_iter(params_vec.iter()), |r| {
                 Ok(json!({
                     "games":   r.get::<_, i64>(0)?,
                     "wins":    r.get::<_, Option<i64>>(1)?.unwrap_or(0),
@@ -519,8 +517,7 @@ pub async fn match_history_aggregate(
                     "deaths":  r.get::<_, Option<i64>>(3)?.unwrap_or(0),
                     "assists": r.get::<_, Option<i64>>(4)?.unwrap_or(0),
                 }))
-            },
-        )?;
+            })?;
 
         Ok(json!({
             "byAgent": by_agent,
@@ -666,9 +663,18 @@ mod tests {
     #[test]
     fn sorts_by_date_descending() {
         let mut c = fresh_db();
-        insert(&mut c, &sample("a", 100, "competitive", "jett", 10, 5, true));
-        insert(&mut c, &sample("b", 300, "competitive", "jett", 8, 6, false));
-        insert(&mut c, &sample("c", 200, "competitive", "reyna", 15, 4, true));
+        insert(
+            &mut c,
+            &sample("a", 100, "competitive", "jett", 10, 5, true),
+        );
+        insert(
+            &mut c,
+            &sample("b", 300, "competitive", "jett", 8, 6, false),
+        );
+        insert(
+            &mut c,
+            &sample("c", 200, "competitive", "reyna", 15, 4, true),
+        );
         let ids: Vec<String> = c
             .prepare("SELECT match_id FROM matches ORDER BY date_ms DESC")
             .unwrap()
@@ -682,9 +688,18 @@ mod tests {
     #[test]
     fn filters_by_queue_id() {
         let mut c = fresh_db();
-        insert(&mut c, &sample("a", 100, "competitive", "jett", 10, 5, true));
-        insert(&mut c, &sample("b", 200, "spikerush", "phoenix", 6, 3, true));
-        insert(&mut c, &sample("c", 300, "competitive", "reyna", 15, 4, false));
+        insert(
+            &mut c,
+            &sample("a", 100, "competitive", "jett", 10, 5, true),
+        );
+        insert(
+            &mut c,
+            &sample("b", 200, "spikerush", "phoenix", 6, 3, true),
+        );
+        insert(
+            &mut c,
+            &sample("c", 300, "competitive", "reyna", 15, 4, false),
+        );
         let comp: i64 = c
             .query_row(
                 "SELECT COUNT(*) FROM matches WHERE queue_id = 'competitive'",
@@ -706,7 +721,8 @@ mod tests {
         assert!(extract_row(&json!({ "matchId": "x", "dateMs": 100, "queueId": "" })).is_none()); // empty queueId
 
         // Minimal valid shape — numeric fields default to 0.
-        let r = extract_row(&json!({ "matchId": "x", "dateMs": 100, "queueId": "competitive" })).unwrap();
+        let r = extract_row(&json!({ "matchId": "x", "dateMs": 100, "queueId": "competitive" }))
+            .unwrap();
         assert_eq!(r.kills, 0);
         assert_eq!(r.deaths, 0);
     }
