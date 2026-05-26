@@ -11,7 +11,7 @@ mod coach;
 mod discord;
 mod identity_cache;
 mod loadout_presets;
-mod match_cache;
+mod match_db;
 mod oauth;
 mod premier_cache;
 mod riot;
@@ -1046,7 +1046,7 @@ pub fn run() {
         .manage(Arc::new(Mutex::new(discord::DiscordState::default())))
         .manage(Arc::new(Mutex::new(riot::xmpp::XmppState::default())))
         .manage::<store::WishlistShared>(Arc::new(Mutex::new(Vec::new())))
-        .manage(match_cache::new_cache())
+        .manage(match_db::new_db())
         .manage(rr_cache::new_cache())
         .manage(Mutex::new(spend_tracker::SpendState::default()))
         .manage(identity_cache::new_cache())
@@ -1063,6 +1063,20 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             riot::logging::init(app.handle().clone());
+            // One-shot import of legacy match-cache.json into SQLite.
+            // Runs off the setup thread so a multi-MB legacy cache doesn't
+            // stall window creation. The migrator is idempotent
+            // (schema_meta.json_imported), and any match_history_put_many
+            // landing before it finishes uses INSERT OR IGNORE so a
+            // newer row from a live fetch wins the race against the
+            // older migrated copy — no data loss.
+            {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    let state = handle.state::<match_db::MatchDb>();
+                    match_db::migrate_from_json(&handle, &state);
+                });
+            }
             {
                 let conn = Arc::clone(&app.state::<SharedState>());
                 let wl = Arc::clone(&app.state::<store::WishlistShared>());
@@ -1186,10 +1200,12 @@ pub fn run() {
             store::get_storefront,
             store::set_wishlist,
             store::force_refresh_storefront,
-            match_cache::match_history_put,
-            match_cache::match_history_put_many,
-            match_cache::match_history_list,
-            match_cache::match_history_stats,
+            match_db::match_history_put,
+            match_db::match_history_put_many,
+            match_db::match_history_list,
+            match_db::match_history_stats,
+            match_db::match_history_distinct_queues,
+            match_db::match_history_aggregate,
             rr_cache::rr_history_put_many,
             rr_cache::rr_history_list,
             rr_cache::rr_history_stats,

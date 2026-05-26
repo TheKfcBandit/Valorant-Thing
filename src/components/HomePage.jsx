@@ -9,7 +9,7 @@ import { ROUND_GLYPH, getRoundOutcome, formatRoundTooltip } from "../utils/round
 import { normalizeRrEntry } from "../riotShapes";
 import { useAsyncEffect } from "../hooks/useAsyncEffect";
 import { Label } from "./ui/Label";
-import { getMaps } from "../valApiSkins";
+import { getMaps, getAgentLookup } from "../valApiSkins";
 
 const CUSTOM_AGENT_ICONS = {
   "7c8a4701-4de6-9355-b254-e09bc2a34b72": "/agents/miks.png",
@@ -17,28 +17,15 @@ const CUSTOM_AGENT_ICONS = {
 
 const REFRESH_INTERVAL = 5 * 60 * 1000;
 
+// Matches Riot's natural per-call cap on `/match-history`. Larger windows
+// don't return more entries, smaller ones just multiply round trips.
+const PAGE_SIZE = 20;
+
 function formatTimer(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
   const m = Math.floor(s / 60);
   const sec = s % 60;
   return `${m}:${sec.toString().padStart(2, "0")}`;
-}
-
-// Merge live and cached match arrays by matchId. `priority` entries win on
-// conflict; `fallback` fills in the tail. Entries without a matchId can't
-// be deduped, so we keep them all from `priority` (live placeholders for
-// in-progress matches show without a matchId yet).
-function mergeMatches(priority, fallback) {
-  const map = new Map();
-  for (const m of fallback || []) {
-    if (m?.matchId) map.set(m.matchId, m);
-  }
-  const noId = [];
-  for (const m of priority || []) {
-    if (m?.matchId) map.set(m.matchId, m);
-    else if (m) noId.push(m);
-  }
-  return [...noId, ...Array.from(map.values())].sort((a, b) => (b.dateMs || 0) - (a.dateMs || 0));
 }
 
 let mapCache = null;
@@ -64,18 +51,39 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
   const [error, setError] = useState(null);
   const [timeLeft, setTimeLeft] = useState(REFRESH_INTERVAL);
   const [maps, setMaps] = useState({});
+  const [agentNames, setAgentNames] = useState({});
   const [matches, setMatches] = useState(null);
   const [matchLoading, setMatchLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMoreInRiot, setHasMoreInRiot] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  // Next Riot page to ask for in loadMore. fetchMatches always takes 0, so
+  // we start at 1. Monotonic across filter changes since Riot's history is
+  // global, not filter-specific. Fixes the "math from DB total" bug where
+  // overlap or filtered scarcity made the same page refetch forever.
+  const [nextRiotPage, setNextRiotPage] = useState(1);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [queueFilter, setQueueFilter] = useState("all");
+  const [availableQueues, setAvailableQueues] = useState([]);
+  const [aggregate, setAggregate] = useState(null);
   const [penalties, setPenalties] = useState([]);
   const [spend, setSpend] = useState(null);
   const [rrHistory, setRrHistory] = useState(null);
   const [openMatch, setOpenMatch] = useState(null);
   const lastFetchRef = useRef(0);
   const lastAutoRefresh = useRef(0);
-  const backfilledRef = useRef(false);
 
   useEffect(() => {
     getMapData().then(setMaps);
+    getAgentLookup()
+      .then((lookup) => {
+        const names = {};
+        for (const [id, a] of Object.entries(lookup)) {
+          if (a?.displayName) names[id] = a.displayName;
+        }
+        setAgentNames(names);
+      })
+      .catch(() => {});
   }, []);
 
   const fetchStats = useCallback(async () => {
@@ -101,50 +109,51 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
     setLoading(false);
   }, [connected, onRefresh]);
 
+  // Read the current visible window from the SQLite cache. Always re-reads
+  // from disk so we get the latest after any insert. The queue filter is
+  // applied here; load-more grows `visibleCount` and re-runs.
+  const reloadVisible = useCallback(
+    async (count, queue) => {
+      try {
+        const res = await invoke("match_history_list", {
+          limit: count,
+          offset: 0,
+          queueId: queue === "all" ? null : queue,
+        });
+        const list = res?.matches || [];
+        setMatches(list);
+        return list.length;
+      } catch (e) {
+        console.warn("[History] DB list failed:", e);
+        return 0;
+      }
+    },
+    []
+  );
+
+  // Live refresh from Riot: pull page 0 (newest), ingest into DB, re-read
+  // the visible window. Called when `connected` flips and on every periodic
+  // refresh tick. Doesn't paginate backward — that's loadMore's job.
   const fetchMatches = useCallback(
     async (retry = false) => {
       if (!connected) return;
       setMatchLoading(true);
       try {
-        const raw = await invoke("get_match_page", { page: 0, pageSize: 25 });
+        const raw = await invoke("get_match_page", { page: 0, pageSize: PAGE_SIZE });
         const data = JSON.parse(raw);
-        const list = data.matches || [];
+        const list = (data.matches || []).filter((m) => m && m.matchId);
         if (list.length === 0 && !retry) {
           setTimeout(() => fetchMatches(true), 3000);
           return;
         }
-        // Merge live into the existing (cache-seeded) list. Live wins on
-        // matchId conflict so corrected/updated fields propagate.
-        setMatches((prev) => mergeMatches(list, prev));
-        // Ingest into persistent history cache (only entries with a matchId survive).
-        const withIds = list.filter((m) => m && m.matchId);
-        if (withIds.length > 0) {
+        if (list.length > 0) {
           try {
-            await invoke("match_history_put_many", { entries: withIds });
+            await invoke("match_history_put_many", { entries: list });
           } catch (e) {
-            console.warn("[History] cache put failed:", e);
+            console.warn("[History] DB put failed:", e);
           }
         }
-        // One-shot per-session backfill of older pages so first-install users
-        // get a meaningful history depth instead of the live API's 25-entry cap.
-        if (!backfilledRef.current) {
-          backfilledRef.current = true;
-          void (async () => {
-            for (let page = 1; page <= 3; page++) {
-              try {
-                const r = await invoke("get_match_page", { page, pageSize: 25 });
-                const d = JSON.parse(r);
-                const older = (d.matches || []).filter((m) => m && m.matchId);
-                if (older.length === 0) break;
-                await invoke("match_history_put_many", { entries: older });
-                setMatches((prev) => mergeMatches(prev || [], older));
-              } catch (e) {
-                console.warn("[History] backfill page", page, "failed:", e);
-                break;
-              }
-            }
-          })();
-        }
+        await reloadVisible(visibleCount, queueFilter);
       } catch (e) {
         if (!retry) {
           setTimeout(() => fetchMatches(true), 3000);
@@ -153,23 +162,79 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
       }
       setMatchLoading(false);
     },
-    [connected]
+    [connected, visibleCount, queueFilter, reloadVisible]
   );
 
-  // Seed match history from the file-backed cache so Home renders something
-  // even when Valorant isn't running. fetchMatches will merge live entries
-  // on top once a connection is established.
-  useAsyncEffect(async (isCancelled) => {
-    try {
-      const res = await invoke("match_history_list", { limit: 100 });
-      const cached = res?.matches || [];
-      if (!isCancelled() && cached.length > 0) {
-        setMatches((prev) => mergeMatches(prev || [], cached));
+  // Load older matches: try DB first (cheap), and if DB is exhausted AND
+  // Riot might still have more, fetch the next Riot page and ingest.
+  const loadMore = useCallback(async () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    setLoadError(false);
+    const nextCount = visibleCount + PAGE_SIZE;
+    const returned = await reloadVisible(nextCount, queueFilter);
+    setVisibleCount(nextCount);
+
+    if (returned < nextCount && hasMoreInRiot && connected) {
+      try {
+        const raw = await invoke("get_match_page", {
+          page: nextRiotPage,
+          pageSize: PAGE_SIZE,
+        });
+        const data = JSON.parse(raw);
+        const newer = (data.matches || []).filter((m) => m && m.matchId);
+        setNextRiotPage((p) => p + 1);
+        if (newer.length === 0) {
+          setHasMoreInRiot(false);
+        } else {
+          await invoke("match_history_put_many", { entries: newer });
+          if (newer.length < PAGE_SIZE) setHasMoreInRiot(false);
+          await reloadVisible(nextCount, queueFilter);
+        }
+      } catch (e) {
+        console.warn("[History] loadMore from Riot failed:", e);
+        setLoadError(true);
       }
-    } catch (e) {
-      console.warn("[History] cache load failed:", e);
     }
-  }, []);
+    setLoadingMore(false);
+  }, [loadingMore, visibleCount, queueFilter, hasMoreInRiot, connected, nextRiotPage, reloadVisible]);
+
+  // Populate the queue filter dropdown from whatever queues we've seen so
+  // far. Runs on mount and after each successful Riot fetch.
+  useEffect(() => {
+    invoke("match_history_distinct_queues")
+      .then((qs) => Array.isArray(qs) && setAvailableQueues(qs))
+      .catch((e) => console.warn("[History] distinct queues failed:", e));
+  }, [matchLoading]);
+
+  // Read DB → matches on mount and on filter change. Replaces the old
+  // separate useAsyncEffect seed (this covers cache-render-before-connect).
+  // Resets visible window AND hasMoreInRiot — switching filters must
+  // un-latch the "End of history" flag so the user can keep paging.
+  // Also bumps nextRiotPage so legacy users (with cached pages from the
+  // old 3-page backfill) don't refetch already-cached pages on Load More.
+  // Max preserves monotonic-forward across filter switches.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+    setHasMoreInRiot(true);
+    setLoadError(false);
+    reloadVisible(PAGE_SIZE, queueFilter);
+    invoke("match_history_stats")
+      .then((s) => setNextRiotPage((p) => Math.max(p, Math.floor((s?.total ?? 0) / PAGE_SIZE))))
+      .catch(() => {});
+  }, [queueFilter, reloadVisible]);
+
+  // Aggregate stats panel — clear stale data first so the panel hides
+  // (via the `overall?.games > 0` guard) until the new query lands.
+  useEffect(() => {
+    setAggregate(null);
+    invoke("match_history_aggregate", {
+      queueId: queueFilter === "all" ? null : queueFilter,
+      limit: 500,
+    })
+      .then(setAggregate)
+      .catch((e) => console.warn("[History] aggregate failed:", e));
+  }, [queueFilter, matchLoading]);
 
   // Same pattern as the match-history seed above — render the RR chart from
   // cache before login so reopening the app shows a trend immediately.
@@ -263,7 +328,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
       }
     }, 1000);
     return () => clearInterval(id);
-  }, [connected, fetchStats]);
+  }, [connected, fetchStats, fetchMatches]);
 
   // Phase A of #18: when not connected but we have cached identity, render the
   // page anyway with a stale "Offline" badge. The Waiting splash only shows
@@ -561,9 +626,30 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
           </motion.div>
         )}
 
-        <h3 className="text-xs font-display font-semibold text-text-primary uppercase tracking-wider">
-          Match History
-        </h3>
+        {aggregate && aggregate.overall?.games > 0 && (
+          <AggregatePanels aggregate={aggregate} maps={maps} agentNames={agentNames} />
+        )}
+
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-display font-semibold text-text-primary uppercase tracking-wider">
+            Match History
+          </h3>
+          {availableQueues.length > 1 && (
+            <select
+              value={queueFilter}
+              onChange={(e) => setQueueFilter(e.target.value)}
+              className="text-[11px] font-body bg-base-700 border border-border rounded px-2 py-1 text-text-secondary focus:outline-none focus:border-text-muted"
+              aria-label="Filter by queue"
+            >
+              <option value="all">All queues</option>
+              {availableQueues.map((q) => (
+                <option key={q} value={q}>
+                  {MODE_NAMES[q] || (q ? q.charAt(0).toUpperCase() + q.slice(1) : "Custom")}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
 
         {matchLoading && !matches && (
           <div className="space-y-1.5 animate-pulse">
@@ -712,6 +798,23 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
               </motion.div>
             );
           })}
+          {matches && matches.length > 0 && (
+            <div className="pt-2 flex items-center justify-center">
+              <button
+                onClick={loadMore}
+                disabled={loadingMore || (!hasMoreInRiot && (matches?.length || 0) < visibleCount)}
+                className={`text-[11px] font-display font-semibold tracking-wider uppercase px-3 py-1.5 rounded-md bg-base-700 hover:bg-base-600 border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${loadError ? "border-red-500/40 text-red-400 hover:text-red-300" : "border-border text-text-secondary hover:text-text-primary"}`}
+              >
+                {loadingMore
+                  ? "Loading…"
+                  : loadError
+                    ? "Load failed — click to retry"
+                    : !hasMoreInRiot && (matches?.length || 0) < visibleCount
+                      ? "End of history"
+                      : `Load more (${matches?.length || 0} shown)`}
+              </button>
+            </div>
+          )}
         </div>
       </div>
       {openMatch && (
@@ -769,7 +872,10 @@ function RRChart({ matches }) {
     const x = pad + i * xStep;
     const yNorm = (p.y - minY) / span; // 0..1
     const y = pad + (1 - yNorm) * innerH;
-    return { x, y, ...p };
+    // NB: spread `p` first so the scaled `x`/`y` override the raw `p.y`.
+    // Spreading after `{ x, y }` would clobber the scaled `y` with the
+    // raw tier*100+rr value and push the polyline off the viewBox.
+    return { ...p, x, y };
   });
   const pathD = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x},${c.y}`).join(" ");
   const last = coords[coords.length - 1];
@@ -833,6 +939,111 @@ function RRChart({ matches }) {
         </span>
       </div>
     </motion.div>
+  );
+}
+
+// Tracker.gg-style rollup panels. Renders three sections collapsed inside
+// a <details> so the page layout doesn't change for users who don't care:
+// overall stats for the current queue filter, top agents, top maps.
+//
+// Data shape (from `match_history_aggregate`):
+//   { byAgent: [{agentId, games, wins, kills, deaths, assists}, ...],
+//     byMap:   [{mapId,   games, wins}, ...],
+//     overall: {games, wins, kills, deaths, assists}, limit, queueId }
+function AggregatePanels({ aggregate, maps, agentNames }) {
+  const { overall, byAgent, byMap } = aggregate;
+  const winPct = overall.games > 0 ? Math.round((overall.wins / overall.games) * 100) : 0;
+  const kdRatio = overall.deaths > 0 ? (overall.kills / overall.deaths).toFixed(2) : "—";
+  const avgK = overall.games > 0 ? (overall.kills / overall.games).toFixed(1) : "—";
+  const avgD = overall.games > 0 ? (overall.deaths / overall.games).toFixed(1) : "—";
+  const avgA = overall.games > 0 ? (overall.assists / overall.games).toFixed(1) : "—";
+
+  return (
+    <details className="rounded-xl border border-border bg-base-700/60 group" open>
+      <summary className="cursor-pointer list-none p-3 flex items-center justify-between hover:bg-base-700/80 rounded-xl">
+        <div className="flex items-baseline gap-3">
+          <Label>Stats</Label>
+          <span className="text-[11px] font-mono tabular-nums text-text-muted">
+            {overall.games} games · {winPct}% WR · {kdRatio} K/D · {avgK}/{avgD}/{avgA}
+          </span>
+        </div>
+        <span className="text-text-muted text-[10px] group-open:rotate-90 transition-transform">
+          ▶
+        </span>
+      </summary>
+      <div className="px-3 pb-3 grid grid-cols-2 gap-3">
+        <AggregateList
+          title="Top Agents"
+          rows={byAgent.slice(0, 5)}
+          renderRow={(r) => {
+            const iconUrl = r.agentId
+              ? CUSTOM_AGENT_ICONS[r.agentId.toLowerCase()] ||
+                `https://media.valorant-api.com/agents/${r.agentId}/displayicon.png`
+              : null;
+            const wr = r.games > 0 ? Math.round((r.wins / r.games) * 100) : 0;
+            const kd = r.deaths > 0 ? (r.kills / r.deaths).toFixed(2) : "—";
+            return (
+              <>
+                {iconUrl && <img src={iconUrl} alt="" className="w-5 h-5 rounded-full shrink-0" />}
+                <span className="flex-1 truncate text-text-primary">
+                  {agentNames[r.agentId?.toLowerCase()] || r.agentId?.slice(0, 8) || "Unknown"}
+                </span>
+                <span className="text-text-muted tabular-nums">{r.games}g</span>
+                <span
+                  className={`tabular-nums ${wr >= 50 ? "text-green-400" : "text-red-400"}`}
+                >
+                  {wr}%
+                </span>
+                <span className="text-text-muted tabular-nums">{kd}</span>
+              </>
+            );
+          }}
+        />
+        <AggregateList
+          title="Top Maps"
+          rows={byMap.slice(0, 5)}
+          renderRow={(r) => {
+            const key = r.mapId?.split("/").pop();
+            const mapData = key ? maps[key] : null;
+            const name = mapData?.name || key || "Unknown";
+            const wr = r.games > 0 ? Math.round((r.wins / r.games) * 100) : 0;
+            return (
+              <>
+                <span className="flex-1 truncate text-text-primary">{name}</span>
+                <span className="text-text-muted tabular-nums">{r.games}g</span>
+                <span
+                  className={`tabular-nums ${wr >= 50 ? "text-green-400" : "text-red-400"}`}
+                >
+                  {wr}%
+                </span>
+              </>
+            );
+          }}
+        />
+      </div>
+    </details>
+  );
+}
+
+function AggregateList({ title, rows, renderRow }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[9px] font-display font-bold text-text-muted uppercase tracking-wider mb-1">
+        {title}
+      </p>
+      {rows.length === 0 ? (
+        <p className="text-[10px] font-body text-text-muted italic">No data</p>
+      ) : (
+        rows.map((r, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-2 text-[10px] font-mono px-1.5 py-1 rounded hover:bg-base-600/40"
+          >
+            {renderRow(r)}
+          </div>
+        ))
+      )}
+    </div>
   );
 }
 
