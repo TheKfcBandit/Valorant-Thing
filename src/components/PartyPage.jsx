@@ -218,7 +218,7 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
         const matches = history?.matches || [];
         const puuids = (data || []).map((f) => f.puuid).filter(Boolean);
         setFitness(computeFitness(matches, puuids));
-      } catch (e) {
+      } catch {
         // Cache may not have any entries yet — that's fine.
         setFitness({});
       }
@@ -293,7 +293,7 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
     };
     addLog?.("info", "[Custom] Sending settings", p);
     try {
-      const resp = await invoke("set_custom_settings", p);
+      await invoke("set_custom_settings", p);
       addLog?.("info", `[Custom] OK`);
       fetchParty();
     } catch (e) {
@@ -1037,7 +1037,7 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
                     </svg>
                     <span className="flex-1 text-left">
                       {(() => {
-                        const pts = (party.custom_pod || "").toLowerCase().split(/[.\-]/);
+                        const pts = (party.custom_pod || "").toLowerCase().split(/[.-]/);
                         const c = pts.find((s) => SERVER_NAMES[s]);
                         return c ? SERVER_NAMES[c] : party.custom_pod || "";
                       })()}
@@ -1058,7 +1058,7 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
                     <div className="absolute z-50 mt-1 left-0 right-0 bg-base-800 border border-border rounded-lg shadow-xl max-h-64 overflow-y-auto">
                       {customConfigs.pods.map((p) => {
                         const active = p === party.custom_pod;
-                        const pts = p.toLowerCase().split(/[.\-]/);
+                        const pts = p.toLowerCase().split(/[.-]/);
                         const city = pts.find((s) => SERVER_NAMES[s]);
                         return (
                           <button

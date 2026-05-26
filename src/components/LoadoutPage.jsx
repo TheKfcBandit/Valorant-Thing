@@ -93,7 +93,7 @@ export default function LoadoutPage({ connected }) {
   const [sprays, setSprays] = useState([]);
   const [cards, setCards] = useState([]);
   const [titles, setTitles] = useState([]);
-  const [buddies, setBuddies] = useState([]);
+  const [_buddies, setBuddies] = useState([]);
   const [loadout, setLoadout] = useState(null);
   const [pending, setPending] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -170,20 +170,6 @@ export default function LoadoutPage({ connected }) {
         fetchOwnedIds(ITEM_TYPES.CARD),
         fetchOwnedIds(ITEM_TYPES.TITLE),
       ]);
-      const skinUuids = new Set();
-      const levelUuids = new Set();
-      for (const w of weaps) {
-        for (const s of w.skins || []) {
-          skinUuids.add(s.uuid.toLowerCase());
-          for (const l of s.levels || []) levelUuids.add(l.uuid.toLowerCase());
-        }
-      }
-      let bySkin = 0,
-        byLevel = 0;
-      for (const id of levels) {
-        if (skinUuids.has(id)) bySkin++;
-        if (levelUuids.has(id)) byLevel++;
-      }
       setOwned({ levels, chromas, buddies: buds, sprays: sprys, cards: crds, titles: ttls });
     } catch (e) {
       setError(typeof e === "string" ? e : e?.message || "Failed to load");

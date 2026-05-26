@@ -1,5 +1,4 @@
 import { useRef, useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import { invoke } from "@tauri-apps/api/core";
 
 const TABS = [

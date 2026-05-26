@@ -27,7 +27,7 @@ export default function MatchInfoPage({
   const [mapId, setMapId] = useState(null);
   const [matchId, setMatchId] = useState(null);
   const [matchInfo, setMatchInfo] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [error, setError] = useState(null);
   const [moduleData, setModuleData] = useState({});
@@ -108,8 +108,6 @@ export default function MatchInfoPage({
       const info = { mode: modeName, server: match.GamePodID || "", isTeamMode };
 
       setMatchInfo(info);
-
-      const rawPlayers = phase === "PREGAME" ? match.AllyTeam?.Players || [] : match.Players || [];
 
       let playerList = [];
       if (phase === "PREGAME") {

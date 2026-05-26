@@ -1327,7 +1327,6 @@ function NoneButton({ selected, onClick }) {
 }
 
 function PerMapView({
-  agents,
   filteredAgents,
   selectedMapAgents,
   maps,

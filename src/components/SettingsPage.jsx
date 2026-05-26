@@ -410,8 +410,6 @@ export default function SettingsPage({
   spikeTimerEnabled,
   onSpikeTimerEnabledChange,
 }) {
-  const fileRef = useRef(null);
-  const configFileRef = useRef(null);
   const themeVtRef = useRef(null);
   const configVtRef = useRef(null);
   const [presetOpen, setPresetOpen] = useState(false);

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { noAnim, T0 } from "../utils/animation";
 
 const POLL_INTERVAL = 2000;
@@ -399,7 +399,6 @@ export default function ChatPage({ connected, addLog }) {
                 const name = getSenderName(msg);
                 const time = formatTime(msg.time || msg.timestamp || msg.dt);
                 const body = msg.body || msg.message || msg.content || "";
-                const isSystem = msg.type === "system" || (msg.type === "groupchat" && !body);
                 if (!body) return null;
                 return (
                   <div

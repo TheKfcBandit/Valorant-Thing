@@ -86,7 +86,7 @@ async function fetchLoadouts({ matchId, phase, addLog }) {
   return byPuuid;
 }
 
-function CardSlot({ player, data: loadout }) {
+function CardSlot({ data: loadout }) {
   const skinLookup = useApiLookup(getLevelLookup);
   const weaponLookup = useApiLookup(getWeaponLookup);
   if (!loadout) return null;
@@ -121,7 +121,7 @@ function CardSlot({ player, data: loadout }) {
   );
 }
 
-function DialogSection({ player, data: loadout }) {
+function DialogSection({ data: loadout }) {
   const skinLookup = useApiLookup(getLevelLookup);
   const accessoryLookup = useApiLookup(getAccessoryLookup);
   const weaponLookup = useApiLookup(getWeaponLookup);

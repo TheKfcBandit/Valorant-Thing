@@ -36,7 +36,12 @@ export default [
       // Unused variables waste reading time. Allow `_` prefix for intentional.
       "no-unused-vars": [
         "warn",
-        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          ignoreRestSiblings: true,
+        },
       ],
 
       // Existing-code noise reduction.

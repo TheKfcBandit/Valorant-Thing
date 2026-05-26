@@ -1875,7 +1875,7 @@ export default function App() {
                               url: updateInfo.download_url,
                               filename: updateInfo.asset_name,
                             });
-                          } catch (e) {
+                          } catch {
                             setUpdating(false);
                           }
                         }}

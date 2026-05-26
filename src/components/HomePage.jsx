@@ -151,7 +151,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
           }
         }
         await reloadVisible(visibleCount, queueFilter);
-      } catch (e) {
+      } catch {
         if (!retry) {
           setTimeout(() => fetchMatches(true), 3000);
           return;

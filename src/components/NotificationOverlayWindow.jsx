@@ -159,7 +159,6 @@ export default function NotificationOverlayWindow() {
   }, []);
 
   const isRight = position.includes("right");
-  const isBottom = position.includes("bottom");
 
   return (
     <div style={{ background: "transparent", overflow: "hidden", pointerEvents: "none" }}>
