@@ -1,5 +1,6 @@
 import js from "@eslint/js";
 import reactHooks from "eslint-plugin-react-hooks";
+import react from "eslint-plugin-react";
 import globals from "globals";
 
 // Conservative ruleset. Picks: things that catch real bugs, not style fights.
@@ -11,7 +12,7 @@ export default [
   js.configs.recommended,
   {
     files: ["**/*.{js,jsx,mjs}"],
-    plugins: { "react-hooks": reactHooks },
+    plugins: { "react-hooks": reactHooks, react },
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
@@ -23,6 +24,10 @@ export default [
       // Phase 5 — existing code intentionally diverges in places.
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "off",
+
+      // Without this, no-unused-vars can't see JSX references and flags every
+      // component/import used only in markup (e.g. <TitleBar/>, <motion.div>).
+      "react/jsx-uses-vars": "error",
 
       // Bare catch is the philosophy-rule-4 violation. Empty blocks elsewhere
       // (try/finally, empty function bodies) are still allowed.
