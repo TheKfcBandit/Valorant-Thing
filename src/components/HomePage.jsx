@@ -112,24 +112,21 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
   // Read the current visible window from the SQLite cache. Always re-reads
   // from disk so we get the latest after any insert. The queue filter is
   // applied here; load-more grows `visibleCount` and re-runs.
-  const reloadVisible = useCallback(
-    async (count, queue) => {
-      try {
-        const res = await invoke("match_history_list", {
-          limit: count,
-          offset: 0,
-          queueId: queue === "all" ? null : queue,
-        });
-        const list = res?.matches || [];
-        setMatches(list);
-        return list.length;
-      } catch (e) {
-        console.warn("[History] DB list failed:", e);
-        return 0;
-      }
-    },
-    []
-  );
+  const reloadVisible = useCallback(async (count, queue) => {
+    try {
+      const res = await invoke("match_history_list", {
+        limit: count,
+        offset: 0,
+        queueId: queue === "all" ? null : queue,
+      });
+      const list = res?.matches || [];
+      setMatches(list);
+      return list.length;
+    } catch (e) {
+      console.warn("[History] DB list failed:", e);
+      return 0;
+    }
+  }, []);
 
   // Live refresh from Riot: pull page 0 (newest), ingest into DB, re-read
   // the visible window. Called when `connected` flips and on every periodic
@@ -197,7 +194,15 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
       }
     }
     setLoadingMore(false);
-  }, [loadingMore, visibleCount, queueFilter, hasMoreInRiot, connected, nextRiotPage, reloadVisible]);
+  }, [
+    loadingMore,
+    visibleCount,
+    queueFilter,
+    hasMoreInRiot,
+    connected,
+    nextRiotPage,
+    reloadVisible,
+  ]);
 
   // Populate the queue filter dropdown from whatever queues we've seen so
   // far. Runs on mount and after each successful Riot fetch.
@@ -989,9 +994,7 @@ function AggregatePanels({ aggregate, maps, agentNames }) {
                   {agentNames[r.agentId?.toLowerCase()] || r.agentId?.slice(0, 8) || "Unknown"}
                 </span>
                 <span className="text-text-muted tabular-nums">{r.games}g</span>
-                <span
-                  className={`tabular-nums ${wr >= 50 ? "text-green-400" : "text-red-400"}`}
-                >
+                <span className={`tabular-nums ${wr >= 50 ? "text-green-400" : "text-red-400"}`}>
                   {wr}%
                 </span>
                 <span className="text-text-muted tabular-nums">{kd}</span>
@@ -1011,9 +1014,7 @@ function AggregatePanels({ aggregate, maps, agentNames }) {
               <>
                 <span className="flex-1 truncate text-text-primary">{name}</span>
                 <span className="text-text-muted tabular-nums">{r.games}g</span>
-                <span
-                  className={`tabular-nums ${wr >= 50 ? "text-green-400" : "text-red-400"}`}
-                >
+                <span className={`tabular-nums ${wr >= 50 ? "text-green-400" : "text-red-400"}`}>
                   {wr}%
                 </span>
               </>
