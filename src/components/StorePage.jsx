@@ -50,8 +50,6 @@ export default function StorePage({ connected }) {
   const [bundleLookup, setBundleLookup] = useState({});
   const [accessoryLookup, setAccessoryLookup] = useState({});
   const [wishlistOpen, setWishlistOpen] = useState(false);
-  const [spendSummary, setSpendSummary] = useState(null); // populated when user clicks "Show spend history"
-  const [spendLoading, setSpendLoading] = useState(false);
   const [bundleIndex, setBundleIndex] = useState(0);
   const [wishlist, setWishlist] = useState(() => {
     try {
@@ -130,25 +128,11 @@ export default function StorePage({ connected }) {
     return () => clearInterval(id);
   }, []);
 
-  // Reset NM total + bundle carousel index whenever the storefront changes
+  // Reset the bundle carousel index whenever the storefront changes
   // so stale UI state can't bleed across days.
   useEffect(() => {
-    setSpendSummary(null);
     setBundleIndex(0);
   }, [storeRaw]);
-
-  const loadSpendSummary = useCallback(async () => {
-    setSpendLoading(true);
-    try {
-      const summary = await invoke("get_spend_summary");
-      setSpendSummary(summary);
-    } catch (e) {
-      console.warn("[Store] spend summary failed:", e);
-      setSpendSummary({ error: typeof e === "string" ? e : e?.message || "Failed" });
-    } finally {
-      setSpendLoading(false);
-    }
-  }, []);
 
   const persistWishlist = useCallback((set) => {
     const arr = Array.from(set);
@@ -411,14 +395,7 @@ export default function StorePage({ connected }) {
       {nightMarket && nightMarket.offers.length > 0 && (
         <Section
           title="Night Market"
-          subtitle={
-            <NightMarketSubtitle
-              remaining={nightMarket.remaining}
-              summary={spendSummary}
-              loading={spendLoading}
-              onShow={loadSpendSummary}
-            />
-          }
+          subtitle={<NightMarketSubtitle remaining={nightMarket.remaining} />}
           accentColor="rgb(var(--val-red))"
         >
           <div
@@ -458,37 +435,9 @@ export default function StorePage({ connected }) {
   );
 }
 
-function NightMarketSubtitle({ remaining, summary, loading, onShow }) {
-  const closes = remaining != null ? `Closes in ${fmtRemaining(remaining)}` : null;
-  return (
-    <span className="inline-flex items-center gap-3">
-      {closes && <span className="tabular-nums">{closes}</span>}
-      {summary == null ? (
-        <button
-          onClick={onShow}
-          disabled={loading}
-          className="px-2 py-0.5 rounded text-[10px] font-display font-semibold border border-val-red/40 bg-val-red/10 text-val-red hover:bg-val-red/20 disabled:opacity-50"
-        >
-          {loading ? "Loading..." : "Show spend history"}
-        </button>
-      ) : summary.error ? (
-        <span className="text-[10px] text-val-red">Spend: {summary.error}</span>
-      ) : (
-        <span className="text-[10px] text-val-red tabular-nums">{formatSpendSummary(summary)}</span>
-      )}
-    </span>
-  );
-}
-
-function formatSpendSummary(s) {
-  const parts = [];
-  if (s.vpSpent) parts.push(`${Number(s.vpSpent).toLocaleString()} VP`);
-  if (s.rpSpent) parts.push(`${Number(s.rpSpent).toLocaleString()} RP`);
-  if (s.kcSpent) parts.push(`${Number(s.kcSpent).toLocaleString()} KC`);
-  if (parts.length === 0) return "No purchases tracked yet";
-  const count = Array.isArray(s.purchases) ? s.purchases.length : 0;
-  const totals = parts.join(" · ");
-  return `Spent in store: ${totals}${count ? ` across ${count} skin${count === 1 ? "" : "s"}` : ""}`;
+function NightMarketSubtitle({ remaining }) {
+  if (remaining == null) return null;
+  return <span className="tabular-nums">Closes in {fmtRemaining(remaining)}</span>;
 }
 
 function Section({ title, subtitle, accentColor, children }) {
