@@ -1967,8 +1967,8 @@ export default function App() {
             {needsReauth && (
               <div className="absolute top-0 left-0 right-0 z-40 px-4 py-2 bg-yellow-500/15 border-b border-yellow-500/40 flex items-center justify-between gap-3">
                 <p className="text-xs font-body text-yellow-300">
-                  Your Riot session expired and couldn&apos;t be refreshed silently. Sign in again to
-                  restore live data.
+                  Your Riot session expired and couldn&apos;t be refreshed silently. Sign in again
+                  to restore live data.
                 </p>
                 <button
                   onClick={doOAuthSignin}
