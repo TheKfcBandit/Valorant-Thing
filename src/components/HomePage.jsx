@@ -10,6 +10,7 @@ import { normalizeRrEntry } from "../riotShapes";
 import { useAsyncEffect } from "../hooks/useAsyncEffect";
 import { Label } from "./ui/Label";
 import { getMaps, getAgentLookup } from "../valApiSkins";
+import { getCached, setCache } from "../matchCache";
 
 const CUSTOM_AGENT_ICONS = {
   "7c8a4701-4de6-9355-b254-e09bc2a34b72": "/agents/miks.png",
@@ -827,6 +828,8 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
           match={openMatch}
           maps={maps}
           selfPuuid={player?.puuid}
+          selfName={player?.game_name}
+          selfTag={player?.game_tag}
           onClose={() => setOpenMatch(null)}
         />
       )}
@@ -1048,7 +1051,7 @@ function AggregateList({ title, rows, renderRow }) {
   );
 }
 
-function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
+function MatchDetailsModal({ match, maps, selfPuuid, selfName, selfTag, onClose }) {
   const [details, setDetails] = useState(null);
   const [error, setError] = useState(null);
 
@@ -1057,12 +1060,59 @@ function MatchDetailsModal({ match, maps, selfPuuid, onClose }) {
       try {
         const raw = await invoke("get_match_details", { matchId: match.matchId });
         if (isCancelled()) return;
-        setDetails(JSON.parse(raw));
+        const parsed = JSON.parse(raw);
+
+        const sourcePlayers = Array.isArray(parsed?.players) ? parsed.players : [];
+        const hydrated = sourcePlayers.map((p) => {
+          if (p?.gameName) return p;
+          if (p?.subject === selfPuuid && selfName) {
+            return { ...p, gameName: selfName, tagLine: selfTag || "" };
+          }
+          const cached = p?.subject ? getCached(p.subject, "account") : null;
+          if (cached?.name) {
+            return { ...p, gameName: cached.name, tagLine: cached.tag || "" };
+          }
+          return p;
+        });
+
+        setDetails({ ...parsed, players: hydrated });
+
+        const needsResolve = hydrated
+          .filter((p) => p?.subject && !p.gameName)
+          .map((p) => p.subject);
+
+        if (needsResolve.length > 0) {
+          try {
+            const rawNames = await invoke("resolve_player_names", { puuids: needsResolve });
+            if (isCancelled()) return;
+            const names = JSON.parse(rawNames);
+            const byPuuid = new Map();
+            for (const n of names || []) {
+              if (n?.puuid && n.name) {
+                byPuuid.set(n.puuid, { name: n.name, tag: n.tag || "" });
+                setCache(n.puuid, "account", { name: n.name, tag: n.tag || "" });
+              }
+            }
+            if (byPuuid.size > 0) {
+              setDetails((prev) => {
+                if (!prev) return prev;
+                const patched = (prev.players || []).map((p) => {
+                  if (p?.gameName || !p?.subject) return p;
+                  const hit = byPuuid.get(p.subject);
+                  return hit ? { ...p, gameName: hit.name, tagLine: hit.tag } : p;
+                });
+                return { ...prev, players: patched };
+              });
+            }
+          } catch {
+            // Name-service is best-effort; leave the puuid-hex fallback in place.
+          }
+        }
       } catch (e) {
         if (!isCancelled()) setError(typeof e === "string" ? e : e?.message || "Failed to load");
       }
     },
-    [match.matchId]
+    [match.matchId, selfPuuid, selfName, selfTag]
   );
 
   useEffect(() => {

@@ -277,6 +277,10 @@ export default function App() {
   // (Riot Client not running right now). UI surfaces an "Offline" pill so
   // the user knows the data isn't live.
   const [playerIsStale, setPlayerIsStale] = useState(false);
+  // #26 rung-3 banner: backend emits `oauth-needs-reauth` when the silent
+  // refresh chain has exhausted all rungs. The banner gives a one-click
+  // path back to the existing sign-in flow.
+  const [needsReauth, setNeedsReauth] = useState(false);
   const [activeTab, setActiveTab] = useState("home");
   const [showLogs, setShowLogs] = useState(() => localStorage.getItem("show_logs") === "true");
   const [devTab, setDevTab] = useState(() => localStorage.getItem("dev_tab_enabled") === "true");
@@ -698,6 +702,45 @@ export default function App() {
     };
   }, [addLog]);
 
+  useEffect(() => {
+    const unlisten = listen("oauth-needs-reauth", () => {
+      setNeedsReauth(true);
+      setPlayer(null);
+      setStatus("waiting");
+      addLog("error", "[OAuth] Session expired and silent refresh failed; re-sign-in required");
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [addLog]);
+
+  // Phase B fix-pass (#11): the listener above is a fast-path hint — Tauri
+  // events don't buffer for absent listeners, so if rung-3 fires before
+  // mount we'd miss it. State-poll `get_oauth_state` as the canonical
+  // truth; "needs-reauth" drives the banner, "active" clears it.
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const s = await invoke("get_oauth_state");
+        if (cancelled) return;
+        if (s === "needs-reauth") {
+          setNeedsReauth(true);
+        } else if (s === "active") {
+          setNeedsReauth(false);
+        }
+      } catch {
+        // Backend may not be ready yet on first ticks; silent retry.
+      }
+    };
+    tick();
+    const timer = setInterval(tick, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+
   const [showRefreshModal, setShowRefreshModal] = useState(false);
   const [tokenAge, setTokenAge] = useState(0);
 
@@ -798,6 +841,7 @@ export default function App() {
   // Used by SettingsPage when Valorant isn't running.
   const doOAuthSignin = async () => {
     addLog("info", "[OAuth] Opening Riot sign-in webview...");
+    setNeedsReauth(false);
     try {
       const info = await invoke("oauth_signin");
       setPlayer(info);
@@ -1920,6 +1964,20 @@ export default function App() {
             simplifiedTheme={simplifiedTheme}
           />
           <main className="flex-1 flex min-h-0 relative">
+            {needsReauth && (
+              <div className="absolute top-0 left-0 right-0 z-40 px-4 py-2 bg-yellow-500/15 border-b border-yellow-500/40 flex items-center justify-between gap-3">
+                <p className="text-xs font-body text-yellow-300">
+                  Your Riot session expired and couldn&apos;t be refreshed silently. Sign in again to
+                  restore live data.
+                </p>
+                <button
+                  onClick={doOAuthSignin}
+                  className="px-3 py-1 rounded-md text-[11px] font-display font-semibold border border-yellow-500/50 bg-yellow-500/20 text-yellow-200 hover:bg-yellow-500/30 shrink-0"
+                >
+                  Sign in with Riot
+                </button>
+              </div>
+            )}
             <AnimatePresence mode="wait">
               {activeTab === "home" && (
                 <motion.div

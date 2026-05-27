@@ -12,12 +12,14 @@ mod discord;
 mod identity_cache;
 mod loadout_presets;
 mod match_db;
+mod match_details_cache;
 mod oauth;
 mod premier_cache;
 mod riot;
 mod rr_cache;
 mod spend_tracker;
 mod store;
+mod token_store;
 mod util;
 mod value_cache;
 
@@ -58,6 +60,18 @@ fn get_status(state: tauri::State<'_, SharedState>) -> String {
 #[tauri::command]
 fn get_player(state: tauri::State<'_, SharedState>) -> Option<riot::PlayerInfo> {
     riot::get_cached_player(&state)
+}
+
+// Phase B fix-pass (#11): canonical source for the OAuth lifecycle. The
+// frontend polls this alongside `get_status` so the re-auth banner is
+// driven by state rather than a one-shot event that can race the listener
+// mount on cold start.
+#[tauri::command]
+fn get_oauth_state(state: tauri::State<'_, SharedState>) -> riot::OAuthState {
+    state
+        .lock()
+        .map(|s| s.oauth_state)
+        .unwrap_or(riot::OAuthState::Inactive)
 }
 
 #[tauri::command]
@@ -903,13 +917,35 @@ async fn get_rr_history(
 
 #[tauri::command]
 async fn get_match_details(
+    app: tauri::AppHandle,
     state: tauri::State<'_, SharedState>,
+    cache: tauri::State<'_, match_details_cache::MatchDetailsCache>,
     match_id: String,
 ) -> Result<String, String> {
-    let state = Arc::clone(&state);
-    tauri::async_runtime::spawn_blocking(move || riot::get_match_details(&state, &match_id))
-        .await
-        .map_err(|e| format!("Task failed: {}", e))?
+    // Cache-first: a match-details payload is immutable post-game, so a hit
+    // is always safe to serve — even when Valorant is closed and the user
+    // has no OAuth session. The cache lets the modal render any previously-
+    // opened match offline. See #26 / match_details_cache.rs.
+    if let Ok(Some(cached)) = match_details_cache::get(&app, &cache, &match_id) {
+        return serde_json::to_string(&cached).map_err(|e| format!("cache serialize: {}", e));
+    }
+
+    let state_clone = Arc::clone(&state);
+    let match_id_clone = match_id.clone();
+    let raw = tauri::async_runtime::spawn_blocking(move || {
+        riot::get_match_details(&state_clone, &match_id_clone)
+    })
+    .await
+    .map_err(|e| format!("Task failed: {}", e))??;
+
+    // Best-effort cache write; a failure here MUST NOT break the live fetch.
+    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&raw) {
+        if let Err(e) = match_details_cache::put(&app, &cache, &match_id, parsed) {
+            riot::logging::log_error(&format!("[MatchDetailsCache] put failed: {}", e));
+        }
+    }
+
+    Ok(raw)
 }
 
 #[tauri::command]
@@ -1047,11 +1083,13 @@ pub fn run() {
         .manage(Arc::new(Mutex::new(riot::xmpp::XmppState::default())))
         .manage::<store::WishlistShared>(Arc::new(Mutex::new(Vec::new())))
         .manage(match_db::new_db())
+        .manage(match_details_cache::new_cache())
         .manage(rr_cache::new_cache())
         .manage(Mutex::new(spend_tracker::SpendState::default()))
         .manage(identity_cache::new_cache())
         .manage(loadout_presets::new_cache())
         .manage(premier_cache::new_cache())
+        .manage(oauth::OAuthWebviewBusy::new())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -1063,6 +1101,95 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             riot::logging::init(app.handle().clone());
+
+            // Phase B (#26): boot-time OAuth session restoration + background
+            // silent refresh. If a token blob is in the keychain (or JSON
+            // fallback), hydrate ConnectionState immediately and validate;
+            // any failure runs the three-rung refresh chain so Home/Store/
+            // etc. render live data without a manual "Sign in with Riot"
+            // click. Afterwards, run a 60s refresh loop that catches the
+            // ~60min access-token expiry before the user notices.
+            {
+                let app_handle = app.handle().clone();
+                let state = Arc::clone(&app.state::<SharedState>());
+                tauri::async_runtime::spawn(async move {
+                    // Boot hydration. populate_from_blob loads the data
+                    // fields but leaves `connected=false` so any frontend
+                    // command racing this validate sees "not connected"
+                    // and waits, instead of firing against a stale token.
+                    // Only mark_oauth_active (after validate succeeds) or
+                    // a successful refresh chain flip the session live.
+                    if let Some(blob) = token_store::load(&app_handle) {
+                        oauth::populate_from_blob(&state, &blob);
+                        let valid = {
+                            let state = Arc::clone(&state);
+                            tauri::async_runtime::spawn_blocking(move || {
+                                riot::validate_token(&state)
+                            })
+                            .await
+                            .unwrap_or(false)
+                        };
+                        if valid {
+                            oauth::mark_oauth_active(&state);
+                            riot::logging::log_info(
+                                "[OAuth-Boot] session restored from keychain",
+                            );
+                        } else {
+                            riot::logging::log_info(
+                                "[OAuth-Boot] stored token invalid; running refresh chain",
+                            );
+                            let _ = oauth::refresh_oauth_session(
+                                app_handle.clone(),
+                                Arc::clone(&state),
+                            )
+                            .await;
+                        }
+                    }
+
+                    // Bg refresh loop. Two triggers: NeedsRefresh state set
+                    // by health_check on validate-fail (#2), or token age
+                    // >= 540s (pre-emptive — get ahead of the 600s expiry).
+                    // Skip behaviour prevents a slow rung-2 from spawning
+                    // catch-up ticks racing on the cookie data_dir (#9).
+                    let mut interval =
+                        tokio::time::interval(std::time::Duration::from_secs(60));
+                    interval
+                        .set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                    interval.tick().await; // skip the immediate first tick
+                    loop {
+                        interval.tick().await;
+                        let (should_act, age) = match state.lock() {
+                            Ok(s) => {
+                                if !s.oauth_session {
+                                    (false, 0)
+                                } else {
+                                    let age = s
+                                        .token_fetched_at
+                                        .map(|t| t.elapsed().as_secs())
+                                        .unwrap_or(0);
+                                    let signalled =
+                                        s.oauth_state == riot::OAuthState::NeedsRefresh;
+                                    (signalled || age >= 540, age)
+                                }
+                            }
+                            Err(_) => (false, 0),
+                        };
+                        if !should_act {
+                            continue;
+                        }
+                        riot::logging::log_info(&format!(
+                            "[OAuth-Bg] refreshing (token age {}s)",
+                            age
+                        ));
+                        let _ = oauth::refresh_oauth_session(
+                            app_handle.clone(),
+                            Arc::clone(&state),
+                        )
+                        .await;
+                    }
+                });
+            }
+
             // One-shot import of legacy match-cache.json into SQLite.
             // Runs off the setup thread so a multi-MB legacy cache doesn't
             // stall window creation. The migrator is idempotent
@@ -1128,6 +1255,7 @@ pub fn run() {
             disconnect,
             get_status,
             get_player,
+            get_oauth_state,
             is_valorant_running,
             is_valorant_foreground,
             get_valorant_monitor,

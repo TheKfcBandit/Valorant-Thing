@@ -703,8 +703,8 @@ export default function SettingsPage({
                 <span className="text-text-primary font-display">
                   {player?.game_name}#{player?.game_tag}
                 </span>
-                . Live data without Valorant running. Session lasts ~60 min; sign in again to
-                refresh.
+                . Live data without Valorant running. Session stays active across app restarts
+                and refreshes itself silently — sign out to clear.
               </p>
               <button
                 onClick={handleOAuthSignout}

@@ -8,6 +8,7 @@ pub mod xmpp;
 
 pub use connection::{
     connect_and_store, disconnect, get_cached_player, get_status, get_token_age_secs, health_check,
+    validate_token,
 };
 pub use game::{
     change_queue, check_current_game, check_loadout, coregame_quit, disable_party_code,
@@ -25,4 +26,4 @@ pub use process::{
     find_valorant_path, get_valorant_monitor, is_valorant_foreground, is_valorant_running,
     list_monitors, parse_client_version, parse_region_shard,
 };
-pub use types::{ConnectionState, PlayerInfo};
+pub use types::{ConnectionState, OAuthState, PlayerInfo};

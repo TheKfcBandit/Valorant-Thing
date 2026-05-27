@@ -211,11 +211,16 @@ pub fn health_check(state: &Mutex<ConnectionState>) -> Option<PlayerInfo> {
             s.last_token_check = Some(Instant::now());
         }
         if !validate_token(state) {
-            // OAuth sessions can't recover via the lockfile refresh path; the
-            // user must re-sign-in through Settings.
+            // OAuth sessions can't recover via the lockfile refresh path.
+            // Flip oauth_state to NeedsRefresh; the bg refresh loop sees
+            // it on the next tick and runs the three-rung chain. Don't
+            // touch `connected` — the UI keeps showing live data until
+            // the refresh resolves either way.
             if oauth_session {
-                log_error("[Health] OAuth token invalid, disconnecting (user must re-sign-in)");
-                disconnect(state);
+                if let Ok(mut s) = state.lock() {
+                    s.oauth_state = crate::riot::types::OAuthState::NeedsRefresh;
+                }
+                log_error("[Health] OAuth token invalid; signalled background refresh task");
                 return None;
             }
             log_error("[Health] Token validation failed, refreshing...");
@@ -239,7 +244,7 @@ pub fn health_check(state: &Mutex<ConnectionState>) -> Option<PlayerInfo> {
     get_cached_player(state)
 }
 
-fn validate_token(state: &Mutex<ConnectionState>) -> bool {
+pub fn validate_token(state: &Mutex<ConnectionState>) -> bool {
     let (shard, access_token, entitlements, client_version, puuid) = {
         let s = match state.lock() {
             Ok(s) => s,
@@ -327,6 +332,10 @@ pub fn disconnect(state: &Mutex<ConnectionState>) {
         s.access_token = None;
         s.entitlements = None;
         s.oauth_session = false;
+        // Default to Inactive. Rung-3 overrides to NeedsReauth after the
+        // disconnect call returns, since that's the path that needs the
+        // banner.
+        s.oauth_state = crate::riot::types::OAuthState::Inactive;
     }
 }
 
