@@ -17,6 +17,7 @@ mod oauth;
 mod premier_cache;
 mod riot;
 mod rr_cache;
+mod secret_store;
 mod spend_tracker;
 mod store;
 mod token_store;
@@ -1347,6 +1348,9 @@ pub fn run() {
             get_premier_conference,
             cache_premier_bundle,
             premier_cache::get_cached_premier,
+            secret_store::get_secret,
+            secret_store::set_secret,
+            secret_store::delete_secret,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

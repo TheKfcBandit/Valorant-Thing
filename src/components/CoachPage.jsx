@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
 import { noAnim, T0 } from "../utils/animation";
+import { useAsyncEffect } from "../hooks/useAsyncEffect";
+
+// #15: the LLM API key is the only persisted secret on this page. Provider /
+// model / base URL are non-sensitive and stay in localStorage.
+const API_KEY_SECRET = "coach_api_key";
 
 const PROVIDERS = [
   { id: "anthropic", label: "Anthropic", defaultModel: "claude-haiku-4-5", baseUrlEditable: false },
@@ -18,7 +23,7 @@ export default function CoachPage() {
   const [provider, setProvider] = useState(
     () => localStorage.getItem("coach_provider") || "anthropic"
   );
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem("coach_api_key") || "");
+  const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState(() => localStorage.getItem("coach_model") || "");
   const [baseUrl, setBaseUrl] = useState(() => localStorage.getItem("coach_base_url") || "");
   const [tips, setTips] = useState("");
@@ -32,6 +37,30 @@ export default function CoachPage() {
       .catch((e) => console.warn("[Coach] match_history_stats failed:", e));
   }, []);
 
+  // Load the API key from the OS keychain. One-shot migration: if the
+  // keychain is empty but the old localStorage value is still around (an
+  // older install of the app), move it into the keychain and clear the
+  // localStorage copy. After this runs once, the key never touches the
+  // renderer's persistent storage again.
+  useAsyncEffect(async (isCancelled) => {
+    try {
+      const stored = await invoke("get_secret", { name: API_KEY_SECRET });
+      if (isCancelled()) return;
+      if (stored) {
+        setApiKey(stored);
+        return;
+      }
+      const legacy = localStorage.getItem("coach_api_key");
+      if (legacy) {
+        await invoke("set_secret", { name: API_KEY_SECRET, value: legacy });
+        localStorage.removeItem("coach_api_key");
+        if (!isCancelled()) setApiKey(legacy);
+      }
+    } catch (e) {
+      console.warn("[Coach] secret load failed:", e);
+    }
+  }, []);
+
   const providerCfg = PROVIDERS.find((p) => p.id === provider) || PROVIDERS[0];
   const effectiveModel = model || providerCfg.defaultModel;
 
@@ -41,6 +70,12 @@ export default function CoachPage() {
     } catch (e) {
       console.warn("[Coach] suppressed:", e);
     }
+  };
+
+  const persistApiKey = (v) => {
+    invoke("set_secret", { name: API_KEY_SECRET, value: v }).catch((e) =>
+      console.warn("[Coach] secret save failed:", e)
+    );
   };
 
   const handleAnalyze = async () => {
@@ -117,7 +152,7 @@ export default function CoachPage() {
             value={apiKey}
             onChange={(e) => {
               setApiKey(e.target.value);
-              persist("coach_api_key", e.target.value);
+              persistApiKey(e.target.value);
             }}
             placeholder={provider === "anthropic" ? "sk-ant-..." : "sk-..."}
             className="mt-1 w-full px-3 py-2 bg-base-600 border border-border rounded-lg text-sm font-body text-text-primary placeholder:text-text-muted/50 outline-none focus:border-val-red/60 transition-colors"
@@ -160,8 +195,8 @@ export default function CoachPage() {
         </div>
 
         <p className="text-[10px] text-text-muted">
-          Your key is stored only in localStorage on this machine. Match data sent only to your
-          chosen provider.
+          Your key is stored in the OS keychain on this machine. Match data sent only to your chosen
+          provider.
           {matchCount > 0 ? ` · ${matchCount} matches in cache` : " · No cached matches yet"}
         </p>
       </motion.section>
