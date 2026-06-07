@@ -3,6 +3,7 @@ import InstalockPage from "../InstalockPage";
 import LivePage from "../LivePage";
 import PremierPage from "../PremierPage";
 import LineupsPage from "../LineupsPage";
+import HeatmapPage from "../HeatmapPage";
 import MapDodgePage from "../MapDodgePage";
 import LoadoutPage from "../LoadoutPage";
 import StorePage from "../StorePage";
@@ -64,6 +65,7 @@ export function buildPages(props) {
       />
     )),
     lineups: make("lineups", () => <LineupsPage />),
+    heatmap: make("heatmap", () => <HeatmapPage player={props.player} />),
     mapdodge: make("mapdodge", () => (
       <MapDodgePage
         onActiveChange={props.setMapDodgeActive}

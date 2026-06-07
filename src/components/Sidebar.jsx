@@ -4,6 +4,7 @@ import {
   CoachTab,
   DevTab,
   FakeStatusTab,
+  HeatmapTab,
   HomeTab,
   InstalockTab,
   LineupsTab,
@@ -141,6 +142,13 @@ export default function Sidebar({
         />
 
         <SectionLabel>Insights</SectionLabel>
+        <NavButton
+          id="heatmap"
+          label="Heatmap"
+          activeTab={activeTab}
+          onTabChange={onTabChange}
+          icon={<HeatmapTab />}
+        />
         <NavButton
           id="lineups"
           label="Lineups"

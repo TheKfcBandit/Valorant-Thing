@@ -7,6 +7,7 @@
 
 use std::collections::HashMap;
 
+use serde::Serialize;
 use serde_json::Value;
 use tauri::AppHandle;
 
@@ -37,6 +38,113 @@ pub fn get(
     match_id: &str,
 ) -> Result<Option<Value>, String> {
     cache.read(app, |map| map.get(match_id).cloned())
+}
+
+// #37: one death event extracted from a cached match-details payload, ready
+// for the heatmap overlay. Coordinate space is Riot's internal world coords;
+// the frontend translates them to map-image pixels via the per-map
+// xMultiplier / yMultiplier / xScalarToAdd / yScalarToAdd from
+// valorant-api.com/v1/maps.
+#[derive(Serialize)]
+pub struct DeathEvent {
+    pub match_id: String,
+    pub map_id: String,
+    pub queue_id: String,
+    pub round_num: u64,
+    pub date_ms: i64,
+    pub x: f64,
+    pub y: f64,
+    pub killer_puuid: String,
+    pub killer_agent: String,
+    pub weapon_id: String,
+    pub is_secondary: bool,
+    pub damage_type: String,
+}
+
+#[tauri::command]
+pub async fn get_death_locations(
+    app: AppHandle,
+    cache: tauri::State<'_, MatchDetailsCache>,
+    player_puuid: String,
+) -> Result<String, String> {
+    let events = cache.read(&app, |map| extract_deaths(map, &player_puuid))?;
+    serde_json::to_string(&events).map_err(|e| e.to_string())
+}
+
+// Iterate every cached match and pull out the rounds where the target
+// player died. The cache only contains matches that the user has opened
+// (the match-details modal populates it on demand) — for v1 we accept the
+// "open some matches first" empty-state and let the data accumulate as the
+// user uses the app. A future PR could backfill via match_history::
+// get_match_page's batch results.
+fn extract_deaths(map: &HashMap<String, Value>, player_puuid: &str) -> Vec<DeathEvent> {
+    let mut out = Vec::new();
+    for (match_id, detail) in map {
+        let info = &detail["matchInfo"];
+        let map_id = info["mapId"].as_str().unwrap_or("").to_string();
+        let queue_id = info["queueID"]
+            .as_str()
+            .or_else(|| info["queueId"].as_str())
+            .unwrap_or("")
+            .to_string();
+        let date_ms = info["gameStartMillis"].as_i64().unwrap_or(0);
+
+        // puuid -> characterId so each death can label the killer's agent
+        // without the frontend re-walking `players` per row.
+        let mut agent_by_puuid: HashMap<String, String> = HashMap::new();
+        if let Some(players) = detail["players"].as_array() {
+            for p in players {
+                if let (Some(s), Some(c)) = (p["subject"].as_str(), p["characterId"].as_str()) {
+                    agent_by_puuid.insert(s.to_string(), c.to_lowercase());
+                }
+            }
+        }
+
+        let rounds = match detail["roundResults"].as_array() {
+            Some(r) => r,
+            None => continue,
+        };
+        for round in rounds {
+            let round_num = round["roundNum"].as_u64().unwrap_or(0);
+            let pstats = match round["playerStats"].as_array() {
+                Some(p) => p,
+                None => continue,
+            };
+            for stat in pstats {
+                let kills = match stat["kills"].as_array() {
+                    Some(k) => k,
+                    None => continue,
+                };
+                for k in kills {
+                    if k["victim"].as_str() != Some(player_puuid) {
+                        continue;
+                    }
+                    let loc = &k["victimLocation"];
+                    let killer = k["killer"].as_str().unwrap_or("").to_string();
+                    let killer_agent = agent_by_puuid.get(&killer).cloned().unwrap_or_default();
+                    let fd = &k["finishingDamage"];
+                    out.push(DeathEvent {
+                        match_id: match_id.clone(),
+                        map_id: map_id.clone(),
+                        queue_id: queue_id.clone(),
+                        round_num,
+                        date_ms,
+                        x: loc["x"].as_f64().unwrap_or(0.0),
+                        y: loc["y"].as_f64().unwrap_or(0.0),
+                        killer_puuid: killer,
+                        killer_agent,
+                        weapon_id: fd["damageItem"]
+                            .as_str()
+                            .unwrap_or("")
+                            .to_lowercase(),
+                        is_secondary: fd["isSecondaryFireMode"].as_bool().unwrap_or(false),
+                        damage_type: fd["damageType"].as_str().unwrap_or("Weapon").to_string(),
+                    });
+                }
+            }
+        }
+    }
+    out
 }
 
 pub fn put(

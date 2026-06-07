@@ -1365,6 +1365,7 @@ pub fn run() {
             secret_store::get_secret,
             secret_store::set_secret,
             secret_store::delete_secret,
+            match_details_cache::get_death_locations,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
