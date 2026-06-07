@@ -10,6 +10,7 @@ import {
   Spinner,
   TypeMark,
 } from "../icons";
+import { formatError } from "../utils/authError";
 
 const ITEM_TYPES = {
   SKIN_LEVEL: "3ad1b2b2-acdb-4524-852f-954a76ddae0a",
@@ -181,7 +182,7 @@ export default function LoadoutPage({ connected }) {
       ]);
       setOwned({ levels, chromas, buddies: buds, sprays: sprys, cards: crds, titles: ttls });
     } catch (e) {
-      setError(typeof e === "string" ? e : e?.message || "Failed to load");
+      setError(formatError(e, "Failed to load"));
     } finally {
       setLoading(false);
     }
@@ -370,7 +371,7 @@ export default function LoadoutPage({ connected }) {
       setTimeout(() => setSuccessMsg(null), 3000);
     } catch (e) {
       console.error("[Loadout] Save error:", e);
-      setError(typeof e === "string" ? e : e?.message || "Failed to save");
+      setError(formatError(e, "Failed to save"));
     } finally {
       setSaving(false);
     }

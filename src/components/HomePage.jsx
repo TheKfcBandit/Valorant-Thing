@@ -8,6 +8,7 @@ import { rankIcon, rankName } from "../utils/rank";
 import { ROUND_GLYPH, getRoundOutcome, formatRoundTooltip } from "../utils/roundResult";
 import { normalizeRrEntry } from "../riotShapes";
 import { useAsyncEffect } from "../hooks/useAsyncEffect";
+import { formatError } from "../utils/authError";
 import { Label } from "./ui/Label";
 import { getAgentLookup } from "../valApiSkins";
 import { getCached, setCache } from "../matchCache";
@@ -77,7 +78,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
       lastFetchRef.current = Date.now();
       setTimeLeft(REFRESH_INTERVAL);
     } catch (e) {
-      setError(typeof e === "string" ? e : e?.message || "Failed to load stats");
+      setError(formatError(e, "Failed to load stats"));
       if (Date.now() - lastAutoRefresh.current > 30000) {
         lastAutoRefresh.current = Date.now();
         onRefresh?.();
@@ -1034,7 +1035,7 @@ function MatchDetailsModal({ match, maps, selfPuuid, selfName, selfTag, onClose 
           }
         }
       } catch (e) {
-        if (!isCancelled()) setError(typeof e === "string" ? e : e?.message || "Failed to load");
+        if (!isCancelled()) setError(formatError(e, "Failed to load"));
       }
     },
     [match.matchId, selfPuuid, selfName, selfTag]

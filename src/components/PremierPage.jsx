@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
 import { noAnim, T0 } from "../utils/animation";
 import { useAsyncEffect } from "../hooks/useAsyncEffect";
+import { formatError } from "../utils/authError";
 import { rankIcon, rankName } from "../utils/rank";
 import { WrappedTab } from "../icons";
 
@@ -193,7 +194,7 @@ export default function PremierPage({ connected, player, playerIsStale }) {
         }
       }
     } catch (e) {
-      setError(typeof e === "string" ? e : e?.message || "Failed to load Premier data");
+      setError(formatError(e, "Failed to load Premier data"));
     } finally {
       setLoading(false);
     }
