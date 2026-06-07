@@ -1,8 +1,8 @@
 use std::sync::Mutex;
 
 use super::auth::get_glz_creds;
-use super::http::pd_get;
 use super::logging::log_info;
+use super::pd_session::pd_get_authed;
 use super::types::ConnectionState;
 
 // #22: actual in-act peak. `season.CompetitiveTier` is end-of-act, so a player
@@ -34,20 +34,18 @@ pub fn get_home_stats(
     state: &Mutex<ConnectionState>,
     _queue_filter: &str,
 ) -> Result<String, String> {
-    let (access_token, entitlements, puuid, _region, shard, client_version) = get_glz_creds(state)?;
+    // `get_glz_creds` is still useful here for the early "Not connected"
+    // gate and to grab `puuid` for path construction — the wrapper would
+    // surface the same error on the first attempt, but a single up-front
+    // check is cleaner than three.
+    let (_, _, puuid, _region, _, _) = get_glz_creds(state)?;
 
     // MMR endpoint can return non-JSON for accounts with no comp history,
     // brief Riot 5xx blips, or token-edge cases. Match the same resilience
     // the loadout / xp fetches below already have: log the failure but
     // continue with zeroed defaults so HomePage still renders the rest.
     let mmr_path = format!("/mmr/v1/players/{}", puuid);
-    let mmr: serde_json::Value = match pd_get(
-        &shard,
-        &mmr_path,
-        &access_token,
-        &entitlements,
-        &client_version,
-    ) {
+    let mmr: serde_json::Value = match pd_get_authed(state, &mmr_path) {
         Ok(raw) => serde_json::from_str(&raw).unwrap_or_else(|e| {
             log_info(&format!(
                 "[Home] mmr parse failed ({}), falling back to defaults",
@@ -87,13 +85,7 @@ pub fn get_home_stats(
 
     let loadout_path = format!("/personalization/v2/players/{}/playerloadout", puuid);
     let mut card_id = String::new();
-    if let Ok(loadout_raw) = pd_get(
-        &shard,
-        &loadout_path,
-        &access_token,
-        &entitlements,
-        &client_version,
-    ) {
+    if let Ok(loadout_raw) = pd_get_authed(state, &loadout_path) {
         if let Ok(loadout) = serde_json::from_str::<serde_json::Value>(&loadout_raw) {
             card_id = loadout["Identity"]["PlayerCardID"]
                 .as_str()
@@ -104,13 +96,7 @@ pub fn get_home_stats(
 
     let mut account_level: u64 = 0;
     let xp_path = format!("/account-xp/v1/players/{}", puuid);
-    if let Ok(xp_raw) = pd_get(
-        &shard,
-        &xp_path,
-        &access_token,
-        &entitlements,
-        &client_version,
-    ) {
+    if let Ok(xp_raw) = pd_get_authed(state, &xp_path) {
         if let Ok(xp) = serde_json::from_str::<serde_json::Value>(&xp_raw) {
             account_level = xp["Progress"]["Level"].as_u64().unwrap_or(0);
         }

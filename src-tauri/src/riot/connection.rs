@@ -287,7 +287,7 @@ pub fn validate_token(state: &Mutex<ConnectionState>) -> bool {
     }
 }
 
-fn refresh_tokens(state: &Mutex<ConnectionState>) -> Result<(), String> {
+pub(super) fn refresh_tokens(state: &Mutex<ConnectionState>) -> Result<(), String> {
     let (pid, port, password) = read_lockfile().map_err(|e| format!("lockfile re-read: {}", e))?;
     if !is_pid_alive(pid) {
         return Err(format!("Riot Client PID {} is dead", pid));

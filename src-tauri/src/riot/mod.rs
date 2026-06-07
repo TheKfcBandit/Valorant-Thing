@@ -7,6 +7,8 @@ mod loadout;
 pub mod logging;
 mod match_history;
 mod party;
+mod pd_raw;
+mod pd_session;
 mod premier;
 mod process;
 mod queue;
