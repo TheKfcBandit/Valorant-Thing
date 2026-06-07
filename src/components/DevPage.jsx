@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { DevTab } from "../icons";
 
 const TABS = [
   { id: "logs", label: "Logs" },
@@ -16,18 +17,7 @@ export default function DevPage({ logs, pushNotification, addLog, onClearLogs })
     <div className="flex-1 flex flex-col min-h-0 p-4 gap-3">
       <div className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            className="text-val-red"
-          >
-            <polyline points="4 17 10 11 4 5" />
-            <line x1="12" y1="19" x2="20" y2="19" />
-          </svg>
+          <DevTab size={16} className="text-val-red" />
           <h1 className="text-sm font-display font-semibold text-text-primary">
             Developer Console
           </h1>

@@ -9,42 +9,18 @@ import { ROUND_GLYPH, getRoundOutcome, formatRoundTooltip } from "../utils/round
 import { normalizeRrEntry } from "../riotShapes";
 import { useAsyncEffect } from "../hooks/useAsyncEffect";
 import { Label } from "./ui/Label";
-import { getMaps, getAgentLookup } from "../valApiSkins";
+import { getAgentLookup } from "../valApiSkins";
 import { getCached, setCache } from "../matchCache";
-
-const CUSTOM_AGENT_ICONS = {
-  "7c8a4701-4de6-9355-b254-e09bc2a34b72": "/agents/miks.png",
-};
+import { customAgentIconByUuid } from "../utils/agents";
+import { formatTimer } from "../utils/format";
+import { getMapMetadataByUrl } from "../utils/maps";
+import { AlertTriangle, Clock, RefreshCcw, WifiSlash, X } from "../icons";
 
 const REFRESH_INTERVAL = 5 * 60 * 1000;
 
 // Matches Riot's natural per-call cap on `/match-history`. Larger windows
 // don't return more entries, smaller ones just multiply round trips.
 const PAGE_SIZE = 20;
-
-function formatTimer(ms) {
-  const s = Math.max(0, Math.floor(ms / 1000));
-  const m = Math.floor(s / 60);
-  const sec = s % 60;
-  return `${m}:${sec.toString().padStart(2, "0")}`;
-}
-
-let mapCache = null;
-async function getMapData() {
-  if (mapCache) return mapCache;
-  try {
-    const maps = await getMaps();
-    const lookup = {};
-    for (const m of maps) {
-      const key = m.mapUrl?.split("/").pop();
-      if (key) lookup[key] = { name: m.displayName, splash: m.splash, listIcon: m.listViewIcon };
-    }
-    mapCache = lookup;
-  } catch {
-    mapCache = {};
-  }
-  return mapCache;
-}
 
 export default function HomePage({ connected, player, playerIsStale, refreshKey, onRefresh }) {
   const [stats, setStats] = useState(null);
@@ -75,7 +51,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
   const lastAutoRefresh = useRef(0);
 
   useEffect(() => {
-    getMapData().then(setMaps);
+    getMapMetadataByUrl().then(setMaps);
     getAgentLookup()
       .then((lookup) => {
         const names = {};
@@ -343,25 +319,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
     return (
       <div className="flex-1 flex items-center justify-center p-5">
         <div className="text-center space-y-2">
-          <svg
-            width="32"
-            height="32"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-text-muted mx-auto"
-          >
-            <path d="M1 1l22 22" />
-            <path d="M16.72 11.06A10.94 10.94 0 0119 12.55" />
-            <path d="M5 12.55a10.94 10.94 0 015.17-2.39" />
-            <path d="M10.71 5.05A16 16 0 0122.56 9" />
-            <path d="M1.42 9a15.91 15.91 0 014.7-2.88" />
-            <path d="M8.53 16.11a6 6 0 016.95 0" />
-            <line x1="12" y1="20" x2="12.01" y2="20" />
-          </svg>
+          <WifiSlash />
           <p className="text-sm font-display text-text-muted">Waiting for Valorant</p>
           <p className="text-[11px] font-body text-text-muted/60">
             Open Valorant and it will connect automatically
@@ -412,18 +370,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
             </div>
           )}
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-black/40 backdrop-blur-sm">
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className="text-text-muted"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 6v6l4 2" />
-            </svg>
+            <Clock size={10} className="text-text-muted" />
             <span className="text-[10px] font-mono text-text-muted tabular-nums">
               {formatTimer(timeLeft)}
             </span>
@@ -436,18 +383,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
             disabled={loading}
             className="p-1.5 rounded-md bg-black/40 backdrop-blur-sm text-text-muted hover:text-text-primary transition-colors disabled:opacity-50"
           >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className={loading ? "animate-spin" : ""}
-            >
-              <polyline points="23 4 23 10 17 10" />
-              <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
-            </svg>
+            <RefreshCcw size={12} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
 
@@ -585,19 +521,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
             className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-3 space-y-2"
           >
             <div className="flex items-center gap-2">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="text-yellow-400"
-              >
-                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                <line x1="12" y1="9" x2="12" y2="13" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
+              <AlertTriangle size={14} className="text-yellow-400" />
               <p className="text-xs font-display font-bold text-yellow-400 uppercase tracking-wider">
                 Account Status
               </p>
@@ -686,7 +610,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
             const mapName = mapData?.name || m.map;
             const mapImg = mapData?.listIcon || mapData?.splash;
             const agentIcon = m.agent
-              ? CUSTOM_AGENT_ICONS[m.agent.toLowerCase()] ||
+              ? customAgentIconByUuid(m.agent) ||
                 `https://media.valorant-api.com/agents/${m.agent}/displayicon.png`
               : null;
             const kdaVal = m.deaths > 0 ? ((m.kills + m.assists) / m.deaths).toFixed(1) : null;
@@ -906,6 +830,7 @@ function RRChart({ matches }) {
         </p>
       </div>
       <div className="relative w-full h-[140px]">
+        {/* eslint-disable-next-line no-restricted-syntax -- dynamic data viz, not an icon */}
         <svg
           viewBox={`0 0 ${w} ${h}`}
           className="absolute inset-0 w-full h-full"
@@ -985,7 +910,7 @@ function AggregatePanels({ aggregate, maps, agentNames }) {
           rows={byAgent.slice(0, 5)}
           renderRow={(r) => {
             const iconUrl = r.agentId
-              ? CUSTOM_AGENT_ICONS[r.agentId.toLowerCase()] ||
+              ? customAgentIconByUuid(r.agentId) ||
                 `https://media.valorant-api.com/agents/${r.agentId}/displayicon.png`
               : null;
             const wr = r.games > 0 ? Math.round((r.wins / r.games) * 100) : 0;
@@ -1198,16 +1123,7 @@ function MatchDetailsModal({ match, maps, selfPuuid, selfName, selfTag, onClose 
             aria-label="Close"
             className="absolute top-3 right-3 text-text-muted hover:text-text-primary z-10"
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
+            <X size={18} />
           </button>
           <div className="relative h-full flex items-center px-5 gap-4">
             <div className="flex-1 min-w-0">

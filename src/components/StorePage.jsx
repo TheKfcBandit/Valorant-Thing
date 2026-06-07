@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { motion } from "framer-motion";
 import { getLevelLookup, getBundleLookup, getAccessoryLookup } from "../valApiSkins";
 import { noAnim, T0 } from "../utils/animation";
+import { ChevronLeft, ChevronRight, HeartFilled, HeartToggle, StoreTab, X } from "../icons";
 
 const COST_VP = "85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741";
 const COST_RP = "e59aa87c-4cbf-517a-5983-6e81511be9b7";
@@ -33,7 +34,7 @@ function fmtRemaining(seconds) {
   if (seconds == null || seconds < 0) return "";
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  if (h > 24) {
+  if (h >= 24) {
     const d = Math.floor(h / 24);
     return `${d}d ${h % 24}h`;
   }
@@ -247,21 +248,7 @@ export default function StorePage({ connected }) {
     return (
       <div className="flex-1 flex items-center justify-center p-5">
         <div className="text-center space-y-2">
-          <svg
-            width="32"
-            height="32"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-text-muted mx-auto"
-          >
-            <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <path d="M16 10a4 4 0 01-8 0" />
-          </svg>
+          <StoreTab size={32} className="text-text-muted mx-auto" />
           <p className="text-sm font-display text-text-muted">No store data yet</p>
           <p className="text-[11px] font-body text-text-muted/60">
             Open Valorant once and reopen this page
@@ -271,18 +258,14 @@ export default function StorePage({ connected }) {
     );
   }
 
-  // Stale derivation. crossesMidnight is true when the cached snapshot was
-  // taken before the most recent UTC midnight — i.e. it's last reset's data
-  // and the offers shown are NOT today's. That's a strong wording change.
-  const staleAgeMs = staleSinceMs ? Date.now() - staleSinceMs : 0;
-  const lastUtcMidnight = (() => {
-    const d = new Date();
-    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-  })();
-  const crossesMidnight = staleSinceMs != null && staleSinceMs < lastUtcMidnight;
+  // Stale derivation. The cached snapshot was taken at `staleSinceMs`;
+  // we just show how old it is and that Valorant isn't running. The
+  // previous "yesterday's reset" wording was misleading because Riot
+  // could have reset N days ago — the check only said "before last
+  // midnight," not how many midnights had passed.
   const staleAgeText = (() => {
     if (!staleSinceMs) return null;
-    const m = Math.max(0, Math.floor(staleAgeMs / 60000));
+    const m = Math.max(0, Math.floor((Date.now() - staleSinceMs) / 60000));
     if (m < 60) return `${m}m ago`;
     const h = Math.floor(m / 60);
     if (h < 24) return `${h}h ago`;
@@ -298,15 +281,7 @@ export default function StorePage({ connected }) {
             onClick={() => setWishlistOpen(true)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-display font-semibold border border-border bg-base-700 hover:bg-base-600 text-text-primary"
           >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              className="text-val-red"
-            >
-              <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
-            </svg>
+            <HeartFilled />
             Wishlist
             {wishlist.size > 0 && (
               <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-val-red/20 text-val-red text-[10px] tabular-nums">
@@ -331,17 +306,8 @@ export default function StorePage({ connected }) {
       )}
 
       {staleSinceMs && (
-        <div
-          className={`px-3 py-2 rounded-md border text-xs font-body ${crossesMidnight ? "border-val-red/40 bg-val-red/10 text-val-red" : "border-yellow-500/40 bg-yellow-500/10 text-yellow-400"}`}
-        >
-          {crossesMidnight ? (
-            <>
-              ⚠️ Showing yesterday's reset (last updated {staleAgeText}). Today's offers are
-              different — open Valorant to refresh.
-            </>
-          ) : (
-            <>Last updated {staleAgeText} · cached (Valorant not running)</>
-          )}
+        <div className="px-3 py-2 rounded-md border text-xs font-body border-yellow-500/40 bg-yellow-500/10 text-yellow-400">
+          Last updated {staleAgeText} · cached (Valorant not running)
         </div>
       )}
 
@@ -479,17 +445,10 @@ function SkinCard({ offer, meta, wishlisted, onToggleWishlist, nightMarket, port
           className="p-1.5 rounded-full bg-base-800/70 hover:bg-base-800 transition-colors"
           title={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
         >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill={wishlisted ? "currentColor" : "none"}
-            stroke="currentColor"
-            strokeWidth="2"
+          <HeartToggle
+            filled={wishlisted}
             style={{ color: wishlisted ? "rgb(var(--val-red))" : "rgb(var(--text-muted))" }}
-          >
-            <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
-          </svg>
+          />
         </button>
       </div>
       <div
@@ -642,32 +601,14 @@ function BundleCarouselControls({ bundles, safeIndex, onIndex, compact }) {
         className={`${arrowClass} ${compact ? "left-1" : "left-2"}`}
         aria-label="Previous bundle"
       >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <polyline points="15 18 9 12 15 6" />
-        </svg>
+        <ChevronLeft />
       </button>
       <button
         onClick={() => onIndex((safeIndex + 1) % bundles.length)}
         className={`${arrowClass} ${compact ? "right-1" : "right-2"}`}
         aria-label="Next bundle"
       >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
+        <ChevronRight />
       </button>
       {!compact && (
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
@@ -767,16 +708,7 @@ function WishlistModal({ open, wishlistedIds, levelLookup, onClose, onRemove }) 
             className="text-text-muted hover:text-text-primary"
             aria-label="Close"
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
+            <X />
           </button>
         </header>
         <div className="flex-1 overflow-y-auto p-2">

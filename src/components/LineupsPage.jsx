@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { noAnim, T0 } from "../utils/animation";
+import { LineupsTab } from "../icons";
 
 // Placeholder. Real content (per-agent lineup videos, smoke/molly maps,
 // dart spots, etc.) is tracked in the roadmap — this surface gives the
@@ -14,17 +15,7 @@ export default function LineupsPage() {
     >
       <div className="max-w-md text-center space-y-3">
         <div className="w-12 h-12 mx-auto rounded-full bg-val-red/10 border border-val-red/20 flex items-center justify-center">
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            className="text-val-red"
-          >
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-          </svg>
+          <LineupsTab size={22} className="text-val-red" />
         </div>
         <h1 className="text-xl font-display font-bold text-text-primary">Lineups</h1>
         <p className="text-sm font-body text-text-muted">

@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { noAnim, T0 } from "../utils/animation";
 import { useAsyncEffect } from "../hooks/useAsyncEffect";
 import { getAgentLookup, getMaps } from "../valApiSkins";
+import { EmptyBox, Spinner } from "../icons";
 
 function isCompetitiveQueue(q) {
   const s = String(q || "").toLowerCase();
@@ -131,25 +132,7 @@ export default function WrappedPage() {
     return (
       <div className="flex-1 flex items-center justify-center p-5">
         <div className="text-center space-y-2">
-          <svg
-            className="animate-spin h-8 w-8 mx-auto text-text-muted"
-            viewBox="0 0 24 24"
-            fill="none"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-            />
-          </svg>
+          <Spinner size={32} className="text-text-muted mx-auto" />
           <p className="text-sm font-display text-text-muted">Loading your story</p>
           <p className="text-[11px] font-body text-text-muted/60">Reading cached match history</p>
         </div>
@@ -161,21 +144,7 @@ export default function WrappedPage() {
     return (
       <div className="flex-1 flex items-center justify-center p-5">
         <div className="text-center space-y-2">
-          <svg
-            width="32"
-            height="32"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-text-muted mx-auto"
-          >
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-            <line x1="9" y1="9" x2="15" y2="15" />
-            <line x1="15" y1="9" x2="9" y2="15" />
-          </svg>
+          <EmptyBox />
           <p className="text-sm font-display text-text-muted">No matches yet</p>
           <p className="text-[11px] font-body text-text-muted/60">
             Play a few games — your Wrapped will fill in as the cache grows

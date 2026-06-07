@@ -3,11 +3,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { motion, AnimatePresence } from "framer-motion";
 import { getCached, setCache } from "../matchCache";
 import { noAnim, T0 } from "../utils/animation";
-import { MODE_NAMES } from "../utils/gameMode";
+import { resolveModeName } from "../utils/gameMode";
 import { LIVE_MODULES } from "../live/registry";
 import { getAgentLookup, getMapLookup, getTierLookup } from "../valApiSkins";
 import { useApiLookup } from "../hooks/useApiLookup";
 import { parseGamePod } from "../utils/gamePod";
+import { EyeOff, LogOut, Spinner, Users, WifiSlash, X } from "../icons";
 
 const POLL_INTERVAL = 2000;
 
@@ -100,8 +101,7 @@ export default function MatchInfoPage({
 
       const modeUrl = match.GameMode || match.Mode || "";
       const queueId = match.MatchmakingData?.QueueID || match.QueueID || "";
-      const modeKey = Object.keys(MODE_NAMES).find((k) => queueId === k || modeUrl.includes(k));
-      const modeName = modeKey ? MODE_NAMES[modeKey] : queueId || "Custom";
+      const modeName = resolveModeName(queueId, modeUrl);
 
       const nonTeamModes = ["Deathmatch"];
       const isTeamMode = !nonTeamModes.includes(modeName);
@@ -393,25 +393,7 @@ export default function MatchInfoPage({
   if (!connected) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-2">
-        <svg
-          width="32"
-          height="32"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="text-text-muted"
-        >
-          <path d="M1 1l22 22" />
-          <path d="M16.72 11.06A10.94 10.94 0 0119 12.55" />
-          <path d="M5 12.55a10.94 10.94 0 015.17-2.39" />
-          <path d="M10.71 5.05A16 16 0 0122.56 9" />
-          <path d="M1.42 9a15.91 15.91 0 014.7-2.88" />
-          <path d="M8.53 16.11a6 6 0 016.95 0" />
-          <line x1="12" y1="20" x2="12.01" y2="20" />
-        </svg>
+        <WifiSlash className="text-text-muted" />
         <p className="text-text-muted text-sm font-display">Waiting for Valorant</p>
         <p className="text-[11px] font-body text-text-muted/60">
           Open Valorant and it will connect automatically
@@ -423,19 +405,7 @@ export default function MatchInfoPage({
   if (!matchPhase) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-3">
-        <svg
-          width="36"
-          height="36"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          className="text-text-muted/25"
-        >
-          <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-          <circle cx="9" cy="7" r="4" />
-          <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
-        </svg>
+        <Users size={36} className="text-text-muted/25" />
         <div className="text-center space-y-1">
           <p className="text-sm font-display font-semibold text-text-secondary">No Active Match</p>
           <p className="text-xs font-body text-text-muted">
@@ -676,16 +646,7 @@ function MatchHeader({
             }}
             className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-status-red/15 border border-status-red/30 text-xs font-display font-semibold text-status-red hover:bg-status-red/25 transition-colors disabled:opacity-50"
           >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
-            </svg>
+            <LogOut />
             {leaving ? "..." : "Leave"}
           </button>
         )}
@@ -693,7 +654,7 @@ function MatchHeader({
         <div className="flex flex-col items-end gap-1 shrink-0">
           {fetching && (
             <div className="flex items-center gap-1.5">
-              <Spinner />
+              <Spinner size={16} className="text-text-muted" />
               <span className="text-[10px] font-body text-text-muted">Fetching...</span>
             </div>
           )}
@@ -770,19 +731,7 @@ function PlayerCard({ player, agents, tiers, moduleData, isSelf, onOpen }) {
               </p>
               {acct?.tag && <span className="text-xs font-body text-text-muted">#{acct.tag}</span>}
               {(player.incognito || player.hideLevel) && (
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  className="text-text-muted/50 shrink-0"
-                  title="Hidden identity"
-                >
-                  <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
-                  <line x1="1" y1="1" x2="23" y2="23" />
-                </svg>
+                <EyeOff className="text-text-muted/50 shrink-0" title="Hidden identity" />
               )}
               {isSelf && (
                 <span className="text-[9px] font-display font-bold text-val-red/70 uppercase tracking-wider ml-0.5">
@@ -839,20 +788,6 @@ function hasAnyDialogContent(player, moduleData) {
     if (moduleData?.[mod.id]?.[player.puuid] != null) return true;
   }
   return false;
-}
-
-function Spinner() {
-  return (
-    <svg className="w-4 h-4 animate-spin text-text-muted" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-20" />
-      <path
-        d="M12 2a10 10 0 019.95 9"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
 }
 
 function PlayerDetailDialog({ player, agents, tiers, moduleData, onClose }) {
@@ -927,18 +862,7 @@ function PlayerDetailDialog({ player, agents, tiers, moduleData, onClose }) {
             className="shrink-0 w-7 h-7 rounded-md text-text-muted hover:text-text-primary hover:bg-base-600 flex items-center justify-center transition-colors"
             aria-label="Close"
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <X size={14} strokeLinecap="round" />
           </button>
         </div>
 

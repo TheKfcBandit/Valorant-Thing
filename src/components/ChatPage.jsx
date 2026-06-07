@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
 import { noAnim, T0 } from "../utils/animation";
+import { ChatBubble, Clock, LoadoutTab, Send, Users, WifiSlash } from "../icons";
 
 const POLL_INTERVAL = 2000;
 
@@ -12,46 +13,9 @@ const CONV_LABELS = {
 };
 
 const CONV_ICONS = {
-  "ares-parties": (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-    >
-      <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
-    </svg>
-  ),
-  "ares-pregame": (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 6v6l4 2" />
-    </svg>
-  ),
-  "ares-coregame": (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-    >
-      <path d="M14.5 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V7.5L14.5 2z" />
-      <polyline points="14 2 14 8 20 8" />
-    </svg>
-  ),
+  "ares-parties": <Users size={14} />,
+  "ares-pregame": <Clock size={14} strokeWidth="1.5" />,
+  "ares-coregame": <LoadoutTab size={14} />,
 };
 
 function getConvType(conv) {
@@ -244,25 +208,7 @@ export default function ChatPage({ connected, addLog }) {
     return (
       <div className="flex-1 flex items-center justify-center p-5">
         <div className="text-center space-y-3">
-          <svg
-            width="32"
-            height="32"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-text-muted mx-auto"
-          >
-            <path d="M1 1l22 22" />
-            <path d="M16.72 11.06A10.94 10.94 0 0119 12.55" />
-            <path d="M5 12.55a10.94 10.94 0 015.17-2.39" />
-            <path d="M10.71 5.05A16 16 0 0122.56 9" />
-            <path d="M1.42 9a15.91 15.91 0 014.7-2.88" />
-            <path d="M8.53 16.11a6 6 0 016.95 0" />
-            <line x1="12" y1="20" x2="12.01" y2="20" />
-          </svg>
+          <WifiSlash />
           <p className="text-sm font-display text-text-muted">Waiting for Valorant</p>
           <p className="text-[11px] font-body text-text-muted/60">
             Open Valorant and it will connect automatically
@@ -306,17 +252,7 @@ export default function ChatPage({ connected, addLog }) {
         className="flex items-center justify-between"
       >
         <div className="flex items-center gap-2">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            className="text-val-red"
-          >
-            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z" />
-          </svg>
+          <ChatBubble size={16} className="text-val-red" />
           <h2 className="text-sm font-display font-bold text-text-primary tracking-tight">Chat</h2>
         </div>
         {error && <span className="text-[10px] font-body text-status-red">{error}</span>}
@@ -377,17 +313,7 @@ export default function ChatPage({ connected, addLog }) {
           ) : safeMsgs.length === 0 ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center space-y-2">
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1"
-                  className="text-text-muted/30 mx-auto"
-                >
-                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z" />
-                </svg>
+                <ChatBubble size={24} strokeWidth="1" className="text-text-muted/30 mx-auto" />
                 <p className="text-[11px] font-body text-text-muted">
                   No messages yet in {CONV_LABELS[activeType] || "chat"}
                 </p>
@@ -448,17 +374,7 @@ export default function ChatPage({ connected, addLog }) {
                 disabled={sending || !input.trim()}
                 className="shrink-0 w-8 h-8 rounded-lg bg-val-red/15 border border-val-red/30 flex items-center justify-center text-val-red hover:bg-val-red/25 transition-colors disabled:opacity-30"
               >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <line x1="22" y1="2" x2="11" y2="13" />
-                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                </svg>
+                <Send />
               </button>
             </div>
           </div>

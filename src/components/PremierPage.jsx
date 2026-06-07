@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { noAnim, T0 } from "../utils/animation";
 import { useAsyncEffect } from "../hooks/useAsyncEffect";
 import { rankIcon, rankName } from "../utils/rank";
+import { WrappedTab } from "../icons";
 
 // Pull a field from an object using a list of possible key spellings. The
 // Premier endpoints have shifted casing across Riot revisions (`id` vs `ID`,
@@ -322,17 +323,7 @@ export default function PremierPage({ connected, player, playerIsStale }) {
       >
         <div className="max-w-md text-center space-y-3">
           <div className="w-12 h-12 mx-auto rounded-full bg-val-red/10 border border-val-red/20 flex items-center justify-center">
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              className="text-val-red"
-            >
-              <polygon points="12 2 15 8.5 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 9 8.5 12 2" />
-            </svg>
+            <WrappedTab size={22} className="text-val-red" />
           </div>
           <h1 className="text-xl font-display font-bold text-text-primary">
             Not on a Premier team

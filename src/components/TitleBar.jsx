@@ -1,6 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { sendNotification } from "@tauri-apps/plugin-notification";
+import { Close, Minimize } from "../icons";
 
 const appWindow = getCurrentWindow();
 
@@ -55,9 +56,7 @@ export default function TitleBar({ simplifiedTheme = true, minimizeToTray = fals
           className="w-8 h-8 flex items-center justify-center rounded-md text-text-muted hover:text-text-secondary hover:bg-base-600 transition-colors duration-150"
           title="Minimize to tray"
         >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
+          <Minimize />
         </button>
 
         <button
@@ -65,14 +64,7 @@ export default function TitleBar({ simplifiedTheme = true, minimizeToTray = fals
           className="w-8 h-8 flex items-center justify-center rounded-md text-text-muted hover:text-val-red hover:bg-val-red/10 transition-colors duration-150"
           title="Close"
         >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path
-              d="M2.5 2.5l7 7M9.5 2.5l-7 7"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
+          <Close />
         </button>
       </div>
     </div>

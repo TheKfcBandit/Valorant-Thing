@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { Person } from "../icons";
 
 const STATUS_CONFIG = {
   connected: {
@@ -63,18 +64,7 @@ export default function PlayerInfo({ status, player }) {
             onError={() => setImgError(true)}
           />
         ) : (
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            className="text-text-muted"
-          >
-            <circle cx="12" cy="8" r="4" />
-            <path d="M5 20c0-3.87 3.13-7 7-7s7 3.13 7 7" />
-          </svg>
+          <Person className="text-text-muted" />
         )}
       </div>
 

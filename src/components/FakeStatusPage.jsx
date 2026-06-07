@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import Tooltip from "./Tooltip";
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
+import { ALL_QUEUES as QUEUES } from "../utils/queues";
+import { ChevronDown, FakeStatusTab, WifiSlash } from "../icons";
 
 const TIER_UUID = "03621f52-342b-cf4e-4f86-9350a49c6d04";
 const rankIcon = (tier) =>
@@ -34,26 +36,6 @@ const RANKS = [
   { tier: 25, name: "Immortal 2" },
   { tier: 26, name: "Immortal 3" },
   { tier: 27, name: "Radiant" },
-];
-
-const QUEUES = [
-  { id: "newmap", label: "None" },
-  { id: "unrated", label: "Unrated" },
-  { id: "competitive", label: "Competitive" },
-  { id: "spikerush", label: "Spike Rush" },
-  { id: "deathmatch", label: "Deathmatch" },
-  { id: "swiftplay", label: "Swiftplay" },
-  { id: "hurm", label: "Team Deathmatch" },
-  { id: "premier", label: "Premier" },
-  { id: "ggteam", label: "Escalation" },
-  { id: "skirmish2v2", label: "Skirmish: 2v2" },
-  { id: "skirmishascension1v1", label: "Skirmish: Ascension 1v1" },
-  { id: "skirmishascension2v2", label: "Skirmish: Ascension 2v2" },
-  { id: "onefa", label: "Replication" },
-  { id: "snowball", label: "Snowball Fight" },
-  { id: "valaram", label: "All Random One Site" },
-  { id: "dodgeball", label: "Knockout" },
-  { id: "custom", label: "Custom Game" },
 ];
 
 const PREMIER_DIVISIONS = [
@@ -213,17 +195,9 @@ function CustomSelect({ value, onChange, options, renderOption }) {
         <span className="flex-1 text-left flex items-center gap-2">
           {renderOption ? renderOption(selected) : selected.name || selected.label}
         </span>
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
+        <ChevronDown
           className={`text-text-muted transition-transform shrink-0 ${open ? "rotate-180" : ""}`}
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
+        />
       </button>
       {open && (
         <div
@@ -687,25 +661,7 @@ export default function FakeStatusPage({ connected, showLogsSetting, onUnsavedCh
     return (
       <div className="flex-1 flex items-center justify-center p-5">
         <div className="text-center space-y-2">
-          <svg
-            width="32"
-            height="32"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-text-muted mx-auto"
-          >
-            <path d="M1 1l22 22" />
-            <path d="M16.72 11.06A10.94 10.94 0 0119 12.55" />
-            <path d="M5 12.55a10.94 10.94 0 015.17-2.39" />
-            <path d="M10.71 5.05A16 16 0 0122.56 9" />
-            <path d="M1.42 9a15.91 15.91 0 014.7-2.88" />
-            <path d="M8.53 16.11a6 6 0 016.95 0" />
-            <line x1="12" y1="20" x2="12.01" y2="20" />
-          </svg>
+          <WifiSlash />
           <p className="text-sm font-display text-text-muted">Waiting for Valorant</p>
           <p className="text-[11px] font-body text-text-muted/60">
             Open Valorant and it will connect automatically
@@ -739,19 +695,7 @@ export default function FakeStatusPage({ connected, showLogsSetting, onUnsavedCh
       <div className="flex-1 flex flex-col min-h-0 p-4 gap-3 relative">
         <div className="flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              className="text-text-muted"
-            >
-              <circle cx="12" cy="12" r="2" />
-              <path d="M16.24 7.76a6 6 0 010 8.49m-8.48-.01a6 6 0 010-8.49" />
-              <path d="M19.07 4.93a10 10 0 010 14.14m-14.14 0a10 10 0 010-14.14" />
-            </svg>
+            <FakeStatusTab size={16} className="text-text-muted" />
             <h2 className="text-sm font-display font-semibold text-text-primary">Fake Status</h2>
           </div>
           <div className="flex items-center gap-2">

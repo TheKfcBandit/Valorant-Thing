@@ -5,10 +5,11 @@ use std::time::Instant;
 // frontend via `get_oauth_state` so the re-auth banner is driven by state
 // (canonical) rather than relying on the `oauth-needs-reauth` event reaching
 // a mounted listener (the event is a fast-path hint, not the truth).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum OAuthState {
     /// No OAuth session ever established (or signed out).
+    #[default]
     Inactive,
     /// Tokens were loaded from the keychain but `validate_token` hasn't
     /// finished yet. `connected` stays false during this window so commands
@@ -23,12 +24,6 @@ pub enum OAuthState {
     NeedsRefresh,
     /// All three refresh rungs failed. The frontend shows the banner.
     NeedsReauth,
-}
-
-impl Default for OAuthState {
-    fn default() -> Self {
-        OAuthState::Inactive
-    }
 }
 
 #[derive(Default)]

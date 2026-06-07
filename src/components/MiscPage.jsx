@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { open } from "@tauri-apps/plugin-dialog";
 import { appDataDir } from "@tauri-apps/api/path";
 import { noAnim, T0 } from "../utils/animation";
+import { AlertTriangle, Check, Filmstrip, MiscTab, X } from "../icons";
 
 const MENU_VIDEO_SUBPATH = "ShooterGame\\Content\\Movies\\Menu";
 const MENU_VIDEO_FILE_REGEX = /\.(mp4|webm)$/i;
@@ -342,17 +343,7 @@ export default function MiscPage({
         transition={{ duration: 0.2 }}
         className="flex items-center gap-2"
       >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          className="text-text-muted"
-        >
-          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-        </svg>
+        <MiscTab size={16} className="text-text-muted" />
         <h2 className="text-sm font-display font-semibold text-text-primary">Misc</h2>
       </motion.div>
 
@@ -368,17 +359,7 @@ export default function MiscPage({
 
         {disabled && connected && !loading && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-status-yellow/10 border border-status-yellow/20">
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className="text-status-yellow shrink-0"
-            >
-              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01" />
-            </svg>
+            <AlertTriangle size={12} className="text-status-yellow shrink-0" />
             <span className="text-[11px] font-body text-status-yellow">
               You must be party leader to use queue automation
             </span>
@@ -462,18 +443,7 @@ export default function MiscPage({
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-8 rounded-lg border border-dashed border-border bg-base-800/50 gap-2">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              className="text-text-muted/30"
-            >
-              <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
-              <path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5" />
-            </svg>
+            <Filmstrip className="text-text-muted/30" />
             <p className="text-xs font-body text-text-muted">No custom video set</p>
           </div>
         )}
@@ -482,21 +452,11 @@ export default function MiscPage({
           <div
             className={`flex items-center gap-2 px-3 py-2 rounded-lg ${videoStatus.startsWith("Error") ? "bg-status-red/10 border border-status-red/20" : "bg-status-green/10 border border-status-green/20"}`}
           >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className={`shrink-0 ${videoStatus.startsWith("Error") ? "text-status-red" : "text-status-green"}`}
-            >
-              {videoStatus.startsWith("Error") ? (
-                <path d="M18 6L6 18M6 6l12 12" />
-              ) : (
-                <path d="M20 6L9 17l-5-5" />
-              )}
-            </svg>
+            {videoStatus.startsWith("Error") ? (
+              <X size={12} className="shrink-0 text-status-red" />
+            ) : (
+              <Check size={12} className="shrink-0 text-status-green" strokeWidth="2" />
+            )}
             <span
               className={`text-[11px] font-body ${videoStatus.startsWith("Error") ? "text-status-red" : "text-status-green"}`}
             >

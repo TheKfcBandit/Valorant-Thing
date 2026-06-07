@@ -1,199 +1,28 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { motion } from "framer-motion";
 import { exportVtFile, readVtFile } from "../cloud";
-import { noAnim, T0 } from "../utils/animation";
 import { getAgents, getMaps } from "../valApiSkins";
-
-const EXCLUDED_MAPS = ["The Range", "Basic Training"];
-const DM_MAPS = new Set(["Kasbah", "Glitch", "Drift", "Piazza", "District"]);
-const SKIRMISH_MAPS = new Set(["Skirmish A", "Skirmish B", "Skirmish C"]);
-const ROLE_ORDER = { Duelist: 0, Initiator: 1, Controller: 2, Sentinel: 3 };
-const ROLES = ["Duelist", "Initiator", "Controller", "Sentinel"];
-const ROLE_ICONS = {
-  Duelist:
-    "https://media.valorant-api.com/agents/roles/dbe8757e-9e92-4ed4-b39f-9dfc589691d4/displayicon.png",
-  Initiator:
-    "https://media.valorant-api.com/agents/roles/1b47567f-8f7b-444b-aae3-b0c634622d10/displayicon.png",
-  Controller:
-    "https://media.valorant-api.com/agents/roles/4ee40330-ecdd-4f2f-98a8-eb1243428373/displayicon.png",
-  Sentinel:
-    "https://media.valorant-api.com/agents/roles/5fc02f99-4091-4486-a531-98459a3e95e9/displayicon.png",
-};
-const GLOBE_ICON = (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-  >
-    <circle cx="12" cy="12" r="10" />
-    <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
-  </svg>
-);
-
-const MAP_ICON = (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-  >
-    <path d="M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3V7z" />
-    <path d="M9 4v13M15 7v13" />
-  </svg>
-);
-
-const SEARCH_ICON = (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-  >
-    <circle cx="11" cy="11" r="8" />
-    <path d="M21 21l-4.35-4.35" />
-  </svg>
-);
-
-const BACK_ICON = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M19 12H5M12 19l-7-7 7-7" />
-  </svg>
-);
-
-const AGENT_SILHOUETTE = (
-  <svg
-    width="20"
-    height="20"
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    className="text-text-muted/30"
-  >
-    <circle cx="12" cy="8" r="4" />
-    <path d="M4 21c0-4.42 3.58-8 8-8s8 3.58 8 8" />
-  </svg>
-);
-
-const NONE_AGENT = { uuid: "none", displayName: "None", displayIcon: null };
-
-const SKIRMISH_ALLOWED = {
-  jett: "Tailwind",
-  waylay: "Refract",
-  chamber: "Rendezvous",
-  cypher: "Cyber Cage",
-  omen: "Shrouded Step",
-  phoenix: "Curveball",
-  yoru: "FAKEOUT",
-  iso: "Contingency",
-  sage: "Barrier Orb",
-  raze: "Blast Pack",
-  vyse: "Arc Rose",
-  "kay/o": "FLASH/drive",
-  breach: "Flashpoint",
-  veto: "Crosscut",
-};
-
-const CONFIG_KEY = "instalock-config";
-const PROFILES_KEY = "instalock-profiles";
-const ACTIVE_PROFILE_KEY = "instalock-active-profile";
-
-const slimAgent = (a) =>
-  a ? { uuid: a.uuid, displayName: a.displayName, displayIcon: a.displayIcon } : null;
-
-function saveConfig(selectedAgent, perMapSelections, active) {
-  const perMap = {};
-  for (const [mapId, agent] of Object.entries(perMapSelections)) {
-    perMap[mapId] = slimAgent(agent);
-  }
-  localStorage.setItem(
-    CONFIG_KEY,
-    JSON.stringify({ defaultAgent: slimAgent(selectedAgent), perMap, active })
-  );
-}
-
-function loadConfig() {
-  try {
-    return JSON.parse(localStorage.getItem(CONFIG_KEY)) || null;
-  } catch {
-    return null;
-  }
-}
-
-function loadProfiles() {
-  try {
-    return JSON.parse(localStorage.getItem(PROFILES_KEY)) || [];
-  } catch {
-    return [];
-  }
-}
-
-function saveProfilesLS(profiles) {
-  localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
-}
-
-function resolveAgent(sorted, saved) {
-  if (!saved) return null;
-  if (saved.uuid === "none") return NONE_AGENT;
-  return sorted.find((a) => a.uuid === saved.uuid) || null;
-}
-
-function restorePerMap(sorted, perMap) {
-  const restored = {};
-  if (perMap) {
-    for (const [mapId, saved] of Object.entries(perMap)) {
-      const agent = resolveAgent(sorted, saved);
-      if (agent) restored[mapId] = agent;
-      else if (saved?.uuid === "none") restored[mapId] = NONE_AGENT;
-    }
-  }
-  return restored;
-}
-
-function normalizeAbilityName(value) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-}
-
-function isSkirmishMap(map) {
-  return !!map && SKIRMISH_MAPS.has(map.displayName);
-}
-
-function getSkirmishAbilityName(agent) {
-  if (!agent) return null;
-  return SKIRMISH_ALLOWED[agent.displayName.toLowerCase()] || null;
-}
-
-function getAllowedAgentsForMap(agents, map) {
-  if (!isSkirmishMap(map)) return agents;
-  return agents.filter((agent) => !!getSkirmishAbilityName(agent));
-}
-
-function getAbilityIconsForAgent(agent, map) {
-  if (!agent || agent.uuid === "none") return [];
-  const abilities = Array.isArray(agent.abilities)
-    ? agent.abilities.filter((ability) => ability?.displayIcon)
-    : [];
-  if (!isSkirmishMap(map)) return abilities.slice(0, 4);
-
-  const wanted = normalizeAbilityName(getSkirmishAbilityName(agent));
-  if (!wanted) return [];
-  const match = abilities.find((ability) => normalizeAbilityName(ability.displayName) === wanted);
-  return match ? [match] : [];
-}
-
-function isAgentAllowedForMap(agent, map) {
-  if (!agent || agent.uuid === "none") return true;
-  if (!isSkirmishMap(map)) return true;
-  return !!getSkirmishAbilityName(agent);
-}
+import { EXCLUDED_MAPS } from "../utils/maps";
+import { NONE_AGENT, ROLE_ORDER } from "../utils/agents";
+import {
+  ACTIVE_PROFILE_KEY,
+  FREE_AGENTS,
+  getAllowedAgentsForMap,
+  getSkirmishAbilityName,
+  isAgentAllowedForMap,
+  isSkirmishMap,
+  loadConfig,
+  loadProfiles,
+  resolveAgent,
+  restorePerMap,
+  saveConfig,
+  saveProfilesLS,
+  slimAgent,
+} from "../utils/instalockConfig";
+import AllMapsView from "./instalock/AllMapsView";
+import PerMapView from "./instalock/PerMapView";
+import InstalockToolbar from "./instalock/InstalockToolbar";
+import { DeleteProfileModal, ProfileNameModal, ShareProfileModal } from "./instalock/ProfileModals";
 
 export default function InstalockPage({ onActiveChange, onConfigChange, connected }) {
   const [subTab, setSubTab] = useState("all");
@@ -293,6 +122,9 @@ export default function InstalockPage({ onActiveChange, onConfigChange, connecte
     });
   }, [selectedAgent, perMapSelections, active, loading, activeProfileId]);
 
+  // `onConfigChange` deliberately omitted from deps — App.jsx hands a
+  // fresh arrow each render via buildPages, so including it would fire
+  // this effect every parent render and churn `refs.instalockConfig.current`.
   useEffect(() => {
     if (!loading) onConfigChange?.({ maps, selectedAgent, perMapSelections });
   }, [maps, selectedAgent, perMapSelections, loading]);
@@ -454,15 +286,17 @@ export default function InstalockPage({ onActiveChange, onConfigChange, connecte
   const handleNameModalConfirm = () => {
     const name = nameModalValue.trim();
     if (!name || !nameModal) return;
-    if (nameModal.type === "new") {
-      const id = Date.now().toString(36);
+    const stashCurrent = () => {
       const perMap = {};
       for (const [mapId, agent] of Object.entries(perMapSelections))
         perMap[mapId] = slimAgent(agent);
-      const saved = profiles.map((p) =>
+      return profiles.map((p) =>
         p.id === activeProfileId ? { ...p, defaultAgent: slimAgent(selectedAgent), perMap } : p
       );
-      const updated = [...saved, { id, name, defaultAgent: null, perMap: {} }];
+    };
+    if (nameModal.type === "new") {
+      const id = Date.now().toString(36);
+      const updated = [...stashCurrent(), { id, name, defaultAgent: null, perMap: {} }];
       setSelectedAgent(null);
       setPerMapSelections({});
       setActiveProfileId(id);
@@ -471,15 +305,9 @@ export default function InstalockPage({ onActiveChange, onConfigChange, connecte
       saveProfilesLS(updated);
     } else if (nameModal.type === "import") {
       const id = Date.now().toString(36);
-      const perMap = {};
-      for (const [mapId, agent] of Object.entries(perMapSelections))
-        perMap[mapId] = slimAgent(agent);
-      const saved = profiles.map((p) =>
-        p.id === activeProfileId ? { ...p, defaultAgent: slimAgent(selectedAgent), perMap } : p
-      );
       const d = nameModal.importData;
       const np = { id, name, defaultAgent: d?.defaultAgent || null, perMap: d?.perMap || {} };
-      const updated = [...saved, np];
+      const updated = [...stashCurrent(), np];
       setSelectedAgent(resolveAgent(agents, np.defaultAgent));
       setPerMapSelections(restorePerMap(agents, np.perMap));
       setActiveProfileId(id);
@@ -495,7 +323,6 @@ export default function InstalockPage({ onActiveChange, onConfigChange, connecte
     setNameModalValue("");
   };
 
-  const FREE_AGENTS = new Set(["brimstone", "jett", "phoenix", "sage", "sova"]);
   const isOwned = (agent) =>
     !ownedAgents ||
     ownedAgents.has(agent.uuid.toLowerCase()) ||
@@ -586,371 +413,54 @@ export default function InstalockPage({ onActiveChange, onConfigChange, connecte
 
   return (
     <div className="flex-1 flex flex-col min-h-0 p-4 gap-3">
-      <div className="flex items-center gap-2 shrink-0">
-        <div className="flex bg-base-700 rounded-lg p-0.5 border border-border">
-          <button
-            onClick={() => {
-              setSubTab("all");
-              setSelectedMap(null);
-              setSearch("");
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-display font-medium tracking-wide transition-colors duration-150 ${
-              subTab === "all"
-                ? "bg-base-500 text-text-primary"
-                : "text-text-muted hover:text-text-secondary"
-            }`}
-          >
-            {GLOBE_ICON}
-            All Maps
-          </button>
-          <button
-            onClick={() => {
-              setSubTab("permap");
-              setSearch("");
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-display font-medium tracking-wide transition-colors duration-150 ${
-              subTab === "permap"
-                ? "bg-base-500 text-text-primary"
-                : "text-text-muted hover:text-text-secondary"
-            }`}
-          >
-            {MAP_ICON}
-            Per Map
-          </button>
-        </div>
-
-        <div className="relative" ref={profileMenuRef}>
-          <button
-            onClick={() => {
-              setProfileMenuOpen(!profileMenuOpen);
-              setDotMenuId(null);
-              setImportMode(false);
-              setImportValue("");
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-base-700 border border-border rounded-lg text-xs font-display text-text-secondary hover:text-text-primary transition-colors"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              className="shrink-0"
-            >
-              <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
-            </svg>
-            <span className="max-w-[100px] truncate">{activeProfile?.name || "Default"}</span>
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              className="shrink-0 text-text-muted"
-            >
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </button>
-          {profileMenuOpen && (
-            <div className="absolute top-full left-0 mt-1 min-w-[200px] bg-base-700 border border-border rounded-lg shadow-xl z-20">
-              {profiles.map((p) => (
-                <div
-                  key={p.id}
-                  className={`relative flex items-center gap-1.5 px-3 py-2 text-xs font-body hover:bg-base-600 transition-colors ${p.id === activeProfileId ? "text-accent-blue" : "text-text-secondary"}`}
-                >
-                  <span
-                    className="flex-1 truncate cursor-pointer"
-                    onClick={() => switchProfile(p.id)}
-                  >
-                    {p.name}
-                  </span>
-                  {p.id === activeProfileId && (
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      className="shrink-0"
-                    >
-                      <path d="M20 6L9 17l-5-5" />
-                    </svg>
-                  )}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDotMenuId(dotMenuId === p.id ? null : p.id);
-                    }}
-                    className="shrink-0 p-0.5 rounded hover:bg-base-500 text-text-muted hover:text-text-primary transition-colors"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <circle cx="12" cy="5" r="2" />
-                      <circle cx="12" cy="12" r="2" />
-                      <circle cx="12" cy="19" r="2" />
-                    </svg>
-                  </button>
-                  {dotMenuId === p.id && (
-                    <div className="absolute right-2 top-full -mt-0.5 bg-base-600 border border-border rounded-lg shadow-xl z-30 min-w-[130px] overflow-hidden">
-                      <button
-                        onClick={() => startRename(p.id)}
-                        className="w-full px-3 py-1.5 text-left text-xs font-body text-text-secondary hover:text-text-primary hover:bg-base-500 transition-colors flex items-center gap-2"
-                      >
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          className="shrink-0"
-                        >
-                          <path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-                        </svg>
-                        Rename
-                      </button>
-                      <button
-                        onClick={() => shareProfile(p.id)}
-                        className="w-full px-3 py-1.5 text-left text-xs font-body text-text-secondary hover:text-text-primary hover:bg-base-500 transition-colors flex items-center gap-2"
-                      >
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          className="shrink-0"
-                        >
-                          <circle cx="18" cy="5" r="3" />
-                          <circle cx="6" cy="12" r="3" />
-                          <circle cx="18" cy="19" r="3" />
-                          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                        </svg>
-                        Share Code
-                      </button>
-                      <button
-                        onClick={() => exportProfileFile(p.id)}
-                        className="w-full px-3 py-1.5 text-left text-xs font-body text-text-secondary hover:text-text-primary hover:bg-base-500 transition-colors flex items-center gap-2"
-                      >
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          className="shrink-0"
-                        >
-                          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
-                        </svg>
-                        Export File
-                      </button>
-                      {profiles.length > 1 && (
-                        <button
-                          onClick={() => {
-                            setConfirmDeleteId(p.id);
-                            setDotMenuId(null);
-                            setProfileMenuOpen(false);
-                          }}
-                          className="w-full px-3 py-1.5 text-left text-xs font-body text-val-red/70 hover:text-val-red hover:bg-base-500 transition-colors flex items-center gap-2"
-                        >
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            className="shrink-0"
-                          >
-                            <path d="M3 6h18" />
-                            <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-                          </svg>
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-              <div className="border-t border-border" />
-              {importMode ? (
-                <div className="px-2.5 py-2 space-y-1.5">
-                  <div className="flex gap-1.5">
-                    <input
-                      value={importValue}
-                      onChange={(e) => {
-                        setImportValue(e.target.value);
-                        setImportError("");
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") startImport();
-                        if (e.key === "Escape") {
-                          setImportMode(false);
-                          setImportValue("");
-                          setImportError("");
-                        }
-                      }}
-                      placeholder="VT-AGENT-XXXXX"
-                      className="flex-1 min-w-0 bg-base-800 border border-border rounded px-2 py-1 text-xs font-body text-text-primary placeholder:text-text-muted focus:outline-none"
-                      autoFocus
-                    />
-                    <button
-                      onClick={startImport}
-                      className="px-2 py-1 bg-accent-blue/20 text-accent-blue rounded text-xs font-body hover:bg-accent-blue/30 transition-colors shrink-0"
-                    >
-                      Go
-                    </button>
-                  </div>
-                  {importError && (
-                    <p className="text-[10px] font-body text-val-red px-0.5">{importError}</p>
-                  )}
-                  <button
-                    onClick={() => vtFileRef.current?.click()}
-                    className="w-full text-left text-[10px] font-body text-text-muted hover:text-text-secondary transition-colors px-0.5"
-                  >
-                    or import from .vt file
-                  </button>
-                  <input
-                    ref={vtFileRef}
-                    type="file"
-                    accept=".vt"
-                    onChange={importProfileFile}
-                    className="hidden"
-                  />
-                </div>
-              ) : (
-                <>
-                  <button
-                    onClick={startCreateProfile}
-                    className="w-full px-3 py-2 text-left text-xs font-body text-text-muted hover:text-text-primary hover:bg-base-600 transition-colors flex items-center gap-2"
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className="shrink-0"
-                    >
-                      <line x1="12" y1="5" x2="12" y2="19" />
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                    New Profile
-                  </button>
-                  <button
-                    onClick={() => {
-                      setImportMode(true);
-                      setImportError("");
-                    }}
-                    className="w-full px-3 py-2 text-left text-xs font-body text-text-muted hover:text-text-primary hover:bg-base-600 transition-colors flex items-center gap-2"
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className="shrink-0"
-                    >
-                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                      <polyline points="7 10 12 15 17 10" />
-                      <line x1="12" y1="15" x2="12" y2="3" />
-                    </svg>
-                    Import Profile
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="flex-1" />
-
-        <div className="relative">
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted">
-            {SEARCH_ICON}
-          </span>
-          <input
-            type="text"
-            placeholder={
-              subTab === "permap" && !selectedMap ? "Search maps..." : "Search agents..."
-            }
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-44 pl-8 pr-3 py-1.5 bg-base-700 border border-border rounded-lg text-xs font-body text-text-primary placeholder:text-text-muted focus:outline-none focus:border-border-light transition-colors"
-          />
-        </div>
-
-        <div className="flex items-center gap-2 ml-1">
-          <span
-            className={`text-xs font-display tracking-wide ${!connected ? "text-text-muted" : active ? "text-status-green" : "text-text-muted"}`}
-          >
-            {!connected ? "Off" : active ? "Active" : "Inactive"}
-          </span>
-          <button
-            disabled={!connected}
-            onClick={() => {
-              if (!connected) return;
-              const next = !active;
-              setActive(next);
-              onActiveChange?.(next);
-            }}
-            className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${
-              !connected
-                ? "bg-base-500 opacity-50 cursor-not-allowed"
-                : active
-                  ? "bg-status-green"
-                  : "bg-base-500"
-            }`}
-          >
-            <div
-              className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
-                !connected ? "translate-x-0.5" : active ? "translate-x-[18px]" : "translate-x-0.5"
-              }`}
-            />
-          </button>
-        </div>
-      </div>
-
-      {(subTab === "all" || selectedMap) && (
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            onClick={() => setRoleFilter("all")}
-            className={`px-2.5 py-1 text-[10px] font-display font-medium rounded-md transition-colors ${
-              roleFilter === "all"
-                ? "bg-val-red/20 text-val-red border border-val-red/40"
-                : "text-text-muted hover:text-text-secondary border border-transparent"
-            }`}
-          >
-            ALL
-          </button>
-          {ROLES.map((role) => (
-            <button
-              key={role}
-              onClick={() => setRoleFilter(roleFilter === role ? "all" : role)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors ${
-                roleFilter === role
-                  ? "bg-val-red/20 text-val-red border border-val-red/40"
-                  : "text-text-muted hover:text-text-secondary border border-transparent"
-              }`}
-            >
-              <img
-                src={ROLE_ICONS[role]}
-                alt=""
-                className={`w-3 h-3 ${roleFilter === role ? "brightness-125" : "opacity-50"}`}
-              />
-              <span className="text-[10px] font-display font-medium">{role}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      <InstalockToolbar
+        connected={connected}
+        active={active}
+        setActive={setActive}
+        onActiveChange={onActiveChange}
+        subTab={subTab}
+        setSubTab={setSubTab}
+        setSelectedMap={setSelectedMap}
+        search={search}
+        setSearch={setSearch}
+        selectedMap={selectedMap}
+        roleFilter={roleFilter}
+        setRoleFilter={setRoleFilter}
+        profileManagerProps={{
+          profileMenuRef,
+          profileMenuOpen,
+          onToggleMenu: () => {
+            setProfileMenuOpen(!profileMenuOpen);
+            setDotMenuId(null);
+            setImportMode(false);
+            setImportValue("");
+          },
+          profiles,
+          activeProfile,
+          activeProfileId,
+          dotMenuId,
+          setDotMenuId,
+          onSwitchProfile: switchProfile,
+          onStartRename: startRename,
+          onShareProfile: shareProfile,
+          onExportProfile: exportProfileFile,
+          onRequestDelete: (id) => {
+            setConfirmDeleteId(id);
+            setDotMenuId(null);
+            setProfileMenuOpen(false);
+          },
+          importMode,
+          setImportMode,
+          importValue,
+          setImportValue,
+          importError,
+          setImportError,
+          startImport,
+          vtFileRef,
+          importProfileFile,
+          onStartCreate: startCreateProfile,
+        }}
+      />
 
       <div className="flex-1 min-h-0 overflow-y-auto pr-1">
         {subTab === "all" ? (
@@ -963,7 +473,6 @@ export default function InstalockPage({ onActiveChange, onConfigChange, connecte
           />
         ) : (
           <PerMapView
-            agents={agents}
             filteredAgents={filteredAgents}
             selectedMapAgents={selectedMapAllowedAgents}
             maps={maps}
@@ -989,744 +498,39 @@ export default function InstalockPage({ onActiveChange, onConfigChange, connecte
         )}
       </div>
 
-      {nameModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={() => {
-            setNameModal(null);
-            setNameModalValue("");
-          }}
-        >
-          <div
-            className="bg-base-700 border border-border rounded-xl p-5 max-w-xs w-full space-y-3 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-2">
-              {nameModal.type === "new" && (
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="text-accent-blue shrink-0"
-                >
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-              )}
-              {nameModal.type === "import" && (
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="text-accent-blue shrink-0"
-                >
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-              )}
-              {nameModal.type === "rename" && (
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="text-accent-blue shrink-0"
-                >
-                  <path d="M17 3a2.83 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-                </svg>
-              )}
-              <p className="text-sm font-display font-semibold text-text-primary">
-                {nameModal.type === "new"
-                  ? "New Profile"
-                  : nameModal.type === "import"
-                    ? "Import Profile"
-                    : "Rename Profile"}
-              </p>
-            </div>
-            <input
-              value={nameModalValue}
-              onChange={(e) => setNameModalValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && nameModalValue.trim()) handleNameModalConfirm();
-                if (e.key === "Escape") {
-                  setNameModal(null);
-                  setNameModalValue("");
-                }
-              }}
-              placeholder="Profile name..."
-              className="w-full px-3 py-2 bg-base-800 border border-border rounded-lg text-xs font-body text-text-primary placeholder:text-text-muted focus:outline-none focus:border-border-light transition-colors"
-              autoFocus
-            />
-            <div className="flex gap-2 justify-end pt-1">
-              <button
-                onClick={() => {
-                  setNameModal(null);
-                  setNameModalValue("");
-                }}
-                className="px-3 py-1.5 rounded-lg text-xs font-body bg-base-600 border border-border text-text-secondary hover:text-text-primary transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleNameModalConfirm}
-                disabled={!nameModalValue.trim()}
-                className="px-3 py-1.5 rounded-lg text-xs font-body bg-accent-blue/20 text-accent-blue hover:bg-accent-blue/30 transition-colors disabled:opacity-40 disabled:pointer-events-none"
-              >
-                {nameModal.type === "rename" ? "Rename" : "Create"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ProfileNameModal
+        nameModal={nameModal}
+        nameModalValue={nameModalValue}
+        onChange={setNameModalValue}
+        onCancel={() => {
+          setNameModal(null);
+          setNameModalValue("");
+        }}
+        onConfirm={handleNameModalConfirm}
+      />
 
       {confirmDeleteId && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={() => setConfirmDeleteId(null)}
-        >
-          <div
-            className="bg-base-700 border border-border rounded-xl p-5 max-w-xs w-full space-y-3 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-2">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="text-val-red shrink-0"
-              >
-                <path d="M3 6h18" />
-                <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-              </svg>
-              <p className="text-sm font-display font-semibold text-text-primary">Delete Profile</p>
-            </div>
-            <p className="text-xs font-body text-text-muted">
-              Are you sure you want to delete{" "}
-              <span className="text-text-secondary font-semibold">
-                {profiles.find((p) => p.id === confirmDeleteId)?.name}
-              </span>
-              ?
-            </p>
-            <div className="flex gap-2 justify-end pt-1">
-              <button
-                onClick={() => setConfirmDeleteId(null)}
-                className="px-3 py-1.5 rounded-lg text-xs font-body bg-base-600 border border-border text-text-secondary hover:text-text-primary transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => deleteProfileById(confirmDeleteId)}
-                className="px-3 py-1.5 rounded-lg text-xs font-body bg-val-red/20 text-val-red hover:bg-val-red/30 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeleteProfileModal
+          targetName={profiles.find((p) => p.id === confirmDeleteId)?.name}
+          onCancel={() => setConfirmDeleteId(null)}
+          onConfirm={() => deleteProfileById(confirmDeleteId)}
+        />
       )}
 
       {(shareResult || shareLoading) && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={() => {
+        <ShareProfileModal
+          shareResult={shareResult}
+          shareLoading={shareLoading}
+          onCopyCode={() => {
+            navigator.clipboard.writeText(shareResult.code);
+            setShareResult((r) => ({ ...r, copied: true }));
+          }}
+          onClose={() => {
             setShareResult(null);
             setShareLoading(false);
           }}
-        >
-          <div
-            className="bg-base-700 border border-border rounded-xl p-5 max-w-xs w-full space-y-3 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-2">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="text-accent-blue shrink-0"
-              >
-                <circle cx="18" cy="5" r="3" />
-                <circle cx="6" cy="12" r="3" />
-                <circle cx="18" cy="19" r="3" />
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-              </svg>
-              <p className="text-sm font-display font-semibold text-text-primary">Share Profile</p>
-            </div>
-            {shareLoading && (
-              <p className="text-xs font-body text-text-muted">Generating code...</p>
-            )}
-            {shareResult?.code && (
-              <>
-                <div className="flex items-center gap-2 bg-base-800 border border-border rounded-lg px-3 py-2">
-                  <code className="text-sm font-mono text-accent-blue flex-1">
-                    {shareResult.code}
-                  </code>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(shareResult.code);
-                      setShareResult((r) => ({ ...r, copied: true }));
-                    }}
-                    className="text-text-muted hover:text-text-primary transition-colors shrink-0"
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <rect x="9" y="9" width="13" height="13" rx="2" />
-                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                    </svg>
-                  </button>
-                </div>
-                {shareResult.copied && (
-                  <p className="text-[10px] font-body text-status-green">Copied to clipboard!</p>
-                )}
-                <p className="text-[10px] font-body text-text-muted">Code expires in 14 days</p>
-              </>
-            )}
-            {shareResult?.error && (
-              <p className="text-xs font-body text-val-red">{shareResult.error}</p>
-            )}
-            <div className="flex justify-end pt-1">
-              <button
-                onClick={() => {
-                  setShareResult(null);
-                  setShareLoading(false);
-                }}
-                className="px-3 py-1.5 rounded-lg text-xs font-body bg-base-600 border border-border text-text-secondary hover:text-text-primary transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+        />
       )}
     </div>
-  );
-}
-
-function AllMapsView({ agents, selectedAgent, onAgentClick, isOwned, roleFilter }) {
-  if (roleFilter !== "all") {
-    return (
-      <div>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-1.5">
-          {agents.map((agent, i) => (
-            <motion.div
-              key={agent.uuid}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={noAnim() ? T0 : { duration: 0.15, delay: Math.min(i * 0.02, 0.4) }}
-            >
-              <AgentCard
-                agent={agent}
-                selected={selectedAgent?.uuid === agent.uuid}
-                onClick={() => onAgentClick(agent)}
-                owned={isOwned(agent)}
-              />
-            </motion.div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  const groups = ROLES.map((role) => ({
-    role,
-    agents: agents.filter((a) => a.role?.displayName === role),
-  })).filter((g) => g.agents.length > 0);
-
-  let idx = 0;
-  return (
-    <div className="space-y-4">
-      {groups.map((g) => (
-        <div key={g.role}>
-          <div className="flex items-center gap-2 mb-2">
-            <img src={ROLE_ICONS[g.role]} alt="" className="w-3.5 h-3.5 opacity-60" />
-            <span className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
-              {g.role}s
-            </span>
-            <div className="flex-1 h-px bg-border/50" />
-          </div>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-1.5">
-            {g.agents.map((agent) => {
-              const i = idx++;
-              return (
-                <motion.div
-                  key={agent.uuid}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={noAnim() ? T0 : { duration: 0.15, delay: Math.min(i * 0.02, 0.4) }}
-                >
-                  <AgentCard
-                    agent={agent}
-                    selected={selectedAgent?.uuid === agent.uuid}
-                    onClick={() => onAgentClick(agent)}
-                    owned={isOwned(agent)}
-                  />
-                </motion.div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function NoneButton({ selected, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`group flex flex-col items-center gap-1 p-1.5 rounded-lg border transition-all duration-150 ${
-        selected ? "bg-base-500/30 border-text-muted/40" : "border-transparent hover:bg-base-600/50"
-      }`}
-    >
-      <div className="w-14 h-14 rounded-md bg-base-600 flex items-center justify-center">
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          className="text-text-muted/50"
-        >
-          <circle cx="12" cy="12" r="10" />
-          <path d="M4.93 4.93l14.14 14.14" />
-        </svg>
-      </div>
-      <span
-        className={`text-[11px] font-body leading-tight ${
-          selected
-            ? "text-text-primary font-medium"
-            : "text-text-muted group-hover:text-text-secondary"
-        }`}
-      >
-        None
-      </span>
-    </button>
-  );
-}
-
-function PerMapView({
-  filteredAgents,
-  selectedMapAgents,
-  maps,
-  search,
-  selectedMap,
-  selectedAgent,
-  onMapSelect,
-  onMapBack,
-  perMapSelections,
-  onAgentClick,
-  onNoneClick,
-  getAgentForMap,
-  getMapAgent,
-  isOwned,
-  roleFilter,
-}) {
-  if (!selectedMap) {
-    const q = search.toLowerCase();
-    const filtered = search.trim()
-      ? maps.filter((m) => m.displayName.toLowerCase().includes(q))
-      : maps;
-
-    const standard = filtered.filter(
-      (m) => !DM_MAPS.has(m.displayName) && !SKIRMISH_MAPS.has(m.displayName)
-    );
-    const dm = filtered.filter((m) => DM_MAPS.has(m.displayName));
-    const skirmish = filtered.filter((m) => SKIRMISH_MAPS.has(m.displayName));
-    let idx = 0;
-
-    return (
-      <div className="space-y-4">
-        {standard.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                className="text-text-muted/60"
-              >
-                <path d="M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3V7z" />
-                <path d="M9 4v13M15 7v13" />
-              </svg>
-              <span className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
-                Standard Maps
-              </span>
-              <div className="flex-1 h-px bg-border/50" />
-            </div>
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2">
-              {standard.map((map) => {
-                const i = idx++;
-                return (
-                  <motion.div
-                    key={map.uuid}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={noAnim() ? T0 : { duration: 0.15, delay: Math.min(i * 0.03, 0.3) }}
-                  >
-                    <MapCard
-                      map={map}
-                      selectedAgent={getMapAgent(map)}
-                      isDefault={!perMapSelections[map.uuid] && !!getMapAgent(map)}
-                      onClick={() => onMapSelect(map)}
-                    />
-                  </motion.div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        {skirmish.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                className="text-text-muted/60"
-              >
-                <path d="M12 2v20M2 12h20" />
-                <circle cx="12" cy="12" r="4" />
-              </svg>
-              <span className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
-                Skirmish
-              </span>
-              <div className="flex-1 h-px bg-border/50" />
-            </div>
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2">
-              {skirmish.map((map) => {
-                const i = idx++;
-                return (
-                  <motion.div
-                    key={map.uuid}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={noAnim() ? T0 : { duration: 0.15, delay: Math.min(i * 0.03, 0.3) }}
-                  >
-                    <MapCard
-                      map={map}
-                      selectedAgent={getMapAgent(map)}
-                      isDefault={!perMapSelections[map.uuid] && !!getMapAgent(map)}
-                      onClick={() => onMapSelect(map)}
-                    />
-                  </motion.div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        {dm.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                className="text-text-muted/60"
-              >
-                <circle cx="12" cy="12" r="3" />
-                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-              </svg>
-              <span className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
-                Deathmatch Maps
-              </span>
-              <div className="flex-1 h-px bg-border/50" />
-            </div>
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2">
-              {dm.map((map) => {
-                const i = idx++;
-                return (
-                  <motion.div
-                    key={map.uuid}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={noAnim() ? T0 : { duration: 0.15, delay: Math.min(i * 0.03, 0.3) }}
-                  >
-                    <MapCard
-                      map={map}
-                      selectedAgent={getAgentForMap(map.uuid)}
-                      isDefault={!perMapSelections[map.uuid] && !!getAgentForMap(map.uuid)}
-                      onClick={() => onMapSelect(map)}
-                    />
-                  </motion.div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  const currentSelection = perMapSelections[selectedMap.uuid];
-  const isNoneSelected = currentSelection?.uuid === "none";
-  const selectableAgents = isSkirmishMap(selectedMap) ? selectedMapAgents : filteredAgents;
-  const currentMapAgent = isAgentAllowedForMap(currentSelection || selectedAgent, selectedMap)
-    ? currentSelection || selectedAgent
-    : NONE_AGENT;
-
-  return (
-    <div>
-      <div className="flex items-center gap-2 mb-3">
-        <button
-          onClick={onMapBack}
-          className="flex items-center gap-1.5 text-text-muted hover:text-text-primary text-xs font-display transition-colors"
-        >
-          {BACK_ICON}
-          Back
-        </button>
-        <span className="text-text-secondary text-xs">—</span>
-        <span className="text-text-primary text-xs font-display font-medium">
-          {selectedMap.displayName}
-        </span>
-        {isSkirmishMap(selectedMap) && (
-          <span className="text-[10px] font-display uppercase tracking-wider text-text-muted ml-2">
-            Restricted pool
-          </span>
-        )}
-        {currentSelection && (
-          <span
-            className={`text-xs font-display ml-auto ${isNoneSelected ? "text-text-muted" : "text-accent-blue"}`}
-          >
-            {currentMapAgent?.displayName || currentSelection.displayName}
-          </span>
-        )}
-      </div>
-      {roleFilter !== "all" ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-1.5">
-          <NoneButton selected={isNoneSelected} onClick={onNoneClick} />
-          {selectableAgents.map((agent) => (
-            <AgentCard
-              key={agent.uuid}
-              agent={agent}
-              map={selectedMap}
-              selected={currentSelection?.uuid === agent.uuid}
-              onClick={() => onAgentClick(agent)}
-              owned={isOwned(agent)}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-1.5">
-            <NoneButton selected={isNoneSelected} onClick={onNoneClick} />
-          </div>
-          {ROLES.map((role) => {
-            const roleAgents = selectableAgents.filter((a) => a.role?.displayName === role);
-            if (!roleAgents.length) return null;
-            return (
-              <div key={role}>
-                <div className="flex items-center gap-2 mb-2">
-                  <img src={ROLE_ICONS[role]} alt="" className="w-3.5 h-3.5 opacity-60" />
-                  <span className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
-                    {role}s
-                  </span>
-                  <div className="flex-1 h-px bg-border/50" />
-                </div>
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-1.5">
-                  {roleAgents.map((agent) => (
-                    <AgentCard
-                      key={agent.uuid}
-                      agent={agent}
-                      map={selectedMap}
-                      selected={currentSelection?.uuid === agent.uuid}
-                      onClick={() => onAgentClick(agent)}
-                      owned={isOwned(agent)}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function AgentCard({ agent, map = null, selected, onClick, owned = true }) {
-  const abilityIcons = getAbilityIconsForAgent(agent, map);
-  return (
-    <div className="relative">
-      <button
-        onClick={onClick}
-        disabled={!owned}
-        className={`group flex flex-col items-center gap-1 p-1.5 rounded-lg border transition-all duration-150 w-full ${
-          !owned
-            ? "border-transparent opacity-40 cursor-not-allowed"
-            : selected
-              ? "bg-accent-blue/10 border-accent-blue/60"
-              : "border-transparent hover:bg-base-600/50"
-        }`}
-      >
-        <div
-          className={`relative w-14 h-14 rounded-md overflow-hidden bg-base-600 ${!owned ? "grayscale" : ""}`}
-        >
-          <img
-            src={agent.displayIcon}
-            alt={agent.displayName}
-            className="w-full h-full object-cover"
-            loading="lazy"
-          />
-          {!owned && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="text-white/70"
-              >
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                <path d="M7 11V7a5 5 0 0110 0v4" />
-              </svg>
-            </div>
-          )}
-        </div>
-        <span
-          className={`text-[11px] font-body leading-tight truncate max-w-[72px] ${
-            !owned
-              ? "text-text-muted"
-              : selected
-                ? "text-accent-blue font-medium"
-                : "text-text-secondary group-hover:text-text-primary"
-          }`}
-        >
-          {agent.displayName}
-        </span>
-        {abilityIcons.length > 0 && (
-          <div className="flex items-center justify-center gap-1 mt-0.5 flex-nowrap px-1 overflow-hidden">
-            {abilityIcons.map((ability) => (
-              <div key={ability.slot} className="w-3.5 h-3.5 shrink-0" title={ability.displayName}>
-                <img
-                  src={ability.displayIcon}
-                  alt={ability.displayName}
-                  className="w-full h-full object-contain"
-                  loading="lazy"
-                />
-              </div>
-            ))}
-          </div>
-        )}
-      </button>
-    </div>
-  );
-}
-
-function MapCard({ map, selectedAgent, isDefault, onClick }) {
-  const abilityIcons = getAbilityIconsForAgent(selectedAgent, map);
-  return (
-    <button
-      onClick={onClick}
-      className="group relative overflow-hidden rounded-lg border border-border hover:border-border-light transition-all duration-150 text-left min-h-16 w-full"
-    >
-      <div className="absolute inset-0 bg-base-600 overflow-hidden">
-        {map.listViewIcon && (
-          <img
-            src={map.listViewIcon}
-            alt=""
-            className="w-full h-full object-cover opacity-30 group-hover:opacity-40 transition-opacity duration-150"
-            loading="lazy"
-          />
-        )}
-      </div>
-      <div className="absolute inset-0 bg-base-900/50" />
-      <div className="relative h-full flex items-start gap-3 px-3 py-2">
-        {selectedAgent && selectedAgent.uuid !== "none" ? (
-          <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-base-600 mt-0.5">
-            <img
-              src={selectedAgent.displayIcon}
-              alt={selectedAgent.displayName}
-              className="w-full h-full object-cover"
-            />
-          </div>
-        ) : selectedAgent?.uuid === "none" ? (
-          <div className="w-9 h-9 rounded-lg shrink-0 bg-base-500/30 flex items-center justify-center mt-0.5">
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              className="text-text-muted/50"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <path d="M4.93 4.93l14.14 14.14" />
-            </svg>
-          </div>
-        ) : (
-          <div className="w-9 h-9 rounded-lg shrink-0 bg-base-500/30 flex items-center justify-center text-text-muted/20 mt-0.5">
-            {AGENT_SILHOUETTE}
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 min-w-0">
-            <p className="text-sm font-display font-semibold text-text-primary leading-tight truncate">
-              {map.displayName}
-            </p>
-            {selectedAgent && selectedAgent.uuid !== "none" && abilityIcons.length > 0 && (
-              <div className="flex items-center gap-1 shrink-0">
-                {abilityIcons.map((ability) => (
-                  <img
-                    key={ability.slot}
-                    src={ability.displayIcon}
-                    alt={ability.displayName}
-                    title={ability.displayName}
-                    className="w-4 h-4 object-contain"
-                    loading="lazy"
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-          {selectedAgent ? (
-            <>
-              <p className="text-xs font-body text-text-muted leading-tight mt-0.5">
-                {selectedAgent.displayName}
-                {!isDefault && <span className="text-text-muted/50"> (override)</span>}
-                {isDefault && <span className="text-text-muted/50"> (default)</span>}
-              </p>
-            </>
-          ) : (
-            <p className="text-xs font-body text-text-muted/40 leading-tight mt-0.5 italic">
-              No agent
-            </p>
-          )}
-        </div>
-      </div>
-    </button>
   );
 }

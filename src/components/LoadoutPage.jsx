@@ -1,6 +1,15 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  ArrowLeft,
+  CheckBadge,
+  HeartToggle,
+  LoadoutTab,
+  RefreshCcw,
+  Spinner,
+  TypeMark,
+} from "../icons";
 
 const ITEM_TYPES = {
   SKIN_LEVEL: "3ad1b2b2-acdb-4524-852f-954a76ddae0a",
@@ -451,21 +460,7 @@ export default function LoadoutPage({ connected }) {
     return (
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="flex items-center gap-3 text-text-muted text-sm">
-          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-            />
-          </svg>
+          <Spinner size={16} className="" />
           Loading loadout...
         </div>
       </div>
@@ -582,17 +577,7 @@ export default function LoadoutPage({ connected }) {
           className="flex items-center gap-3 bg-base-700/60 hover:bg-base-600/80 border border-border/50 hover:border-border rounded-lg p-2.5 transition-all flex-1 min-w-0"
         >
           <div className="w-10 h-10 rounded bg-base-600/50 flex-shrink-0 flex items-center justify-center">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              className="text-text-muted"
-            >
-              <path d="M4 7V4h16v3M9 20h6M12 4v16" />
-            </svg>
+            <TypeMark className="text-text-muted" />
           </div>
           <div className="text-left min-w-0">
             <div className="text-[9px] font-display text-text-muted uppercase tracking-wider">
@@ -623,16 +608,7 @@ export default function LoadoutPage({ connected }) {
             onClick={closePicker}
             className="text-text-muted hover:text-text-primary transition-colors"
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
+            <ArrowLeft size={18} />
           </button>
           <div className="flex-1">
             <div className="text-sm font-display font-bold text-text-primary uppercase tracking-wide">
@@ -710,29 +686,12 @@ export default function LoadoutPage({ connected }) {
                     className="p-1.5 rounded hover:bg-base-500/40 transition-colors flex-shrink-0"
                     title={skinFav ? "Unfavorite" : "Favorite"}
                   >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill={skinFav ? "currentColor" : "none"}
-                      stroke="currentColor"
-                      strokeWidth="2"
+                    <HeartToggle
+                      filled={skinFav}
                       style={{ color: skinFav ? "rgb(var(--val-red))" : "rgb(var(--text-muted))" }}
-                    >
-                      <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
-                    </svg>
+                    />
                   </button>
-                  {isEquipped && (
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      className="text-val-red flex-shrink-0"
-                    >
-                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                    </svg>
-                  )}
+                  {isEquipped && <CheckBadge className="text-val-red flex-shrink-0" />}
                 </div>
                 {isEquipped && ownedChroms.length > 1 && (
                   <div className="px-3 pb-2.5 pt-0.5 flex gap-1.5 flex-wrap border-t border-border/30">
@@ -782,19 +741,14 @@ export default function LoadoutPage({ connected }) {
                             className="ml-0.5 p-0.5 rounded hover:bg-base-500/40 transition-colors"
                             title={lvlFav ? "Unfavorite this level" : "Favorite this level"}
                           >
-                            <svg
-                              width="9"
-                              height="9"
-                              viewBox="0 0 24 24"
-                              fill={lvlFav ? "currentColor" : "none"}
-                              stroke="currentColor"
+                            <HeartToggle
+                              size={9}
+                              filled={lvlFav}
                               strokeWidth="2.5"
                               style={{
                                 color: lvlFav ? "rgb(var(--val-red))" : "rgb(var(--text-muted))",
                               }}
-                            >
-                              <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
-                            </svg>
+                            />
                           </button>
                         </div>
                       );
@@ -822,16 +776,7 @@ export default function LoadoutPage({ connected }) {
             onClick={closePicker}
             className="text-text-muted hover:text-text-primary transition-colors"
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
+            <ArrowLeft size={18} />
           </button>
           <div>
             <div className="text-sm font-display font-bold text-text-primary uppercase tracking-wide">
@@ -942,18 +887,7 @@ export default function LoadoutPage({ connected }) {
     <div className="flex-1 flex flex-col min-h-0">
       <div className="px-4 py-2.5 border-b border-border flex items-center justify-between gap-3 flex-shrink-0">
         <div className="flex items-center gap-2">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            className="text-val-red"
-          >
-            <path d="M14.5 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V7.5L14.5 2z" />
-            <polyline points="14 2 14 8 20 8" />
-          </svg>
+          <LoadoutTab size={16} className="text-val-red" />
           <span className="text-sm font-display font-bold text-text-primary uppercase tracking-wide">
             Collection
           </span>
@@ -1005,17 +939,7 @@ export default function LoadoutPage({ connected }) {
             className="p-1 rounded text-text-muted hover:text-text-primary transition-colors"
             title="Refresh"
           >
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M1 4v6h6M23 20v-6h-6" />
-              <path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15" />
-            </svg>
+            <RefreshCcw size={13} />
           </button>
         </div>
       </div>

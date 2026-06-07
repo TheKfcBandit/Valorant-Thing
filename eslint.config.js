@@ -5,6 +5,11 @@ import globals from "globals";
 
 // Conservative ruleset. Picks: things that catch real bugs, not style fights.
 // Style is prettier's job; semantic issues are eslint's.
+//
+// Structural rules (max-lines, restricted-imports, restricted-syntax) were
+// added with the Leash & Purge plan — see CLAUDE.md. They start at `warn`
+// for rules that have existing violations (cleanup is staged, not big-bang)
+// and at `error` for rules that have zero violations now.
 export default [
   {
     ignores: ["dist/**", "node_modules/**", "src-tauri/**", "public/**"],
@@ -48,6 +53,64 @@ export default [
       "no-useless-escape": "warn",
       "no-prototype-builtins": "warn",
       "no-constant-binary-expression": "warn",
+
+      // Structural budget. Files past the ceiling are decomposed before
+      // gaining new features. Warn-level until the page decomposition
+      // sweep completes, then flip to error.
+      "max-lines": ["warn", { max: 500, skipBlankLines: true, skipComments: true }],
+      "max-lines-per-function": [
+        "warn",
+        { max: 200, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+      complexity: ["warn", { max: 20 }],
+    },
+  },
+
+  // Inline SVG ban: every <svg> literal belongs in src/icons/. Pages and
+  // primitives import named icon components.
+  // Dynamic data-viz SVGs (sparklines, generated paths) are legitimately
+  // out of scope — add an eslint-disable-next-line on the specific element
+  // and explain why in a trailing comment.
+  {
+    files: ["src/**/*.{js,jsx}"],
+    ignores: ["src/icons/**"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "JSXElement[openingElement.name.name='svg']",
+          message:
+            "Inline <svg> is not allowed outside src/icons/. Add the icon as a function component in src/icons/<Name>.jsx, re-export from src/icons/index.js, and import it here.",
+        },
+      ],
+    },
+  },
+
+  // Pages must not import other pages. App.jsx is the only place that
+  // imports pages; cross-page imports indicate a missing primitive in
+  // src/components/ui/ or a sub-component that should be lifted out.
+  //
+  // LivePage.jsx is exempt because it is a tab router, not a content
+  // page — it stitches MatchInfoPage and PartyPage under one sidebar
+  // slot with a pill switcher. When App.jsx absorbs page-routing
+  // responsibility in Phase 3, this router moves with it and the
+  // carve-out can come out.
+  {
+    files: ["src/components/*Page.jsx"],
+    ignores: ["src/components/LivePage.jsx"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["./*Page", "./*Page.jsx", "../components/*Page", "../components/*Page.jsx"],
+              message:
+                "Pages must not import other pages. Lift shared state to App.jsx, or extract a primitive into src/components/ui/ and import that from both pages.",
+            },
+          ],
+        },
+      ],
     },
   },
 ];

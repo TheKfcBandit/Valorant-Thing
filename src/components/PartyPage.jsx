@@ -5,73 +5,27 @@ import { computeFitness } from "../squadAnalytics";
 
 import { noAnim, T0 } from "../utils/animation";
 import { getMapLookup, getGameModeLookup } from "../valApiSkins";
-
-const QUEUES = [
-  { id: "unrated", label: "Unrated" },
-  { id: "competitive", label: "Competitive" },
-  { id: "swiftplay", label: "Swiftplay" },
-  { id: "deathmatch", label: "Deathmatch" },
-  { id: "hurm", label: "Team Deathmatch" },
-  { id: "ggteam", label: "Escalation" },
-  { id: "spikerush", label: "Spike Rush" },
-  { id: "skirmish2v2", label: "Skirmish: 2v2" },
-  { id: "skirmishascension1v1", label: "Skirmish: Ascension 1v1" },
-  { id: "skirmishascension2v2", label: "Skirmish: Ascension 2v2" },
-];
-
-const MODE_NAMES = {
-  BombGameMode: "Standard",
-  DeathmatchGameMode: "Deathmatch",
-  GunGameTeamsGameMode: "Escalation",
-  QuickBombGameMode: "Spike Rush",
-  OneForAll_GameMode: "Replication",
-  Swiftplay_EoRCredits_GameMode: "Swiftplay",
-  SwiftPlayGameMode: "Swiftplay",
-  HURM_GameMode: "Team Deathmatch",
-  SnowballGameMode: "Snowball Fight",
-  NewMapGameMode: "New Map",
-  skirmish2v2: "Skirmish: 2v2",
-  skirmishascension1v1: "Skirmish: Ascension 1v1",
-  skirmishascension2v2: "Skirmish: Ascension 2v2",
-};
-
-const normalizeModeKey = (mode) =>
-  String(mode || "")
-    .split("/")
-    .pop()
-    ?.split(".")[0]
-    ?.toLowerCase() || "";
+import { MODE_NAMES, normalizeModeKey } from "../utils/gameMode";
+import { PARTY_QUEUES as QUEUES } from "../utils/queues";
+import {
+  Check,
+  ChevronDown,
+  Crown as CrownIcon,
+  Globe,
+  Grid4,
+  InfoCircle,
+  Link,
+  LogIn,
+  Person,
+  Play,
+  Square,
+  UserPlus,
+  Users as UsersIcon,
+  WifiSlash,
+  X,
+} from "../icons";
 
 const POLL_INTERVAL = 3000;
-
-const UsersIcon = ({ size = 16, className = "" }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    className={className}
-  >
-    <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" />
-    <circle cx="9" cy="7" r="4" />
-    <path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
-  </svg>
-);
-
-const CrownIcon = ({ size = 14 }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    className="text-val-red shrink-0"
-  >
-    <path d="M2 4l3 12h14l3-12-5 4-5-4-5 4-5-4z" />
-    <rect x="4" y="18" width="16" height="2" rx="1" />
-  </svg>
-);
 
 export default function PartyPage({ connected, addLog, onRefresh }) {
   const [party, setParty] = useState(null);
@@ -357,25 +311,7 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
     return (
       <div className="flex-1 flex items-center justify-center p-5">
         <div className="text-center space-y-2">
-          <svg
-            width="32"
-            height="32"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-text-muted mx-auto"
-          >
-            <path d="M1 1l22 22" />
-            <path d="M16.72 11.06A10.94 10.94 0 0119 12.55" />
-            <path d="M5 12.55a10.94 10.94 0 015.17-2.39" />
-            <path d="M10.71 5.05A16 16 0 0122.56 9" />
-            <path d="M1.42 9a15.91 15.91 0 014.7-2.88" />
-            <path d="M8.53 16.11a6 6 0 016.95 0" />
-            <line x1="12" y1="20" x2="12.01" y2="20" />
-          </svg>
+          <WifiSlash />
           <p className="text-sm font-display text-text-muted">Waiting for Valorant</p>
           <p className="text-[11px] font-body text-text-muted/60">
             Open Valorant and it will connect automatically
@@ -419,18 +355,7 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
     return (
       <div className="flex-1 flex items-center justify-center p-5">
         <div className="text-center space-y-2">
-          <svg
-            width="32"
-            height="32"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            className="text-text-muted mx-auto"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 8v4M12 16h.01" />
-          </svg>
+          <InfoCircle className="text-text-muted mx-auto" />
           <p className="text-sm font-display text-text-muted">No party found</p>
           <p className="text-xs font-body text-text-muted/60">Make sure Valorant is open</p>
         </div>
@@ -504,51 +429,15 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
             disabled={changingQueue}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-base-700 border border-border text-xs font-body text-text-primary hover:bg-base-600 transition-colors w-full"
           >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className="text-text-muted shrink-0"
-            >
-              <rect x="3" y="3" width="7" height="7" />
-              <rect x="14" y="3" width="7" height="7" />
-              <rect x="3" y="14" width="7" height="7" />
-              <rect x="14" y="14" width="7" height="7" />
-            </svg>
+            <Grid4 className="text-text-muted shrink-0" />
             <span className="font-display font-medium">
               {changingQueue ? "..." : currentQueueLabel}
             </span>
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className="text-text-muted ml-auto shrink-0"
-            >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
+            <ChevronDown className="text-text-muted ml-auto shrink-0" />
           </button>
         ) : (
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-base-700/50 border border-border text-xs font-body text-text-muted">
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              className="shrink-0"
-            >
-              <rect x="3" y="3" width="7" height="7" />
-              <rect x="14" y="3" width="7" height="7" />
-              <rect x="3" y="14" width="7" height="7" />
-              <rect x="14" y="14" width="7" height="7" />
-            </svg>
+            <Grid4 strokeWidth="1.5" className="shrink-0" />
             <span>{currentQueueLabel}</span>
           </div>
         )}
@@ -617,30 +506,12 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
           >
             {party.state === "MATCHMAKING" ? (
               <>
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <rect x="6" y="6" width="12" height="12" rx="2" />
-                </svg>
+                <Square />
                 {queueing ? "..." : "Leave Queue"}
               </>
             ) : (
               <>
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <polygon points="5 3 19 12 5 21 5 3" />
-                </svg>
+                <Play />
                 {queueing ? "..." : isCustom ? "Start" : "Queue"}
               </>
             )}
@@ -650,52 +521,21 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
           onClick={openInviteModal}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
         >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <line x1="19" y1="8" x2="19" y2="14" />
-            <line x1="22" y1="11" x2="16" y2="11" />
-          </svg>
+          <UserPlus />
           Invite
         </button>
         <button
           onClick={() => setShowJoin(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
         >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3" />
-          </svg>
+          <LogIn />
           Join Code
         </button>
         <button
           onClick={handleGenerateCode}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
         >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
-            <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
-          </svg>
+          <Link />
           Get Code
         </button>
       </motion.div>
@@ -724,16 +564,7 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
             className="ml-auto w-5 h-5 rounded flex items-center justify-center text-text-muted hover:text-status-red hover:bg-status-red/10 transition-colors"
             title="Delete code"
           >
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
+            <X size={10} />
           </button>
         </div>
       )}
@@ -896,17 +727,9 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
                       )}
                       {getModeName(curMode)}
                     </span>
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
+                    <ChevronDown
                       className={`text-text-muted transition-transform shrink-0 relative ${showModePicker ? "rotate-180" : ""}`}
-                    >
-                      <path d="M6 9l6 6 6-6" />
-                    </svg>
+                    />
                   </button>
                   {showModePicker && (
                     <div className="absolute z-50 mt-1 left-0 right-0 bg-base-800 border border-border rounded-lg shadow-xl max-h-64 overflow-y-auto">
@@ -964,17 +787,9 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
                       />
                     )}
                     <span className="flex-1 text-left">{getMapName(party.custom_map)}</span>
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
+                    <ChevronDown
                       className={`text-text-muted transition-transform shrink-0 ${showMapPicker ? "rotate-180" : ""}`}
-                    >
-                      <path d="M6 9l6 6 6-6" />
-                    </svg>
+                    />
                   </button>
                   {showMapPicker && (
                     <div className="absolute z-50 mt-1 left-0 right-0 bg-base-800 border border-border rounded-lg shadow-xl max-h-64 overflow-y-auto">
@@ -1023,18 +838,7 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
                     disabled={savingCustom}
                     className="w-full flex items-center gap-2 px-2.5 py-1.5 bg-base-600 border border-border rounded-lg text-[11px] font-body text-text-primary hover:border-val-red/40 transition-colors disabled:opacity-50"
                   >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      className="text-text-muted shrink-0"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
-                    </svg>
+                    <Globe size={12} className="text-text-muted shrink-0" />
                     <span className="flex-1 text-left">
                       {(() => {
                         const pts = (party.custom_pod || "").toLowerCase().split(/[.-]/);
@@ -1042,17 +846,9 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
                         return c ? SERVER_NAMES[c] : party.custom_pod || "";
                       })()}
                     </span>
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
+                    <ChevronDown
                       className={`text-text-muted transition-transform shrink-0 ${showServerPicker ? "rotate-180" : ""}`}
-                    >
-                      <path d="M6 9l6 6 6-6" />
-                    </svg>
+                    />
                   </button>
                   {showServerPicker && (
                     <div className="absolute z-50 mt-1 left-0 right-0 bg-base-800 border border-border rounded-lg shadow-xl max-h-64 overflow-y-auto">
@@ -1069,18 +865,7 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
                             }}
                             className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 text-[11px] font-body hover:bg-base-600 transition-colors ${active ? "bg-base-600 text-text-primary" : "text-text-secondary"}`}
                           >
-                            <svg
-                              width="12"
-                              height="12"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.5"
-                              className="text-text-muted shrink-0"
-                            >
-                              <circle cx="12" cy="12" r="10" />
-                              <path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
-                            </svg>
+                            <Globe size={12} className="text-text-muted shrink-0" />
                             <span className="flex-1 text-left">
                               {city ? SERVER_NAMES[city] : p}
                             </span>
@@ -1128,18 +913,7 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
                           disabled={savingCustom}
                           className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors disabled:opacity-50 ${val ? "bg-val-red border-val-red" : "bg-base-600 border-border group-hover:border-text-muted"}`}
                         >
-                          {val && (
-                            <svg
-                              width="8"
-                              height="8"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="white"
-                              strokeWidth="3"
-                            >
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                          )}
+                          {val && <Check size={8} stroke="white" strokeWidth="3" />}
                         </button>
                         <span className="text-[11px] font-body text-text-primary select-none">
                           {label}
@@ -1191,18 +965,7 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center gap-2 mb-3">
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="text-status-red shrink-0"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 8v4M12 16h.01" />
-                </svg>
+                <InfoCircle size={18} strokeWidth="2" className="text-status-red shrink-0" />
                 <h3 className="text-sm font-display font-bold text-text-primary">Queue Error</h3>
               </div>
               <p className="text-xs font-body text-text-secondary mb-4">{queueError}</p>
@@ -1306,16 +1069,7 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
                     onClick={() => setShowInvite(false)}
                     className="w-5 h-5 rounded flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
                   >
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                    >
-                      <path d="M18 6L6 18M6 6l12 12" />
-                    </svg>
+                    <X size={10} strokeWidth="2.5" />
                   </button>
                 </div>
                 <input
@@ -1404,18 +1158,7 @@ function FriendInviteCard({
       className="flex items-center gap-2 mx-1 px-2.5 py-1.5 rounded-lg hover:bg-base-600/60 transition-colors group"
     >
       <div className="w-6 h-6 rounded-full bg-base-500/60 shrink-0 flex items-center justify-center">
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          className="text-text-muted/60"
-        >
-          <circle cx="12" cy="8" r="4" />
-          <path d="M5 20c0-3.87 3.13-7 7-7s7 3.13 7 7" />
-        </svg>
+        <Person size={12} className="text-text-muted/60" />
       </div>
       <p className="text-[11px] font-display font-medium text-text-primary truncate flex-1 min-w-0">
         {friend.game_name}
@@ -1461,18 +1204,7 @@ function MemberCard({ member, isLeader, isMe, onKick }) {
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              className="text-text-muted"
-            >
-              <circle cx="12" cy="8" r="4" />
-              <path d="M5 20c0-3.87 3.13-7 7-7s7 3.13 7 7" />
-            </svg>
+            <Person size={18} className="text-text-muted" />
           </div>
         )}
       </div>
@@ -1503,16 +1235,7 @@ function MemberCard({ member, isLeader, isMe, onKick }) {
           title="Kick"
           className="w-7 h-7 rounded-lg flex items-center justify-center text-text-muted hover:text-status-red hover:bg-status-red/10 transition-colors opacity-0 group-hover:opacity-100 shrink-0"
         >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
+          <X size={14} />
         </button>
       )}
     </div>

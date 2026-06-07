@@ -1131,9 +1131,7 @@ pub fn run() {
                         };
                         if valid {
                             oauth::mark_oauth_active(&state);
-                            riot::logging::log_info(
-                                "[OAuth-Boot] session restored from keychain",
-                            );
+                            riot::logging::log_info("[OAuth-Boot] session restored from keychain");
                         } else {
                             riot::logging::log_info(
                                 "[OAuth-Boot] stored token invalid; running refresh chain",
@@ -1151,10 +1149,8 @@ pub fn run() {
                     // >= 540s (pre-emptive — get ahead of the 600s expiry).
                     // Skip behaviour prevents a slow rung-2 from spawning
                     // catch-up ticks racing on the cookie data_dir (#9).
-                    let mut interval =
-                        tokio::time::interval(std::time::Duration::from_secs(60));
-                    interval
-                        .set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                    let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+                    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
                     interval.tick().await; // skip the immediate first tick
                     loop {
                         interval.tick().await;
@@ -1167,8 +1163,7 @@ pub fn run() {
                                         .token_fetched_at
                                         .map(|t| t.elapsed().as_secs())
                                         .unwrap_or(0);
-                                    let signalled =
-                                        s.oauth_state == riot::OAuthState::NeedsRefresh;
+                                    let signalled = s.oauth_state == riot::OAuthState::NeedsRefresh;
                                     (signalled || age >= 540, age)
                                 }
                             }
@@ -1181,11 +1176,9 @@ pub fn run() {
                             "[OAuth-Bg] refreshing (token age {}s)",
                             age
                         ));
-                        let _ = oauth::refresh_oauth_session(
-                            app_handle.clone(),
-                            Arc::clone(&state),
-                        )
-                        .await;
+                        let _ =
+                            oauth::refresh_oauth_session(app_handle.clone(), Arc::clone(&state))
+                                .await;
                     }
                 });
             }

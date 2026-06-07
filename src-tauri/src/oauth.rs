@@ -393,10 +393,7 @@ fn finalize_initial_signin(
 // We still call /userinfo as a tripwire: if the new access_token resolves
 // to a different puuid than the one in state, the cookie jar belongs to a
 // different account and we must abort rather than silently swap identity.
-fn finalize_refresh(
-    state: &Mutex<ConnectionState>,
-    access_token: &str,
-) -> Result<(), String> {
+fn finalize_refresh(state: &Mutex<ConnectionState>, access_token: &str) -> Result<(), String> {
     let prior_puuid = state
         .lock()
         .map_err(|e| e.to_string())?
@@ -786,10 +783,7 @@ async fn try_rung2_silent_webview(
     let tx_for_watcher = Arc::clone(&tx_slot);
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_secs(3)).await;
-        let still_pending = tx_for_watcher
-            .lock()
-            .map(|g| g.is_some())
-            .unwrap_or(false);
+        let still_pending = tx_for_watcher.lock().map(|g| g.is_some()).unwrap_or(false);
         if !still_pending {
             return;
         }

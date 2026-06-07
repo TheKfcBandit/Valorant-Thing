@@ -8,148 +8,21 @@ import { exportVtFile, readVtFile } from "../cloud";
 import { noAnim, T0 } from "../utils/animation";
 import { rgbToHex } from "../utils/color";
 import { Label } from "./ui/Label";
-const THEMES = [
-  {
-    id: "crimson-moon",
-    name: "Crimson Moon",
-    bg: "#1C1212",
-    accent: "#ED4245",
-    vars: {
-      "--base-900": "16 10 10",
-      "--base-800": "28 18 18",
-      "--base-700": "34 24 24",
-      "--base-600": "44 32 32",
-      "--base-500": "56 42 42",
-      "--base-400": "68 54 54",
-      "--border": "80 62 62",
-      "--border-light": "96 76 76",
-      "--val-red": "237 66 69",
-      "--val-red-dark": "200 50 55",
-      "--accent-blue": "237 66 69",
-      "--accent-blue-dark": "200 50 55",
-    },
-  },
-  {
-    id: "radianite",
-    name: "Radianite",
-    bg: "#061828",
-    accent: "#00E6B4",
-    vars: {
-      "--base-900": "4 12 16",
-      "--base-800": "8 20 28",
-      "--base-700": "12 28 36",
-      "--base-600": "18 38 48",
-      "--base-500": "26 50 62",
-      "--base-400": "36 64 78",
-      "--border": "44 76 90",
-      "--border-light": "56 92 108",
-      "--val-red": "0 230 180",
-      "--val-red-dark": "0 190 148",
-      "--accent-blue": "0 230 180",
-      "--accent-blue-dark": "0 190 148",
-    },
-  },
-  {
-    id: "midnight-blurple",
-    name: "Midnight Blurple",
-    bg: "#161624",
-    accent: "#5865F2",
-    vars: {
-      "--base-900": "12 12 22",
-      "--base-800": "22 22 36",
-      "--base-700": "28 28 44",
-      "--base-600": "36 36 56",
-      "--base-500": "46 46 68",
-      "--base-400": "58 58 82",
-      "--border": "66 66 94",
-      "--border-light": "80 80 112",
-      "--val-red": "88 101 242",
-      "--val-red-dark": "68 81 210",
-      "--accent-blue": "88 101 242",
-      "--accent-blue-dark": "68 81 210",
-    },
-  },
-  {
-    id: "chroma-glow",
-    name: "Chroma Glow",
-    bg: "#1C161C",
-    accent: "#FF73FA",
-    vars: {
-      "--base-900": "16 12 16",
-      "--base-800": "28 22 28",
-      "--base-700": "36 28 36",
-      "--base-600": "46 36 46",
-      "--base-500": "58 46 58",
-      "--base-400": "72 58 72",
-      "--border": "84 68 84",
-      "--border-light": "100 82 100",
-      "--val-red": "255 115 250",
-      "--val-red-dark": "220 90 215",
-      "--accent-blue": "255 115 250",
-      "--accent-blue-dark": "220 90 215",
-    },
-  },
-  {
-    id: "forest",
-    name: "Forest",
-    bg: "#121C16",
-    accent: "#43B581",
-    vars: {
-      "--base-900": "10 16 12",
-      "--base-800": "18 28 22",
-      "--base-700": "24 36 28",
-      "--base-600": "32 46 36",
-      "--base-500": "42 58 46",
-      "--base-400": "54 70 58",
-      "--border": "64 82 68",
-      "--border-light": "78 98 82",
-      "--val-red": "67 181 129",
-      "--val-red-dark": "52 150 105",
-      "--accent-blue": "67 181 129",
-      "--accent-blue-dark": "52 150 105",
-    },
-  },
-  {
-    id: "mars",
-    name: "Mars",
-    bg: "#200C06",
-    accent: "#F26522",
-    vars: {
-      "--base-900": "18 10 6",
-      "--base-800": "32 18 12",
-      "--base-700": "40 24 18",
-      "--base-600": "52 34 26",
-      "--base-500": "64 44 34",
-      "--base-400": "78 56 44",
-      "--border": "92 68 54",
-      "--border-light": "108 82 66",
-      "--val-red": "242 101 34",
-      "--val-red-dark": "210 82 24",
-      "--accent-blue": "242 101 34",
-      "--accent-blue-dark": "210 82 24",
-    },
-  },
-  {
-    id: "dusk",
-    name: "Dusk",
-    bg: "#282C32",
-    accent: "#99AAB5",
-    vars: {
-      "--base-900": "28 30 34",
-      "--base-800": "40 44 50",
-      "--base-700": "48 52 60",
-      "--base-600": "58 64 72",
-      "--base-500": "70 76 86",
-      "--base-400": "84 90 102",
-      "--border": "96 104 116",
-      "--border-light": "112 120 134",
-      "--val-red": "153 170 181",
-      "--val-red-dark": "128 142 152",
-      "--accent-blue": "153 170 181",
-      "--accent-blue-dark": "128 142 152",
-    },
-  },
-];
+import { THEMES } from "../themes";
+import {
+  ChevronDown,
+  Copy,
+  DownloadTray,
+  HeartFilled,
+  HelpCircle,
+  Layers,
+  OpenExternal,
+  Pencil,
+  Plus,
+  Share,
+  UploadTray,
+  X,
+} from "../icons";
 
 function Toggle({ enabled, onChange }) {
   return (
@@ -654,17 +527,7 @@ export default function SettingsPage({
         >
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-8 h-8 rounded-lg bg-accent-blue/15 border border-accent-blue/25 flex items-center justify-center shrink-0">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                className="text-accent-blue"
-              >
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
-              </svg>
+              <DownloadTray size={16} strokeWidth="1.5" className="text-accent-blue" />
             </div>
             <div className="min-w-0">
               <p className="text-xs font-display font-semibold text-text-primary">
@@ -759,16 +622,7 @@ export default function SettingsPage({
             className="inline-flex items-center gap-1 text-xs font-body text-val-red hover:text-val-red/80 transition-colors"
           >
             Get API key
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
-            </svg>
+            <OpenExternal />
           </button>
         </div>
       </motion.div>
@@ -878,19 +732,7 @@ export default function SettingsPage({
                     }`}
                   >
                     {opt.label}
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className="shrink-0 opacity-40 group-hover:opacity-70 transition-opacity"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
-                      <line x1="12" y1="17" x2="12.01" y2="17" />
-                    </svg>
+                    <HelpCircle className="shrink-0 opacity-40 group-hover:opacity-70 transition-opacity" />
                     <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 rounded-lg bg-base-800 border border-border text-[10px] text-text-secondary whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg">
                       {opt.tip}
                     </div>
@@ -910,17 +752,10 @@ export default function SettingsPage({
                       </option>
                     ))}
                   </select>
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
+                  <ChevronDown
+                    size={12}
                     className="absolute right-3 top-1/2 translate-y-px pointer-events-none text-text-muted"
-                  >
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
+                  />
                 </div>
               )}
             </div>
@@ -1099,17 +934,7 @@ export default function SettingsPage({
                 className="w-full h-8 rounded-md mb-1.5 flex items-center justify-center"
                 style={{ background: buildPreviewGradient(customTheme) }}
               >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="2"
-                  className="opacity-60"
-                >
-                  <path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
-                </svg>
+                <Pencil size={14} stroke="white" className="opacity-60" />
               </div>
               <p
                 className={`text-[11px] font-body leading-tight truncate ${
@@ -1153,16 +978,7 @@ export default function SettingsPage({
                         onClick={() => removeStop(i)}
                         className="w-6 h-6 rounded-md flex items-center justify-center text-text-muted hover:text-status-red hover:bg-status-red/10 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
                       >
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <path d="M18 6L6 18M6 6l12 12" />
-                        </svg>
+                        <X size={12} />
                       </button>
                     )}
                   </div>
@@ -1171,16 +987,7 @@ export default function SettingsPage({
                   onClick={addStop}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-body text-val-red hover:bg-val-red/10 transition-colors"
                 >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
+                  <Plus />
                   Add Color Stop
                 </button>
               </div>
@@ -1221,28 +1028,12 @@ export default function SettingsPage({
                     onClick={() => setPresetOpen(!presetOpen)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
                   >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                    </svg>
+                    <Layers />
                     Load Preset
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
+                    <ChevronDown
                       strokeWidth="2.5"
                       className={`transition-transform ${presetOpen ? "rotate-180" : ""}`}
-                    >
-                      <path d="M6 9l6 6 6-6" />
-                    </svg>
+                    />
                   </button>
                   {presetOpen && (
                     <div className="absolute bottom-full left-0 mb-1 w-44 py-1 rounded-lg bg-base-600 border border-border shadow-xl z-10">
@@ -1269,20 +1060,7 @@ export default function SettingsPage({
                   onClick={shareThemeCode}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
                 >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <circle cx="18" cy="5" r="3" />
-                    <circle cx="6" cy="12" r="3" />
-                    <circle cx="18" cy="19" r="3" />
-                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                  </svg>
+                  <Share />
                   Share Code
                 </button>
                 <button
@@ -1293,48 +1071,21 @@ export default function SettingsPage({
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
                 >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
-                  </svg>
+                  <UploadTray />
                   Import Code
                 </button>
                 <button
                   onClick={exportThemeFile}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
                 >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
-                  </svg>
+                  <DownloadTray />
                   Export .vt
                 </button>
                 <button
                   onClick={() => themeVtRef.current?.click()}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
                 >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
-                  </svg>
+                  <UploadTray />
                   Import .vt
                 </button>
                 <input
@@ -1377,20 +1128,7 @@ export default function SettingsPage({
               onClick={shareConfigCode}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
             >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="18" cy="5" r="3" />
-                <circle cx="6" cy="12" r="3" />
-                <circle cx="18" cy="19" r="3" />
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-              </svg>
+              <Share />
               Share Code
             </button>
             <button
@@ -1401,48 +1139,21 @@ export default function SettingsPage({
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
             >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
-              </svg>
+              <UploadTray />
               Import Code
             </button>
             <button
               onClick={exportConfigFile}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
             >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
-              </svg>
+              <DownloadTray />
               Export .vt
             </button>
             <button
               onClick={() => configVtRef.current?.click()}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
             >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
-              </svg>
+              <UploadTray />
               Import .vt
             </button>
             <input
@@ -1461,16 +1172,7 @@ export default function SettingsPage({
               onClick={shareWishlistCode}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
             >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
-              </svg>
+              <HeartFilled className="" />
               Share Wishlist
             </button>
           </div>
@@ -1506,21 +1208,7 @@ export default function SettingsPage({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="text-accent-blue shrink-0"
-              >
-                <circle cx="18" cy="5" r="3" />
-                <circle cx="6" cy="12" r="3" />
-                <circle cx="18" cy="19" r="3" />
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-              </svg>
+              <Share size={16} className="text-accent-blue shrink-0" />
               <p className="text-sm font-display font-semibold text-text-primary">Share Code</p>
             </div>
             {shareLoading && (
@@ -1539,17 +1227,7 @@ export default function SettingsPage({
                     }}
                     className="text-text-muted hover:text-text-primary transition-colors shrink-0"
                   >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <rect x="9" y="9" width="13" height="13" rx="2" />
-                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                    </svg>
+                    <Copy />
                   </button>
                 </div>
                 {shareModal.copied && (
@@ -1586,17 +1264,7 @@ export default function SettingsPage({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="text-accent-blue shrink-0"
-              >
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
-              </svg>
+              <UploadTray size={16} className="text-accent-blue shrink-0" />
               <p className="text-sm font-display font-semibold text-text-primary">Import Code</p>
             </div>
             <input

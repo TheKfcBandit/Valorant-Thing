@@ -2,25 +2,10 @@ import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { noAnim, T0 } from "../utils/animation";
 import { getMaps } from "../valApiSkins";
+import { DM_MAPS, EXCLUDED_MAPS, SKIRMISH_MAPS } from "../utils/maps";
+import { Crosshair, MapFold, Search, SkirmishSun } from "../icons";
 
-const EXCLUDED_MAPS = ["The Range", "Basic Training"];
-const DM_MAPS = new Set(["Kasbah", "Glitch", "Drift", "Piazza", "District"]);
-const SKIRMISH_MAPS = new Set(["Skirmish A", "Skirmish B", "Skirmish C"]);
 const CONFIG_KEY = "mapdodge-config";
-
-const SEARCH_ICON = (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-  >
-    <circle cx="11" cy="11" r="8" />
-    <path d="M21 21l-4.35-4.35" />
-  </svg>
-);
 
 function loadConfig() {
   try {
@@ -109,7 +94,7 @@ export default function MapDodgePage({ onActiveChange, onBlacklistChange, connec
       <div className="flex items-center gap-2 shrink-0">
         <div className="relative">
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted">
-            {SEARCH_ICON}
+            <Search />
           </span>
           <input
             type="text"
@@ -173,18 +158,7 @@ export default function MapDodgePage({ onActiveChange, onBlacklistChange, connec
               {standard.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 mb-2">
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      className="text-text-muted/60"
-                    >
-                      <path d="M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3V7z" />
-                      <path d="M9 4v13M15 7v13" />
-                    </svg>
+                    <MapFold size={14} className="text-text-muted/60" />
                     <span className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
                       Standard Maps
                     </span>
@@ -216,18 +190,7 @@ export default function MapDodgePage({ onActiveChange, onBlacklistChange, connec
               {skirmish.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 mb-2">
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      className="text-text-muted/60"
-                    >
-                      <path d="M12 2v20M2 12h20" />
-                      <circle cx="12" cy="12" r="4" />
-                    </svg>
+                    <Crosshair size={14} className="text-text-muted/60" />
                     <span className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
                       Skirmish Maps
                     </span>
@@ -259,18 +222,7 @@ export default function MapDodgePage({ onActiveChange, onBlacklistChange, connec
               {dm.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 mb-2">
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      className="text-text-muted/60"
-                    >
-                      <circle cx="12" cy="12" r="3" />
-                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                    </svg>
+                    <SkirmishSun size={14} className="text-text-muted/60" />
                     <span className="text-[10px] font-display font-bold text-text-muted uppercase tracking-wider">
                       Deathmatch Maps
                     </span>
