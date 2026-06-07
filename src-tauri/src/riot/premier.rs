@@ -1,7 +1,6 @@
 use std::sync::Mutex;
 
-use super::auth::get_glz_creds;
-use super::http::pd_get;
+use super::pd_session::pd_get_authed;
 use super::types::ConnectionState;
 
 // #23: Premier roster + division placement. The v2 player endpoint returns
@@ -31,9 +30,8 @@ pub fn get_premier_player(
     state: &Mutex<ConnectionState>,
     target_puuid: &str,
 ) -> Result<String, String> {
-    let (access_token, entitlements, _, _, shard, client_version) = get_glz_creds(state)?;
     let path = format!("/premier/v2/players/{}", target_puuid);
-    let raw = pd_get(&shard, &path, &access_token, &entitlements, &client_version)?;
+    let raw = pd_get_authed(state, &path)?;
     let json: serde_json::Value =
         serde_json::from_str(&raw).map_err(|e| format!("Parse Premier player: {}", e))?;
     let envelope = match extract_premier_team(&json) {
@@ -47,16 +45,14 @@ pub fn get_premier_division(
     state: &Mutex<ConnectionState>,
     division_id: &str,
 ) -> Result<String, String> {
-    let (access_token, entitlements, _, _, shard, client_version) = get_glz_creds(state)?;
     let path = format!("/premier/v1/divisions/{}", division_id);
-    pd_get(&shard, &path, &access_token, &entitlements, &client_version)
+    pd_get_authed(state, &path)
 }
 
 pub fn get_premier_conference(
     state: &Mutex<ConnectionState>,
     conference_id: &str,
 ) -> Result<String, String> {
-    let (access_token, entitlements, _, _, shard, client_version) = get_glz_creds(state)?;
     let path = format!("/premier/v1/conferences/{}", conference_id);
-    pd_get(&shard, &path, &access_token, &entitlements, &client_version)
+    pd_get_authed(state, &path)
 }

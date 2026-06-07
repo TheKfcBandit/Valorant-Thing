@@ -1,8 +1,9 @@
 use std::sync::Mutex;
 
 use super::auth::get_glz_creds;
-use super::http::{pd_batch_get, pd_get};
+use super::http::pd_batch_get;
 use super::logging::log_info;
+use super::pd_session::{pd_get_authed, pd_put_authed};
 use super::types::ConnectionState;
 
 fn extract_map_name(map_url: &str) -> String {
@@ -13,9 +14,8 @@ pub fn get_player_mmr(
     state: &Mutex<ConnectionState>,
     target_puuid: &str,
 ) -> Result<String, String> {
-    let (access_token, entitlements, _, _, shard, client_version) = get_glz_creds(state)?;
     let path = format!("/mmr/v1/players/{}", target_puuid);
-    let raw = pd_get(&shard, &path, &access_token, &entitlements, &client_version)?;
+    let raw = pd_get_authed(state, &path)?;
     let json: serde_json::Value =
         serde_json::from_str(&raw).map_err(|e| format!("Parse MMR: {}", e))?;
 
@@ -39,9 +39,8 @@ pub fn get_player_mmr(
 // here so future details views (round-by-round, headshot %, etc.) don't have
 // to re-fetch or re-shape.
 pub fn get_match_details(state: &Mutex<ConnectionState>, match_id: &str) -> Result<String, String> {
-    let (access_token, entitlements, _, _, shard, client_version) = get_glz_creds(state)?;
     let path = format!("/match-details/v1/matches/{}", match_id);
-    pd_get(&shard, &path, &access_token, &entitlements, &client_version)
+    pd_get_authed(state, &path)
 }
 
 // #24: per-match RR/tier history for the rolling line chart on HomePage.
@@ -54,12 +53,12 @@ pub fn get_rr_history(
     start: u64,
     end: u64,
 ) -> Result<String, String> {
-    let (access_token, entitlements, puuid, _, shard, client_version) = get_glz_creds(state)?;
+    let (_, _, puuid, _, _, _) = get_glz_creds(state)?;
     let path = format!(
         "/mmr/v1/players/{}/competitiveupdates?startIndex={}&endIndex={}&queue=competitive",
         puuid, start, end
     );
-    pd_get(&shard, &path, &access_token, &entitlements, &client_version)
+    pd_get_authed(state, &path)
 }
 
 pub fn get_match_page(
@@ -67,6 +66,10 @@ pub fn get_match_page(
     page: u64,
     page_size: u64,
 ) -> Result<String, String> {
+    // `get_glz_creds` is still needed below for `pd_batch_get` — the wrapper
+    // doesn't cover batch yet (#14 follow-up: `pd_batch_get` silently returns
+    // null for partial failures inside a batch, so a transparent 401-retry
+    // can't be implemented without changes to the Node batch script).
     let (access_token, entitlements, puuid, _region, shard, client_version) = get_glz_creds(state)?;
 
     let start = page * page_size;
@@ -75,13 +78,7 @@ pub fn get_match_page(
         "/match-history/v1/history/{}?startIndex={}&endIndex={}",
         puuid, start, end
     );
-    let history_raw = pd_get(
-        &shard,
-        &history_path,
-        &access_token,
-        &entitlements,
-        &client_version,
-    )?;
+    let history_raw = pd_get_authed(state, &history_path)?;
     let history: serde_json::Value =
         serde_json::from_str(&history_raw).map_err(|e| format!("parse history: {}", e))?;
     let total = history["Total"].as_u64().unwrap_or(0);
@@ -207,18 +204,11 @@ pub fn get_player_level_from_history(
     state: &Mutex<ConnectionState>,
     target_puuid: &str,
 ) -> Result<String, String> {
-    let (access_token, entitlements, _, _, shard, client_version) = get_glz_creds(state)?;
     let history_path = format!(
         "/match-history/v1/history/{}?startIndex=0&endIndex=5",
         target_puuid
     );
-    let history_raw = pd_get(
-        &shard,
-        &history_path,
-        &access_token,
-        &entitlements,
-        &client_version,
-    )?;
+    let history_raw = pd_get_authed(state, &history_path)?;
     let history: serde_json::Value =
         serde_json::from_str(&history_raw).map_err(|e| format!("parse history: {}", e))?;
 
@@ -229,13 +219,7 @@ pub fn get_player_level_from_history(
 
     let match_id = matches[0]["MatchID"].as_str().ok_or("No MatchID")?;
     let detail_path = format!("/match-details/v1/matches/{}", match_id);
-    let detail_raw = pd_get(
-        &shard,
-        &detail_path,
-        &access_token,
-        &entitlements,
-        &client_version,
-    )?;
+    let detail_raw = pd_get_authed(state, &detail_path)?;
     let detail: serde_json::Value =
         serde_json::from_str(&detail_raw).map_err(|e| format!("parse detail: {}", e))?;
 
@@ -262,16 +246,8 @@ pub fn resolve_player_names(
     state: &Mutex<ConnectionState>,
     puuids: Vec<String>,
 ) -> Result<String, String> {
-    let (access_token, entitlements, _, _, shard, client_version) = get_glz_creds(state)?;
     let body = serde_json::json!(puuids).to_string();
-    let raw = super::http::pd_put(
-        &shard,
-        "/name-service/v2/players",
-        &body,
-        &access_token,
-        &entitlements,
-        &client_version,
-    )?;
+    let raw = pd_put_authed(state, "/name-service/v2/players", &body)?;
     let names: Vec<serde_json::Value> =
         serde_json::from_str(&raw).map_err(|e| format!("Parse names: {}", e))?;
     let mut result = Vec::new();

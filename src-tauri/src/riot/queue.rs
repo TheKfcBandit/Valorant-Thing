@@ -1,8 +1,9 @@
 use std::sync::Mutex;
 
 use super::auth::get_glz_creds;
-use super::http::{glz_get, glz_post, glz_post_body, pd_get};
+use super::http::{glz_get, glz_post, glz_post_body};
 use super::logging::log_info;
+use super::pd_session::pd_get_authed;
 use super::types::ConnectionState;
 
 pub fn change_queue(state: &Mutex<ConnectionState>, queue_id: &str) -> Result<String, String> {
@@ -95,7 +96,5 @@ pub fn leave_queue(state: &Mutex<ConnectionState>) -> Result<String, String> {
 }
 
 pub fn get_penalties(state: &Mutex<ConnectionState>) -> Result<String, String> {
-    let (access_token, entitlements, _, _, shard, client_version) = get_glz_creds(state)?;
-    let path = "/restrictions/v3/penalties";
-    pd_get(&shard, path, &access_token, &entitlements, &client_version)
+    pd_get_authed(state, "/restrictions/v3/penalties")
 }

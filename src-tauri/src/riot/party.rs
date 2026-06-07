@@ -1,8 +1,9 @@
 use std::sync::Mutex;
 
 use super::auth::{get_glz_creds, get_local_creds};
-use super::http::{glz_delete, glz_get, glz_post, glz_post_body, local_get, pd_put};
+use super::http::{glz_delete, glz_get, glz_post, glz_post_body, local_get};
 use super::logging::log_info;
+use super::pd_session::pd_put_authed;
 use super::types::ConnectionState;
 
 pub fn get_party(state: &Mutex<ConnectionState>) -> Result<String, String> {
@@ -46,14 +47,7 @@ pub fn get_party(state: &Mutex<ConnectionState>) -> Result<String, String> {
     let mut name_map: std::collections::HashMap<String, (String, String)> =
         std::collections::HashMap::new();
 
-    if let Ok(names_raw) = pd_put(
-        &shard,
-        "/name-service/v2/players",
-        &puuids_json,
-        &access_token,
-        &entitlements,
-        &client_version,
-    ) {
+    if let Ok(names_raw) = pd_put_authed(state, "/name-service/v2/players", &puuids_json) {
         if let Ok(names) = serde_json::from_str::<Vec<serde_json::Value>>(&names_raw) {
             for n in &names {
                 if let (Some(subject), Some(game_name), Some(tag)) = (

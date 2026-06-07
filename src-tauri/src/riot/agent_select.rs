@@ -1,8 +1,9 @@
 use std::sync::Mutex;
 
 use super::auth::get_glz_creds;
-use super::http::{glz_get, glz_post, pd_get};
+use super::http::{glz_get, glz_post};
 use super::logging::log_info;
+use super::pd_session::pd_get_authed;
 use super::types::ConnectionState;
 
 pub fn check_current_game(state: &Mutex<ConnectionState>) -> Result<String, String> {
@@ -161,12 +162,12 @@ pub fn coregame_quit(state: &Mutex<ConnectionState>, match_id: &str) -> Result<S
 }
 
 pub fn get_owned_agents(state: &Mutex<ConnectionState>) -> Result<Vec<String>, String> {
-    let (access_token, entitlements, puuid, _, shard, client_version) = get_glz_creds(state)?;
+    let (_, _, puuid, _, _, _) = get_glz_creds(state)?;
     let path = format!(
         "/store/v1/entitlements/{}/01bb38e1-da47-4e6a-9b3d-945fe4655707",
         puuid
     );
-    let raw = pd_get(&shard, &path, &access_token, &entitlements, &client_version)?;
+    let raw = pd_get_authed(state, &path)?;
     let json: serde_json::Value = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
     let items = json["Entitlements"]
         .as_array()
