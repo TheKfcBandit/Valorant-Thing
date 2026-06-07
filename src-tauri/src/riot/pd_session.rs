@@ -22,7 +22,7 @@ use super::auth::get_glz_creds;
 use super::connection::refresh_tokens;
 use super::logging::log_info;
 use super::pd_raw::{pd_get_raw, pd_post_raw, pd_put_raw};
-use super::types::{ConnectionState, OAuthState};
+use super::types::ConnectionState;
 
 /// Sentinel returned to the frontend when an OAuth-mode PD call hit 401/403
 /// and the background refresh loop has been signalled. Callers should treat
@@ -159,18 +159,14 @@ fn read_oauth_flag(state: &Mutex<ConnectionState>) -> bool {
 
 fn mark_needs_refresh(state: &Mutex<ConnectionState>) {
     if let Ok(mut s) = state.lock() {
-        // Idempotent — if the bg loop already flipped it, leaving it alone
-        // is fine. Don't downgrade NeedsReauth (rung-3 already failed and
-        // the user needs the banner).
-        if s.oauth_state != OAuthState::NeedsReauth {
-            s.oauth_state = OAuthState::NeedsRefresh;
-        }
+        s.signal_needs_refresh();
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::riot::types::OAuthState;
     use std::cell::Cell;
 
     fn seeded_state(connected: bool, oauth: bool) -> Mutex<ConnectionState> {

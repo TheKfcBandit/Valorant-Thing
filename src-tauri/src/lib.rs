@@ -1145,16 +1145,30 @@ pub fn run() {
                         }
                     }
 
-                    // Bg refresh loop. Two triggers: NeedsRefresh state set
-                    // by health_check on validate-fail (#2), or token age
-                    // >= 540s (pre-emptive — get ahead of the 600s expiry).
+                    // Bg refresh loop. Three triggers, in priority order:
+                    //   1. `oauth_refresh_notify` woken by `signal_needs_refresh`
+                    //      from either `health_check` or a PD wrapper (#14).
+                    //      This is the fast path — a user click that lands on
+                    //      a 401 wakes the loop in <1s instead of waiting up
+                    //      to 60s for the next tick.
+                    //   2. NeedsRefresh state already set when the loop wakes
+                    //      (e.g., a prior signal we hadn't acted on yet).
+                    //   3. Token age >= 540s (pre-emptive — get ahead of the
+                    //      600s expiry even when nothing has signalled).
                     // Skip behaviour prevents a slow rung-2 from spawning
-                    // catch-up ticks racing on the cookie data_dir (#9).
+                    // catch-up ticks racing on the cookie data_dir.
+                    let notify = match state.lock() {
+                        Ok(s) => Arc::clone(&s.oauth_refresh_notify),
+                        Err(_) => return,
+                    };
                     let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
                     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
                     interval.tick().await; // skip the immediate first tick
                     loop {
-                        interval.tick().await;
+                        tokio::select! {
+                            _ = interval.tick() => {}
+                            _ = notify.notified() => {}
+                        }
                         let (should_act, age) = match state.lock() {
                             Ok(s) => {
                                 if !s.oauth_session {

@@ -218,7 +218,7 @@ pub fn health_check(state: &Mutex<ConnectionState>) -> Option<PlayerInfo> {
             // the refresh resolves either way.
             if oauth_session {
                 if let Ok(mut s) = state.lock() {
-                    s.oauth_state = crate::riot::types::OAuthState::NeedsRefresh;
+                    s.signal_needs_refresh();
                 }
                 log_error("[Health] OAuth token invalid; signalled background refresh task");
                 return None;
