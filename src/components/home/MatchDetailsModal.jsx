@@ -10,6 +10,7 @@ import { getCached, setCache } from "../../matchCache";
 import { X } from "../../icons";
 import { MatchScoreboardColumn } from "./MatchScoreboardColumn";
 import { MatchRoundsStrip } from "./MatchRoundsStrip";
+import { MatchRoundDetailPanel } from "./MatchRoundDetailPanel";
 
 // Drill-down for one match row clicked on Home. Moved from HomePage.jsx in
 // commit (#36 pure-move). Renders the scoreboard, per-round W/L strip, and
@@ -19,6 +20,11 @@ import { MatchRoundsStrip } from "./MatchRoundsStrip";
 export function MatchDetailsModal({ match, maps, selfPuuid, selfName, selfTag, onClose }) {
   const [details, setDetails] = useState(null);
   const [error, setError] = useState(null);
+  // #36: which round (if any) is currently expanded into the detail panel.
+  // Single-select — clicking the active round collapses; clicking another
+  // round swaps. Lives at the modal level (not inside RoundsStrip) so it
+  // can be reset alongside other modal-level cleanup.
+  const [expandedRound, setExpandedRound] = useState(null);
 
   useAsyncEffect(
     async (isCancelled) => {
@@ -198,12 +204,24 @@ export function MatchDetailsModal({ match, maps, selfPuuid, selfName, selfTag, o
             </div>
           )}
           {details && hasTeams && selfTeam && roundResults.length > 0 && (
-            <MatchRoundsStrip
-              rounds={roundResults}
-              selfTeam={selfTeam}
-              players={players}
-              queueId={match.queueId}
-            />
+            <>
+              <MatchRoundsStrip
+                rounds={roundResults}
+                selfTeam={selfTeam}
+                players={players}
+                queueId={match.queueId}
+                expandedRound={expandedRound}
+                onSelectRound={setExpandedRound}
+              />
+              {expandedRound != null && (
+                <MatchRoundDetailPanel
+                  round={roundResults.find((r) => r?.roundNum === expandedRound)}
+                  players={players}
+                  selfPuuid={selfPuuid}
+                  onClose={() => setExpandedRound(null)}
+                />
+              )}
+            </>
           )}
           {details && hasTeams && (
             <div className="grid grid-cols-2 gap-4">

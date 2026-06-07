@@ -5,6 +5,8 @@
 // computeScoreboardBadges below — they consume the full match-details
 // response and key results by player puuid.
 
+import { getRoundMultiKills } from "./utils/matchRounds";
+
 const ESCALATION_QUEUES = new Set(["ggteam", "dodgeball"]);
 const DEATHMATCH_QUEUES = new Set(["deathmatch"]);
 // Skirmish modes (2v2 / Ascension) are too short for the standard
@@ -160,6 +162,8 @@ export function computeScoreboardBadges(details) {
   }
 
   // Aggregate per-puuid stats from roundResults (Sharpshooter + Multi-Kill).
+  // The multi-kill per-round iteration lives in utils/matchRounds.js so the
+  // MatchRoundsStrip can mark the same rounds without duplicating the logic.
   const agg = new Map(); // puuid -> { hs, body, leg, maxKills }
   const rounds = Array.isArray(details.roundResults) ? details.roundResults : [];
   for (const r of rounds) {
@@ -174,8 +178,11 @@ export function computeScoreboardBadges(details) {
         entry.body += Number(d.bodyshots) || 0;
         entry.leg += Number(d.legshots) || 0;
       }
-      const kCount = Array.isArray(stat.kills) ? stat.kills.length : 0;
-      if (kCount > entry.maxKills) entry.maxKills = kCount;
+      agg.set(puuid, entry);
+    }
+    for (const { puuid, killCount } of getRoundMultiKills(r)) {
+      const entry = agg.get(puuid) || { hs: 0, body: 0, leg: 0, maxKills: 0 };
+      if (killCount > entry.maxKills) entry.maxKills = killCount;
       agg.set(puuid, entry);
     }
   }
