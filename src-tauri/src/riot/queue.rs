@@ -96,5 +96,17 @@ pub fn leave_queue(state: &Mutex<ConnectionState>) -> Result<String, String> {
 }
 
 pub fn get_penalties(state: &Mutex<ConnectionState>) -> Result<String, String> {
-    pd_get_authed(state, "/restrictions/v3/penalties")
+    let raw = pd_get_authed(state, "/restrictions/v3/penalties")?;
+    // #38 iteration hook: capture real payloads of accounts that have
+    // active penalties so we can confirm which fields Riot is actually
+    // returning vs. the public schema. Quiet for the common case (no
+    // penalties), so log volume is bounded.
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw) {
+        if let Some(arr) = v.get("Penalties").and_then(|p| p.as_array()) {
+            if !arr.is_empty() {
+                log_info(&format!("[Penalties] non-empty payload: {}", raw));
+            }
+        }
+    }
+    Ok(raw)
 }

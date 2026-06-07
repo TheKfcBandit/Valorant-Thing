@@ -6,7 +6,8 @@ import { noAnim, T0 } from "../utils/animation";
 import { MODE_NAMES } from "../utils/gameMode";
 import { rankIcon, rankName } from "../utils/rank";
 import { ROUND_GLYPH, getRoundOutcome, formatRoundTooltip } from "../utils/roundResult";
-import { normalizeRrEntry } from "../riotShapes";
+import { normalizePenaltiesResponse, normalizeRrEntry } from "../riotShapes";
+import { formatTimeRemaining, getPenaltyLabel } from "../utils/penalties";
 import { useAsyncEffect } from "../hooks/useAsyncEffect";
 import { formatError } from "../utils/authError";
 import { Label } from "./ui/Label";
@@ -237,8 +238,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
     if (!connected) return;
     try {
       const raw = await invoke("get_penalties");
-      const json = JSON.parse(raw);
-      const list = Array.isArray(json?.Penalties) ? json.Penalties : [];
+      const { penalties: list } = normalizePenaltiesResponse(JSON.parse(raw));
       setPenalties(list);
     } catch (e) {
       // Endpoint may 404 on accounts with no record; treat as empty but log so
@@ -529,26 +529,25 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
             </div>
             <div className="space-y-1">
               {penalties.map((p, idx) => {
-                const expiresMs = p.Expiry ? new Date(p.Expiry).getTime() : null;
-                const remaining = expiresMs ? expiresMs - Date.now() : null;
-                let remainingText = "";
-                if (remaining != null && remaining > 0) {
-                  const mins = Math.floor(remaining / 60000);
-                  if (mins >= 60 * 24) remainingText = `${Math.floor(mins / (60 * 24))}d`;
-                  else if (mins >= 60) remainingText = `${Math.floor(mins / 60)}h`;
-                  else remainingText = `${mins}m`;
-                } else if (remaining != null) {
-                  remainingText = "expiring";
-                }
-                const type = String(p.Type || "RESTRICTION").replace(/_/g, " ");
+                const remainingText = formatTimeRemaining(p.expiryMs);
+                const label = getPenaltyLabel(p.type);
+                const queueLabel = p.queueId ? MODE_NAMES[p.queueId] || p.queueId : "";
+                const meta = [queueLabel, p.rrPenalty > 0 ? `${p.rrPenalty} RR` : null].filter(
+                  Boolean
+                );
                 return (
                   <div
-                    key={idx}
-                    className="flex items-center justify-between text-[11px] font-body"
+                    key={p.id || idx}
+                    className="flex items-center justify-between gap-2 text-[11px] font-body"
                   >
-                    <span className="text-text-primary">{type}</span>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-text-primary">{label}</span>
+                      {meta.length > 0 && (
+                        <span className="text-text-muted"> · {meta.join(" · ")}</span>
+                      )}
+                    </div>
                     {remainingText && (
-                      <span className="text-yellow-400 tabular-nums">{remainingText}</span>
+                      <span className="text-yellow-400 tabular-nums shrink-0">{remainingText}</span>
                     )}
                   </div>
                 );

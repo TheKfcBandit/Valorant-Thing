@@ -32,7 +32,7 @@
 //   /store/v2/storefront/{puuid}                 PascalCase
 //     FeaturedBundle, SkinsPanelLayout, BonusStore
 //   /restrictions/v3/penalties                   PascalCase
-//     Penalties[].Type, Expiry
+//     Penalties[].Type, Expiry, QueueID, RankedRatingPenalty, ID
 
 // ---------------------------------------------------------------------
 // /mmr/v1/players/{puuid}/competitiveupdates  (PascalCase)
@@ -75,6 +75,55 @@ export function normalizeRrEntry(raw) {
 export function normalizeRrResponse(raw) {
   const arr = Array.isArray(raw?.Matches) ? raw.Matches : [];
   return { matches: arr.map(normalizeRrEntry) };
+}
+
+// ---------------------------------------------------------------------
+// /restrictions/v3/penalties  (PascalCase)
+// ---------------------------------------------------------------------
+//
+// Fields the v3 endpoint emits per Riot's public schema, normalized for
+// the Account Status card on Home (#38). Treated defensively — Riot has
+// rotated the per-penalty payload more than once and minor patches have
+// added/removed fields without notice. Anything missing surfaces as a
+// safe default (empty string, 0, null) so the UI never crashes on an
+// unfamiliar shape.
+
+/**
+ * One entry from the `Penalties` array.
+ * @typedef {Object} Penalty
+ * @property {string} id           - opaque Riot ID, may be empty
+ * @property {string} type         - normalized uppercase token, e.g.
+ *                                   "RESTRICTION", "QUEUE_RESTRICTION",
+ *                                   "DODGE", "LEAVER", "CHAT_BANNED",
+ *                                   "VOICE_BANNED"
+ * @property {string} queueId      - lower-case queue id (e.g.
+ *                                   "competitive"), empty = applies to
+ *                                   all queues
+ * @property {number} rrPenalty    - RR cost of this penalty when known,
+ *                                   0 = none reported
+ * @property {?number} expiryMs    - epoch ms; null = never expires
+ *                                   reported / unparseable
+ */
+
+/** @param {any} raw  @returns {Penalty} */
+export function normalizePenalty(raw) {
+  return {
+    id: String(raw?.ID || raw?.id || ""),
+    type: String(raw?.Type || raw?.PenaltyType || "").toUpperCase(),
+    queueId: String(raw?.QueueID || raw?.queueId || "").toLowerCase(),
+    rrPenalty: Number(raw?.RankedRatingPenalty || raw?.rrPenalty || 0),
+    expiryMs: raw?.Expiry ? new Date(raw.Expiry).getTime() || null : null,
+  };
+}
+
+/**
+ * Top-level penalties response.
+ * @param {any} raw
+ * @returns {{ penalties: Penalty[] }}
+ */
+export function normalizePenaltiesResponse(raw) {
+  const arr = Array.isArray(raw?.Penalties) ? raw.Penalties : [];
+  return { penalties: arr.map(normalizePenalty) };
 }
 
 // ---------------------------------------------------------------------
