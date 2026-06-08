@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion, AnimatePresence } from "framer-motion";
 import { computeFitness } from "../squadAnalytics";
+import { aggregateMatches, computeTrackerScore, trackerScoreTier } from "../utils/trackerScore";
 
 import { noAnim, T0 } from "../utils/animation";
 import { getMapLookup, getGameModeLookup } from "../valApiSkins";
@@ -36,6 +37,10 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
   const [friends, setFriends] = useState([]);
   const [friendsLoading, setFriendsLoading] = useState(false);
   const [fitness, setFitness] = useState({});
+  // #11: per-friend TRN-style score from the match-details disk cache.
+  // Sparse — only friends who've appeared in matches the user has opened
+  // in details have a score. Empty entries fall through to a muted "—".
+  const [trackerScores, setTrackerScores] = useState({});
   const [invitingPuuid, setInvitingPuuid] = useState(null);
   const [invitedPuuids, setInvitedPuuids] = useState(new Set());
   const [friendSearch, setFriendSearch] = useState("");
@@ -167,14 +172,28 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
         );
       });
       // Compute fitness from local match cache.
+      const puuids = (data || []).map((f) => f.puuid).filter(Boolean);
       try {
         const history = await invoke("match_history_list", { limit: 200 });
         const matches = history?.matches || [];
-        const puuids = (data || []).map((f) => f.puuid).filter(Boolean);
         setFitness(computeFitness(matches, puuids));
       } catch {
         // Cache may not have any entries yet — that's fine.
         setFitness({});
+      }
+      // #11: friend tracker scores from the match-details cache. Best
+      // effort: if the cache is empty (user hasn't opened any matches in
+      // details yet) we just won't have scores, which the card handles.
+      try {
+        const raw = await invoke("get_player_match_summaries", { puuids });
+        const byPuuid = JSON.parse(raw);
+        const scores = {};
+        for (const [puuid, list] of Object.entries(byPuuid || {})) {
+          scores[puuid.toLowerCase()] = computeTrackerScore(aggregateMatches(list));
+        }
+        setTrackerScores(scores);
+      } catch {
+        setTrackerScores({});
       }
     } catch (e) {
       addLog?.("error", `[Party] Failed to fetch friends: ${e}`);
@@ -1116,6 +1135,7 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
                         key={friend.puuid}
                         friend={friend}
                         fitness={fitness[(friend.puuid || "").toLowerCase()]}
+                        tracker={trackerScores[(friend.puuid || "").toLowerCase()]}
                         onInvite={() => handleInvite(friend)}
                         inviting={invitingPuuid === friend.puuid}
                         invited={invitedPuuids.has(friend.puuid)}
@@ -1135,6 +1155,7 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
 function FriendInviteCard({
   friend,
   fitness,
+  tracker,
   onInvite,
   inviting,
   invited,
@@ -1150,6 +1171,18 @@ function FriendInviteCard({
       : fitness.fitness <= 40
         ? "text-red-400"
         : "text-text-muted";
+  // #11: solo TRN score next to the co-play fitness number. Same color
+  // bands; null score means we don't have enough cached matches with
+  // this friend in them yet.
+  const trackerTier = trackerScoreTier(tracker?.score);
+  const trackerColor =
+    trackerTier === "high"
+      ? "text-green-400"
+      : trackerTier === "low"
+        ? "text-red-400"
+        : trackerTier === "mid"
+          ? "text-text-muted"
+          : "text-text-muted/40";
   return (
     <motion.div
       initial={{ opacity: 0, x: -4 }}
@@ -1164,6 +1197,14 @@ function FriendInviteCard({
         {friend.game_name}
         <span className="text-text-muted font-body font-normal ml-0.5">#{friend.game_tag}</span>
       </p>
+      {tracker?.score != null && (
+        <span
+          className={`shrink-0 text-[9px] font-mono ${trackerColor}`}
+          title={`Tracker: ${tracker.score}/100 · ${tracker.breakdown.kd} K/D · ${tracker.breakdown.winrate}% WR · ${tracker.games}g${tracker.confidence < 1 ? " (low confidence)" : ""}`}
+        >
+          {tracker.score}
+        </span>
+      )}
       {showFitness && (
         <span
           className={`shrink-0 text-[9px] font-mono ${fitColor}`}

@@ -7,6 +7,7 @@ import { MODE_NAMES } from "../utils/gameMode";
 import { rankIcon, rankName } from "../utils/rank";
 import { normalizePenaltiesResponse, normalizeRrEntry } from "../riotShapes";
 import { formatTimeRemaining, getPenaltyLabel } from "../utils/penalties";
+import { computeTrackerScore, trackerScoreTier } from "../utils/trackerScore";
 import { useAsyncEffect } from "../hooks/useAsyncEffect";
 import { formatError } from "../utils/authError";
 import { Label } from "./ui/Label";
@@ -44,6 +45,11 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
   const [queueFilter, setQueueFilter] = useState("all");
   const [availableQueues, setAvailableQueues] = useState([]);
   const [aggregate, setAggregate] = useState(null);
+  // #11: competitive-only aggregate piped into the Tracker Score card.
+  // Kept separate from the queue-filtered `aggregate` above so the card
+  // stays consistent with Current Rank / Peak Rank (also competitive-only)
+  // regardless of which queue the user is filtering match history by.
+  const [compAggregate, setCompAggregate] = useState(null);
   const [penalties, setPenalties] = useState([]);
   const [spend, setSpend] = useState(null);
   const [rrHistory, setRrHistory] = useState(null);
@@ -219,6 +225,15 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
       .catch((e) => console.warn("[History] aggregate failed:", e));
   }, [queueFilter, matchLoading]);
 
+  // #11: separate competitive-only pull for the Tracker Score card so the
+  // score sits next to Current Rank as a stable solo-MMR indicator. Pulled
+  // off the same SQLite aggregate the panel below uses; same 500-row window.
+  useEffect(() => {
+    invoke("match_history_aggregate", { queueId: "competitive", limit: 500 })
+      .then(setCompAggregate)
+      .catch((e) => console.warn("[History] comp aggregate failed:", e));
+  }, [matchLoading]);
+
   // Same pattern as the match-history seed above — render the RR chart from
   // cache before login so reopening the app shows a trend immediately.
   useAsyncEffect(async (isCancelled) => {
@@ -311,6 +326,20 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
     }, 1000);
     return () => clearInterval(id);
   }, [connected, fetchStats, fetchMatches]);
+
+  // #11: TRN-style solo score. Built from the competitive-only aggregate;
+  // null score = not enough games yet (UI renders a dash + "play more" copy).
+  // Lives BEFORE the early-return below so the hook is called unconditionally.
+  const trackerScore = useMemo(() => {
+    const o = compAggregate?.overall;
+    if (!o) return null;
+    return computeTrackerScore({
+      games: o.games || 0,
+      wins: o.wins || 0,
+      totalKills: o.kills || 0,
+      totalDeaths: o.deaths || 0,
+    });
+  }, [compAggregate]);
 
   // Phase A of #18: when not connected but we have cached identity, render the
   // page anyway with a stale "Offline" badge. The Waiting splash only shows
@@ -460,16 +489,18 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
             </StatCard>
 
             <StatCard label="Win Rate" loading={loading}>
-              <p className="text-xl font-display font-bold text-text-primary">{winRate}%</p>
+              <p
+                className="text-xl font-display font-bold text-text-primary"
+                title={`${totalGames} total competitive games`}
+              >
+                {winRate}%
+              </p>
               <p className="text-xs font-body text-text-muted">
-                {wins}W / {losses}L
+                {wins}W / {losses}L · {totalGames}g
               </p>
             </StatCard>
 
-            <StatCard label="Total Games" loading={loading}>
-              <p className="text-xl font-display font-bold text-text-primary">{totalGames}</p>
-              <p className="text-xs font-body text-text-muted">Competitive</p>
-            </StatCard>
+            <TrackerScoreCard score={trackerScore} loading={loading} />
           </motion.div>
         )}
 
@@ -757,6 +788,47 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
         />
       )}
     </div>
+  );
+}
+
+// #11: TRN-style 0-100 score. Replaces the old Total Games card — that
+// number now lives in the Win Rate card's subtext, freeing a slot for a
+// more interesting at-a-glance metric. Color tier matches the fitness
+// score convention used in PartyPage's invite list.
+function TrackerScoreCard({ score, loading }) {
+  const tier = trackerScoreTier(score?.score);
+  const colorClass =
+    tier === "high"
+      ? "text-green-400"
+      : tier === "low"
+        ? "text-red-400"
+        : tier === "mid"
+          ? "text-text-primary"
+          : "text-text-muted/50";
+  const display = score?.score == null ? "—" : score.score;
+  const hint = score
+    ? score.score == null
+      ? `Need ${10 - score.games} more competitive game${10 - score.games === 1 ? "" : "s"}`
+      : `${score.breakdown.kd} K/D · ${score.breakdown.winrate}% WR · ${score.games}g${
+          score.confidence < 1 ? ` (low confidence)` : ""
+        }`
+    : "";
+  return (
+    <StatCard label="Tracker Score" loading={loading}>
+      <p className={`text-xl font-display font-bold tabular-nums ${colorClass}`} title={hint}>
+        {display}
+        {score?.score != null && (
+          <span className="text-xs text-text-muted font-body font-normal">/100</span>
+        )}
+      </p>
+      <p className="text-xs font-body text-text-muted">
+        {score?.score != null
+          ? `${score.breakdown.kd} K/D · ${score.breakdown.winrate}% WR`
+          : score?.games
+            ? `${score.games}g · keep going`
+            : "Competitive"}
+      </p>
+    </StatCard>
   );
 }
 

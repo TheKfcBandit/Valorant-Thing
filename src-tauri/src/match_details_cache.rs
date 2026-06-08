@@ -71,6 +71,89 @@ pub async fn get_death_locations(
     serde_json::to_string(&events).map_err(|e| e.to_string())
 }
 
+// #11: per-friend match summary extracted from the same cache. Same shape
+// as the SQLite match_history rows the self tracker score consumes, so
+// the frontend feeds both into the identical computeTrackerScore() path.
+#[derive(Serialize)]
+pub struct PlayerMatchSummary {
+    pub match_id: String,
+    pub date_ms: i64,
+    pub queue_id: String,
+    pub won: bool,
+    pub kills: i64,
+    pub deaths: i64,
+    pub assists: i64,
+}
+
+#[tauri::command]
+pub async fn get_player_match_summaries(
+    app: AppHandle,
+    cache: tauri::State<'_, MatchDetailsCache>,
+    puuids: Vec<String>,
+) -> Result<String, String> {
+    let want: std::collections::HashSet<String> =
+        puuids.iter().map(|p| p.to_lowercase()).collect();
+    let by_puuid = cache.read(&app, |map| extract_summaries(map, &want))?;
+    serde_json::to_string(&by_puuid).map_err(|e| e.to_string())
+}
+
+fn extract_summaries(
+    map: &HashMap<String, Value>,
+    want: &std::collections::HashSet<String>,
+) -> HashMap<String, Vec<PlayerMatchSummary>> {
+    let mut out: HashMap<String, Vec<PlayerMatchSummary>> = HashMap::new();
+    if want.is_empty() {
+        return out;
+    }
+    for (match_id, detail) in map {
+        let info = &detail["matchInfo"];
+        let queue_id = info["queueID"]
+            .as_str()
+            .or_else(|| info["queueId"].as_str())
+            .unwrap_or("")
+            .to_string();
+        let date_ms = info["gameStartMillis"].as_i64().unwrap_or(0);
+
+        // Build team_id -> won lookup once per match.
+        let mut won_by_team: HashMap<String, bool> = HashMap::new();
+        if let Some(teams) = detail["teams"].as_array() {
+            for t in teams {
+                if let Some(team_id) = t["teamId"].as_str() {
+                    won_by_team
+                        .insert(team_id.to_lowercase(), t["won"].as_bool().unwrap_or(false));
+                }
+            }
+        }
+
+        let players = match detail["players"].as_array() {
+            Some(p) => p,
+            None => continue,
+        };
+        for p in players {
+            let subject = match p["subject"].as_str() {
+                Some(s) => s.to_lowercase(),
+                None => continue,
+            };
+            if !want.contains(&subject) {
+                continue;
+            }
+            let team = p["teamId"].as_str().unwrap_or("").to_lowercase();
+            let stats = &p["stats"];
+            let summary = PlayerMatchSummary {
+                match_id: match_id.clone(),
+                date_ms,
+                queue_id: queue_id.clone(),
+                won: *won_by_team.get(&team).unwrap_or(&false),
+                kills: stats["kills"].as_i64().unwrap_or(0),
+                deaths: stats["deaths"].as_i64().unwrap_or(0),
+                assists: stats["assists"].as_i64().unwrap_or(0),
+            };
+            out.entry(subject).or_default().push(summary);
+        }
+    }
+    out
+}
+
 // Iterate every cached match and pull out the rounds where the target
 // player died. The cache only contains matches that the user has opened
 // (the match-details modal populates it on demand) — for v1 we accept the
