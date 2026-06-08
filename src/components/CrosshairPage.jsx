@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { noAnim, T0 } from "../utils/animation";
 import { encodeCrosshairCode, parseCrosshairCode } from "../utils/crosshair";
@@ -11,6 +11,14 @@ import { Crosshair, Check, X } from "../icons";
 // localStorage, copy a preset's code back to clipboard for in-game
 // import. Pushing a crosshair into the live game is deferred (couples
 // with the player-settings import/export issue).
+//
+// Storage choice: localStorage matches the existing per-page preference
+// pattern (favorite_skins, instalock-config, mapdodge-config, wishlist_skins,
+// etc.). CLAUDE.md's value_cache::Cache<T> rule is for Rust-side disk
+// state — crosshair presets are pure frontend state with no backend
+// consumer. If a future feature needs Rust to read the preset list
+// (e.g. pushing a crosshair into the live game), that's the moment to
+// migrate, not now.
 
 const PRESETS_KEY = "crosshair_presets";
 const VERSION_KEY = "crosshair_presets_version";
@@ -43,8 +51,17 @@ export default function CrosshairPage() {
   const [name, setName] = useState("");
   const [presets, setPresets] = useState(() => loadPresets());
   const [copiedId, setCopiedId] = useState(null);
+  // Skip the first persist after mount: if `loadPresets()` swallowed a
+  // JSON.parse error and returned [], a mounting save would overwrite the
+  // corrupt-but-recoverable bytes with []. Only persist on actual user
+  // changes.
+  const firstPersist = useRef(true);
 
   useEffect(() => {
+    if (firstPersist.current) {
+      firstPersist.current = false;
+      return;
+    }
     savePresets(presets);
   }, [presets]);
 

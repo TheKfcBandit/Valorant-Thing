@@ -228,7 +228,11 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
   // #11: separate competitive-only pull for the Tracker Score card so the
   // score sits next to Current Rank as a stable solo-MMR indicator. Pulled
   // off the same SQLite aggregate the panel below uses; same 500-row window.
+  // Gated on matchLoading === false so the boolean flipping true→false each
+  // refresh fires the aggregate query exactly once per cycle (after the
+  // SQLite write has actually landed), not twice.
   useEffect(() => {
+    if (matchLoading) return;
     invoke("match_history_aggregate", { queueId: "competitive", limit: 500 })
       .then(setCompAggregate)
       .catch((e) => console.warn("[History] comp aggregate failed:", e));

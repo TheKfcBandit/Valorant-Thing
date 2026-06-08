@@ -29,6 +29,17 @@ export const ALL_QUEUES = [
   { id: "custom", label: "Custom Game" },
 ];
 
+// Queues that count as "ranked-equivalent" for analytics (tracker score,
+// squad fitness). Competitive is obvious; unrated / swiftplay / premier are
+// included because they're the standard team-vs-team queues most players
+// log meaningful time in. DM / escalation / 2v2 stretch the K/D and WR
+// signal in ways the formulas don't compensate for, so they're excluded.
+export const RANKED_QUEUES = new Set(["competitive", "unrated", "swiftplay", "premier"]);
+
+export function isRanked(queueId) {
+  return RANKED_QUEUES.has(String(queueId || "").toLowerCase());
+}
+
 export const PARTY_QUEUES = [
   { id: "unrated", label: "Unrated" },
   { id: "competitive", label: "Competitive" },

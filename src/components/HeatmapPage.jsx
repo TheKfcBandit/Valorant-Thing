@@ -62,9 +62,9 @@ export default function HeatmapPage({ player }) {
   const mapOptions = useMemo(() => {
     const byKey = new Map();
     for (const e of events) {
-      const key = (e.map_id || "").toLowerCase();
+      const key = (e.mapId || "").toLowerCase();
       if (!key) continue;
-      const cur = byKey.get(key) || { mapId: e.map_id, count: 0 };
+      const cur = byKey.get(key) || { mapId: e.mapId, count: 0 };
       cur.count += 1;
       byKey.set(key, cur);
     }
@@ -104,8 +104,8 @@ export default function HeatmapPage({ player }) {
     if (!selectedMap) return [];
     const set = new Set();
     for (const e of events) {
-      if ((e.map_id || "").toLowerCase() === selectedMap.key && e.queue_id) {
-        set.add(e.queue_id);
+      if ((e.mapId || "").toLowerCase() === selectedMap.key && e.queueId) {
+        set.add(e.queueId);
       }
     }
     return [...set].sort();
@@ -114,8 +114,8 @@ export default function HeatmapPage({ player }) {
   const visibleDeaths = useMemo(() => {
     if (!selectedMap) return [];
     return events.filter((e) => {
-      if ((e.map_id || "").toLowerCase() !== selectedMap.key) return false;
-      if (queueFilter !== "all" && e.queue_id !== queueFilter) return false;
+      if ((e.mapId || "").toLowerCase() !== selectedMap.key) return false;
+      if (queueFilter !== "all" && e.queueId !== queueFilter) return false;
       return true;
     });
   }, [events, selectedMap, queueFilter]);
@@ -220,11 +220,11 @@ function MapHeatmap({ map, deaths, agents }) {
             // Skip points the transform pushed off-canvas (rare; usually
             // means missing multipliers for that map version).
             if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return null;
-            const killerName = agents[d.killer_agent]?.displayName || "Unknown";
+            const killerName = agents[d.killerAgent]?.displayName || "Unknown";
             return (
               <span
-                key={`${d.match_id}-${d.round_num}-${i}`}
-                title={`Round ${d.round_num + 1} · killed by ${killerName}`}
+                key={`${d.matchId}-${d.roundNum}-${i}`}
+                title={`Round ${d.roundNum + 1} · killed by ${killerName}`}
                 className="absolute rounded-full bg-val-red/55 border border-val-red/70 shadow-[0_0_4px_rgba(255,70,85,0.7)]"
                 style={{
                   left: `calc(${nx * 100}% - ${DOT_PX / 2}px)`,

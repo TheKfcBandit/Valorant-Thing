@@ -14,7 +14,7 @@
 // components in the weighted average — the existing breakdown shape
 // is a stable contract for the UI.
 
-const RANKED_QUEUES = new Set(["competitive", "unrated", "swiftplay", "premier"]);
+import { isRanked } from "./queues";
 
 // Minimum games before we surface any score at all. Below this,
 // confidence === 0 and the UI should render a dash / hide the badge.
@@ -24,10 +24,6 @@ const FULL_CONFIDENCE_GAMES = 30;
 
 const KD_WEIGHT = 0.5;
 const WR_WEIGHT = 0.5;
-
-function isRanked(queueId) {
-  return RANKED_QUEUES.has(String(queueId || "").toLowerCase());
-}
 
 // Normalize K/D into 0-100. 1.0 KD → 50; 2.0+ KD → 100; 0.0 KD → 0.
 function kdToScore(kd) {

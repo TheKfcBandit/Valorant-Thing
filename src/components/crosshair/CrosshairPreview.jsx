@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { readProfile } from "../../utils/crosshair";
 
 // Static canvas preview of a parsed crosshair profile (#40). v1: no
@@ -13,7 +13,10 @@ import { readProfile } from "../../utils/crosshair";
 
 export function CrosshairPreview({ profile, size = 160, scale = 4, background = "#1f2937" }) {
   const canvasRef = useRef(null);
-  const typed = readProfile(profile);
+  // Memo the typed shape so an unrelated parent rerender (e.g. a keystroke
+  // in the preset-name input) doesn't trip the canvas-draw effect below
+  // for every Preview instance on the page.
+  const typed = useMemo(() => readProfile(profile), [profile]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

@@ -29,6 +29,11 @@ use super::types::ConnectionState;
 /// it as transient and retry on the next health tick. The exact string is
 /// the contract with the future `isTransientAuthError` helper in the
 /// frontend — do NOT rename without a coordinated frontend change.
+///
+/// Altitude follow-up: a typed `AppError::TransientAuth` variant serialized
+/// via `#[serde(tag = "kind")]` would let the type system enforce this
+/// contract instead of a stringly-typed sentinel. Out of scope for #14;
+/// every wrapped Tauri command would need to switch error type.
 pub const AUTH_REFRESHING: &str = "AUTH_REFRESHING";
 
 fn is_auth_status(status: u16) -> bool {
@@ -39,7 +44,12 @@ fn is_auth_status(status: u16) -> bool {
 
 fn finalize(path: &str, status: u16, body: String) -> Result<String, String> {
     if (200..300).contains(&status) {
-        if body.is_empty() {
+        // 204 No Content is a legitimate empty-body success for PUTs and
+        // settings ACKs — the loadout-save / name-service / future
+        // player-settings write surfaces depend on this. Only treat an
+        // empty body as an error on 200, where the call expected JSON
+        // back.
+        if status != 204 && body.is_empty() {
             return Err(format!("Empty response from {} (HTTP {})", path, status));
         }
         Ok(body)
@@ -199,10 +209,14 @@ mod tests {
     }
 
     #[test]
-    fn finalize_errs_empty_2xx() {
+    fn finalize_errs_empty_200_but_passes_empty_204() {
+        // 200 with empty body is unexpected (the caller asked for JSON
+        // and got nothing). 204 No Content is a legitimate empty-body
+        // success — settings ACK PUTs in particular hit this.
         assert!(finalize("/x", 200, String::new())
             .unwrap_err()
             .contains("Empty"));
+        assert_eq!(finalize("/x", 204, String::new()), Ok(String::new()));
     }
 
     #[test]

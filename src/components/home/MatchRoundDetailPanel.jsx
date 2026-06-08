@@ -47,14 +47,19 @@ export function MatchRoundDetailPanel({ round, players, selfPuuid, onClose }) {
   // back to grouping by raw teamId — better than nothing.
   const selfTeam = selfPuuid ? teamByPuuid.get(selfPuuid) || "" : "";
   const sortedPlayers = useMemo(() => {
+    // Pre-roll damage given per puuid so the sort comparator is a Map
+    // lookup, not a fresh aggregateRoundDamage() walk per comparison.
+    const givenByPuuid = new Map();
+    for (const stats of round?.playerStats || []) {
+      if (stats?.subject)
+        givenByPuuid.set(stats.subject, aggregateRoundDamage(round, stats.subject).given);
+    }
     const list = [...(players || [])];
     list.sort((a, b) => {
       const aSelf = String(a.teamId || "").toLowerCase() === selfTeam ? 0 : 1;
       const bSelf = String(b.teamId || "").toLowerCase() === selfTeam ? 0 : 1;
       if (aSelf !== bSelf) return aSelf - bSelf;
-      const aK = aggregateRoundDamage(round, a.subject).given;
-      const bK = aggregateRoundDamage(round, b.subject).given;
-      return bK - aK;
+      return (givenByPuuid.get(b.subject) || 0) - (givenByPuuid.get(a.subject) || 0);
     });
     return list;
   }, [players, round, selfTeam]);

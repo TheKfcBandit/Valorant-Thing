@@ -46,6 +46,7 @@ pub fn get(
 // xMultiplier / yMultiplier / xScalarToAdd / yScalarToAdd from
 // valorant-api.com/v1/maps.
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DeathEvent {
     pub match_id: String,
     pub map_id: String,
@@ -74,7 +75,10 @@ pub async fn get_death_locations(
 // #11: per-friend match summary extracted from the same cache. Same shape
 // as the SQLite match_history rows the self tracker score consumes, so
 // the frontend feeds both into the identical computeTrackerScore() path.
+// camelCase to match the SQLite row shape and the JS-side contract in
+// src/utils/trackerScore.js (aggregateMatches reads m.queueId, m.won…).
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PlayerMatchSummary {
     pub match_id: String,
     pub date_ms: i64,

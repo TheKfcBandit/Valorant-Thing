@@ -66,11 +66,10 @@ pub fn get_match_page(
     page: u64,
     page_size: u64,
 ) -> Result<String, String> {
-    // `get_glz_creds` is still needed below for `pd_batch_get` — the wrapper
-    // doesn't cover batch yet (#14 follow-up: `pd_batch_get` silently returns
-    // null for partial failures inside a batch, so a transparent 401-retry
-    // can't be implemented without changes to the Node batch script).
-    let (access_token, entitlements, puuid, _region, shard, client_version) = get_glz_creds(state)?;
+    // We need `puuid` up-front to build the history path; the other creds
+    // are pulled fresh AFTER `pd_get_authed` runs (it can refresh the token
+    // mid-call on a 401, leaving any earlier copy stale).
+    let (_, _, puuid, _, _, _) = get_glz_creds(state)?;
 
     let start = page * page_size;
     let end = start + page_size;
@@ -94,6 +93,14 @@ pub fn get_match_page(
 
     let mut matches: Vec<serde_json::Value> = Vec::new();
     if !match_paths.is_empty() {
+        // Re-read creds AFTER pd_get_authed in case the listing fetch
+        // triggered a token refresh. pd_batch_get is the one PD path the
+        // wrapper doesn't cover yet (#14 follow-up: `pd_batch_get` silently
+        // returns null for partial failures inside a batch, so a
+        // transparent 401-retry can't be implemented without changes to
+        // the Node batch script). Using the pre-listing creds here would
+        // 401 every detail call silently.
+        let (access_token, entitlements, _, _, shard, client_version) = get_glz_creds(state)?;
         let details = pd_batch_get(
             &shard,
             &match_paths,

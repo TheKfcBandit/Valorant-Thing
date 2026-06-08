@@ -8,12 +8,9 @@
 // where `fitness` is a 0-100 score, and `soloDelta` is the percentage-point
 // difference between your winrate WITH this friend and your overall winrate.
 
-const RECENT_WINDOW = 10;
+import { isRanked } from "./utils/queues";
 
-function isRanked(queueId = "") {
-  const q = String(queueId).toLowerCase();
-  return q === "competitive" || q === "unrated" || q === "swiftplay" || q === "premier";
-}
+const RECENT_WINDOW = 10;
 
 export function computeFitness(cachedMatches, friendPuuids) {
   if (!Array.isArray(cachedMatches) || cachedMatches.length === 0) return {};
