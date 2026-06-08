@@ -4,6 +4,7 @@ import LivePage from "../LivePage";
 import PremierPage from "../PremierPage";
 import LineupsPage from "../LineupsPage";
 import HeatmapPage from "../HeatmapPage";
+import CrosshairPage from "../CrosshairPage";
 import MapDodgePage from "../MapDodgePage";
 import LoadoutPage from "../LoadoutPage";
 import StorePage from "../StorePage";
@@ -77,6 +78,7 @@ export function buildPages(props) {
     )),
     settings: make("settings", () => <SettingsConnector {...props.settings} />),
     loadout: make("loadout", () => <LoadoutPage connected={connected} />),
+    crosshair: make("crosshair", () => <CrosshairPage />),
     store: make("store", () => <StorePage connected={connected} />),
     wrapped: make("wrapped", () => <WrappedPage />),
     coach: make("coach", () => <CoachPage />),

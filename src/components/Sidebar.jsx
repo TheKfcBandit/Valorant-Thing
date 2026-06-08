@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import PlayerInfo from "./PlayerInfo";
 import {
   CoachTab,
+  Crosshair,
   DevTab,
   FakeStatusTab,
   HeatmapTab,
@@ -109,6 +110,13 @@ export default function Sidebar({
           activeTab={activeTab}
           onTabChange={onTabChange}
           icon={<LoadoutTab />}
+        />
+        <NavButton
+          id="crosshair"
+          label="Crosshair"
+          activeTab={activeTab}
+          onTabChange={onTabChange}
+          icon={<Crosshair size={18} />}
         />
 
         <SectionLabel>Tools</SectionLabel>
