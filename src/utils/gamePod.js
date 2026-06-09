@@ -2,6 +2,17 @@
 // (e.g. "aresriot.aws-mtl-1.na-gp-ashburn-1"). This extracts a human
 // label like "NA - Ashburn" from that. Falls back to a sensible best-
 // effort split when the canonical "gp" segment isn't present.
+// Friendly labels for the city tokens that appear inside NA custom-game
+// pod IDs (e.g. "...-gp-ashburn-1" → "US East (N. Virginia)").
+export const SERVER_NAMES = {
+  dallas: "US Central (Texas)",
+  atlanta: "US Central (Georgia)",
+  chicago: "US Central (Illinois)",
+  ashburn: "US East (N. Virginia)",
+  norcal: "US West (N. California)",
+  oregon: "US West (Oregon)",
+};
+
 export function parseGamePod(podId) {
   if (!podId) return "";
   const parts = podId.split("-");

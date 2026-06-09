@@ -1,30 +1,18 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { computeFitness } from "../squadAnalytics";
-import { aggregateMatches, computeTrackerScore, trackerScoreTier } from "../utils/trackerScore";
-
+import { aggregateMatches, computeTrackerScore } from "../utils/trackerScore";
 import { noAnim, T0 } from "../utils/animation";
 import { getMapLookup, getGameModeLookup } from "../valApiSkins";
-import { MODE_NAMES, normalizeModeKey } from "../utils/gameMode";
+import { normalizeModeKey } from "../utils/gameMode";
 import { PARTY_QUEUES as QUEUES } from "../utils/queues";
-import {
-  Check,
-  ChevronDown,
-  Crown as CrownIcon,
-  Globe,
-  Grid4,
-  InfoCircle,
-  Link,
-  LogIn,
-  Person,
-  Play,
-  Square,
-  UserPlus,
-  Users as UsersIcon,
-  WifiSlash,
-  X,
-} from "../icons";
+import { InfoCircle, WifiSlash } from "../icons";
+import { PartyControls } from "./party/PartyControls";
+import { CustomGameSetup } from "./party/CustomGameSetup";
+import { MemberCard } from "./party/MemberCard";
+import { InviteFriendsModal } from "./party/InviteFriendsModal";
+import { QueueErrorModal, JoinPartyModal } from "./party/PartyModals";
 
 const POLL_INTERVAL = 3000;
 
@@ -46,33 +34,15 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
   const [friendSearch, setFriendSearch] = useState("");
   const [queueing, setQueueing] = useState(false);
   const [queueError, setQueueError] = useState(null);
-  const [showQueuePicker, setShowQueuePicker] = useState(false);
   const [changingQueue, setChangingQueue] = useState(false);
   const [customConfigs, setCustomConfigs] = useState(null);
   const [savingCustom, setSavingCustom] = useState(false);
   const [apiMaps, setApiMaps] = useState(null);
   const [apiModes, setApiModes] = useState(null);
-  const [showMapPicker, setShowMapPicker] = useState(false);
-  const [showModePicker, setShowModePicker] = useState(false);
-  const [showServerPicker, setShowServerPicker] = useState(false);
-  const mapPickerRef = useRef(null);
-  const modePickerRef = useRef(null);
-  const serverPickerRef = useRef(null);
   const [joinCode, setJoinCode] = useState("");
   const [partyCode, setPartyCode] = useState("");
   const [codeCopied, setCodeCopied] = useState(false);
   const cancelledRef = useRef(false);
-  const queuePickerRef = useRef(null);
-
-  useEffect(() => {
-    if (!showQueuePicker) return;
-    const handler = (e) => {
-      if (queuePickerRef.current && !queuePickerRef.current.contains(e.target))
-        setShowQueuePicker(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [showQueuePicker]);
 
   const isLeader = party?.members?.some((m) => m.puuid === party.my_puuid && m.is_owner);
 
@@ -238,7 +208,44 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
       addLog?.("error", `[Party] Queue change failed: ${e}`);
     }
     setChangingQueue(false);
-    setShowQueuePicker(false);
+  };
+
+  const handleToggleAccessibility = async () => {
+    try {
+      await invoke("set_party_accessibility", { open: party.accessibility !== "OPEN" });
+      fetchParty();
+    } catch (e) {
+      console.warn("[Party] suppressed:", e);
+    }
+  };
+
+  const handleQueueAction = async () => {
+    setQueueing(true);
+    try {
+      if (isCustom) await invoke("start_custom_game_match");
+      else if (party.state === "MATCHMAKING") await invoke("leave_queue");
+      else await invoke("enter_queue");
+      fetchParty();
+    } catch (e) {
+      const msg = typeof e === "string" ? e : e?.message || "";
+      if (msg.includes("QUEUE_RESTRICTED"))
+        setQueueError(
+          "You are currently queue restricted (banned). Wait for your penalty to expire."
+        );
+      else if (msg.includes("403")) setQueueError("Unable to join queue — you may be restricted.");
+      else
+        setQueueError(msg || isCustom ? "Failed to start custom game." : "Failed to join queue.");
+    }
+    setQueueing(false);
+  };
+
+  const handleDisableCode = async () => {
+    try {
+      await invoke("disable_party_code");
+      setPartyCode("");
+    } catch (e) {
+      console.warn("[Party] suppressed:", e);
+    }
   };
 
   const fetchCustomConfigs = async () => {
@@ -296,35 +303,6 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
         .catch(() => {});
     }
   }, [isCustom]);
-
-  useEffect(() => {
-    if (!showMapPicker) return;
-    const h = (e) => {
-      if (mapPickerRef.current && !mapPickerRef.current.contains(e.target)) setShowMapPicker(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [showMapPicker]);
-
-  useEffect(() => {
-    if (!showModePicker) return;
-    const h = (e) => {
-      if (modePickerRef.current && !modePickerRef.current.contains(e.target))
-        setShowModePicker(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [showModePicker]);
-
-  useEffect(() => {
-    if (!showServerPicker) return;
-    const h = (e) => {
-      if (serverPickerRef.current && !serverPickerRef.current.contains(e.target))
-        setShowServerPicker(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [showServerPicker]);
 
   if (!connected) {
     return (
@@ -391,560 +369,35 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
       variants={{ hidden: {}, show: { transition: { staggerChildren: noAnim() ? 0 : 0.04 } } }}
       className="flex-1 flex flex-col min-h-0 p-5 gap-3 overflow-y-auto"
     >
-      <motion.div
-        variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
-        transition={noAnim() ? T0 : { duration: 0.2 }}
-        className="flex items-center justify-between"
-      >
-        <div className="flex items-center gap-2">
-          <UsersIcon size={16} className="text-text-muted" />
-          <h2 className="text-sm font-display font-semibold text-text-primary">Party</h2>
-          <span className="text-xs font-body text-text-muted">{party.members.length}/5</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          {isLeader ? (
-            <button
-              onClick={async () => {
-                try {
-                  await invoke("set_party_accessibility", { open: party.accessibility !== "OPEN" });
-                  fetchParty();
-                } catch (e) {
-                  console.warn("[Party] suppressed:", e);
-                }
-              }}
-              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-body transition-colors ${
-                party.accessibility === "OPEN"
-                  ? "text-status-green bg-status-green/10 hover:bg-status-green/20"
-                  : "text-status-red bg-status-red/10 hover:bg-status-red/20"
-              }`}
-            >
-              <div
-                className={`w-1.5 h-1.5 rounded-full ${party.accessibility === "OPEN" ? "bg-status-green" : "bg-status-red"}`}
-              />
-              {party.accessibility === "OPEN" ? "Open" : "Closed"}
-            </button>
-          ) : (
-            <>
-              <div
-                className={`w-1.5 h-1.5 rounded-full ${party.accessibility === "OPEN" ? "bg-status-green" : "bg-status-red"}`}
-              />
-              <span className="text-xs font-body text-text-muted">
-                {party.accessibility === "OPEN" ? "Open" : "Closed"}
-              </span>
-            </>
-          )}
-        </div>
-      </motion.div>
+      <PartyControls
+        party={party}
+        isLeader={isLeader}
+        isCustom={isCustom}
+        currentQueueLabel={currentQueueLabel}
+        changingQueue={changingQueue}
+        queueing={queueing}
+        onToggleAccessibility={handleToggleAccessibility}
+        onChangeQueue={handleChangeQueue}
+        onQueueAction={handleQueueAction}
+        onOpenInvite={openInviteModal}
+        onOpenJoin={() => setShowJoin(true)}
+        onGenerateCode={handleGenerateCode}
+        partyCode={partyCode}
+        codeCopied={codeCopied}
+        onCopyCode={handleCopyCode}
+        onDisableCode={handleDisableCode}
+      />
 
-      <motion.div
-        variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
-        transition={noAnim() ? T0 : { duration: 0.2 }}
-        className="relative"
-        ref={queuePickerRef}
-      >
-        {isLeader ? (
-          <button
-            onClick={() => setShowQueuePicker((p) => !p)}
-            disabled={changingQueue}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-base-700 border border-border text-xs font-body text-text-primary hover:bg-base-600 transition-colors w-full"
-          >
-            <Grid4 className="text-text-muted shrink-0" />
-            <span className="font-display font-medium">
-              {changingQueue ? "..." : currentQueueLabel}
-            </span>
-            <ChevronDown className="text-text-muted ml-auto shrink-0" />
-          </button>
-        ) : (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-base-700/50 border border-border text-xs font-body text-text-muted">
-            <Grid4 strokeWidth="1.5" className="shrink-0" />
-            <span>{currentQueueLabel}</span>
-          </div>
-        )}
-        <AnimatePresence>
-          {showQueuePicker && isLeader && (
-            <motion.div
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.12 }}
-              className="absolute z-40 top-full left-0 mt-1 w-48 bg-base-700 border border-border rounded-lg shadow-xl overflow-hidden"
-            >
-              {QUEUES.map((q) => (
-                <button
-                  key={q.id}
-                  onClick={() => handleChangeQueue(q.id)}
-                  className={`w-full text-left px-3 py-1.5 text-[11px] font-display transition-colors ${
-                    (q.id === "custom" ? isCustom : !isCustom && party?.queue_id === q.id)
-                      ? "text-val-red bg-val-red/10 font-semibold"
-                      : "text-text-primary hover:bg-base-600"
-                  }`}
-                >
-                  {q.label}
-                </button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
-
-      <motion.div
-        variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
-        transition={noAnim() ? T0 : { duration: 0.2 }}
-        className="flex items-center gap-2 flex-wrap"
-      >
-        {isLeader && (
-          <button
-            disabled={queueing}
-            onClick={async () => {
-              setQueueing(true);
-              try {
-                if (isCustom) await invoke("start_custom_game_match");
-                else if (party.state === "MATCHMAKING") await invoke("leave_queue");
-                else await invoke("enter_queue");
-                fetchParty();
-              } catch (e) {
-                const msg = typeof e === "string" ? e : e?.message || "";
-                if (msg.includes("QUEUE_RESTRICTED"))
-                  setQueueError(
-                    "You are currently queue restricted (banned). Wait for your penalty to expire."
-                  );
-                else if (msg.includes("403"))
-                  setQueueError("Unable to join queue — you may be restricted.");
-                else
-                  setQueueError(
-                    msg || isCustom ? "Failed to start custom game." : "Failed to join queue."
-                  );
-              }
-              setQueueing(false);
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-body transition-colors disabled:opacity-50 ${
-              party.state === "MATCHMAKING"
-                ? "bg-status-red/15 border-status-red/30 text-status-red hover:bg-status-red/25"
-                : "bg-val-red/15 border-val-red/30 text-val-red hover:bg-val-red/25"
-            }`}
-          >
-            {party.state === "MATCHMAKING" ? (
-              <>
-                <Square />
-                {queueing ? "..." : "Leave Queue"}
-              </>
-            ) : (
-              <>
-                <Play />
-                {queueing ? "..." : isCustom ? "Start" : "Queue"}
-              </>
-            )}
-          </button>
-        )}
-        <button
-          onClick={openInviteModal}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
-        >
-          <UserPlus />
-          Invite
-        </button>
-        <button
-          onClick={() => setShowJoin(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
-        >
-          <LogIn />
-          Join Code
-        </button>
-        <button
-          onClick={handleGenerateCode}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-primary hover:bg-base-500 transition-colors"
-        >
-          <Link />
-          Get Code
-        </button>
-      </motion.div>
-
-      {partyCode && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-base-700 border border-border">
-          <span className="text-xs font-body text-text-muted">Party Code:</span>
-          <code className="text-xs font-body text-text-primary font-medium tracking-wider">
-            {partyCode}
-          </code>
-          <button
-            onClick={handleCopyCode}
-            className="text-xs font-body text-val-red hover:text-val-red/80 transition-colors"
-          >
-            {codeCopied ? "Copied!" : "Copy"}
-          </button>
-          <button
-            onClick={async () => {
-              try {
-                await invoke("disable_party_code");
-                setPartyCode("");
-              } catch (e) {
-                console.warn("[Party] suppressed:", e);
-              }
-            }}
-            className="ml-auto w-5 h-5 rounded flex items-center justify-center text-text-muted hover:text-status-red hover:bg-status-red/10 transition-colors"
-            title="Delete code"
-          >
-            <X size={10} />
-          </button>
-        </div>
+      {isCustom && isLeader && customConfigs && (
+        <CustomGameSetup
+          party={party}
+          customConfigs={customConfigs}
+          savingCustom={savingCustom}
+          apiMaps={apiMaps}
+          apiModes={apiModes}
+          onChangeSetting={handleCustomSetting}
+        />
       )}
-
-      {isCustom &&
-        isLeader &&
-        customConfigs &&
-        (() => {
-          const MAP_NAMES = {
-            Duality: "Bind",
-            Triad: "Haven",
-            Bonsai: "Split",
-            Port: "Icebox",
-            Foxtrot: "Breeze",
-            Canyon: "Fracture",
-            Pitt: "Pearl",
-            Jam: "Lotus",
-            Juliett: "Sunset",
-            Infinity: "Abyss",
-            HURM_Yard: "District",
-            HURM_Alley: "Kasbah",
-            HURM_Bowl: "Piazza",
-            HURM_Helix: "Drift",
-            HURM_ShipLong: "Glitch",
-          };
-          const MODE_PRIORITY = [
-            "Swiftplay",
-            "Standard",
-            "Deathmatch",
-            "Spike Rush",
-            "Escalation",
-            "Replication",
-            "Team Deathmatch",
-          ];
-          const SERVER_NAMES = {
-            dallas: "US Central (Texas)",
-            atlanta: "US Central (Georgia)",
-            chicago: "US Central (Illinois)",
-            ashburn: "US East (N. Virginia)",
-            norcal: "US West (N. California)",
-            oregon: "US West (Oregon)",
-          };
-
-          const getModeName = (m) => {
-            const f = normalizeModeKey(m);
-            if (MODE_NAMES[f]) return MODE_NAMES[f];
-            if (f.includes("hurm")) return "Team Deathmatch";
-            return f
-              .replace(/_gamemode|gamemode/gi, "")
-              .replace(/_/g, " ")
-              .trim();
-          };
-          const getModeIcon = (m) => {
-            const cls = (m.split("/").pop()?.split(".")[0] || "").toLowerCase();
-            return apiModes?.[cls]?.displayIcon || null;
-          };
-          const getModeBg = (m) => {
-            const cls = (m.split("/").pop()?.split(".")[0] || "").toLowerCase();
-            return apiModes?.[cls]?.listViewIconTall || null;
-          };
-          const getMapName = (m) => {
-            const raw = m.split("/").pop() || m;
-            return apiMaps?.[m.toLowerCase()]?.displayName || MAP_NAMES[raw] || raw;
-          };
-          const getMapImg = (m) => apiMaps?.[m.toLowerCase()]?.listViewIcon || null;
-          const getMapSplash = (m) => apiMaps?.[m.toLowerCase()]?.splash || null;
-
-          const curMode = party.custom_mode || "";
-          const isHURM = curMode.includes("HURM");
-          const isSkirmish = curMode.includes("Skirmish");
-          const filteredMaps = customConfigs.maps.filter((m) => {
-            if (isSkirmish) return m.includes("Duel") || m.includes("Skirmish");
-            if (isHURM) return m.includes("HURM");
-            return !m.includes("HURM") && !m.includes("Duel") && !m.includes("Skirmish");
-          });
-          const seen = new Set();
-          const sortedModes = [...customConfigs.modes]
-            .sort((a, b) => {
-              const ai = MODE_PRIORITY.indexOf(getModeName(a));
-              const bi = MODE_PRIORITY.indexOf(getModeName(b));
-              return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-            })
-            .filter((m) => {
-              const n = getModeName(m);
-              if (seen.has(n)) return false;
-              seen.add(n);
-              return true;
-            });
-
-          const curMapSplash = getMapSplash(party.custom_map);
-
-          return (
-            <div className="rounded-lg bg-base-700 border border-border overflow-hidden">
-              {curMapSplash && (
-                <div className="relative h-20 overflow-hidden">
-                  <img
-                    src={curMapSplash}
-                    alt=""
-                    className="w-full h-full object-cover opacity-40"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-base-700 via-base-700/60 to-transparent" />
-                  <div className="absolute bottom-2 left-3 flex items-center gap-2">
-                    {getModeIcon(curMode) && (
-                      <img
-                        src={getModeIcon(curMode)}
-                        alt=""
-                        className="w-5 h-5 brightness-0 invert opacity-60"
-                      />
-                    )}
-                    <span className="text-[13px] font-display font-bold text-white drop-shadow">
-                      {getMapName(party.custom_map)}
-                    </span>
-                    <span className="text-[10px] font-body text-white/50">
-                      — {getModeName(curMode)}
-                    </span>
-                  </div>
-                  {savingCustom && (
-                    <div className="absolute top-2 right-3">
-                      <span className="text-[10px] text-white/60 animate-pulse">Saving...</span>
-                    </div>
-                  )}
-                </div>
-              )}
-              <div className="p-3 space-y-2.5">
-                {!curMapSplash && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-display font-semibold text-text-primary">
-                      Custom Game Settings
-                    </span>
-                    {savingCustom && (
-                      <span className="text-[10px] text-text-muted animate-pulse">Saving...</span>
-                    )}
-                  </div>
-                )}
-
-                <div className="relative" ref={modePickerRef}>
-                  <label className="text-[10px] font-body text-text-muted mb-0.5 block">Mode</label>
-                  <button
-                    onClick={() => {
-                      setShowModePicker((v) => !v);
-                      setShowMapPicker(false);
-                    }}
-                    disabled={savingCustom}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 bg-base-600 border border-border rounded-lg text-[11px] font-body text-text-primary hover:border-val-red/40 transition-colors disabled:opacity-50 relative overflow-hidden"
-                  >
-                    {getModeBg(curMode) && (
-                      <img
-                        src={getModeBg(curMode)}
-                        alt=""
-                        className="absolute inset-0 w-full h-full object-cover opacity-[0.08]"
-                      />
-                    )}
-                    <span className="relative flex items-center gap-2 flex-1">
-                      {getModeIcon(curMode) && (
-                        <img
-                          src={getModeIcon(curMode)}
-                          alt=""
-                          className="w-4 h-4 brightness-0 invert opacity-70"
-                        />
-                      )}
-                      {getModeName(curMode)}
-                    </span>
-                    <ChevronDown
-                      className={`text-text-muted transition-transform shrink-0 relative ${showModePicker ? "rotate-180" : ""}`}
-                    />
-                  </button>
-                  {showModePicker && (
-                    <div className="absolute z-50 mt-1 left-0 right-0 bg-base-800 border border-border rounded-lg shadow-xl max-h-64 overflow-y-auto">
-                      {sortedModes.map((m) => {
-                        const active = m === curMode;
-                        return (
-                          <button
-                            key={m}
-                            onClick={() => {
-                              handleCustomSetting({ mode: m });
-                              setShowModePicker(false);
-                            }}
-                            className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-[11px] font-body hover:bg-base-600 transition-colors relative overflow-hidden ${active ? "bg-base-600 text-text-primary" : "text-text-secondary"}`}
-                          >
-                            {getModeBg(m) && (
-                              <img
-                                src={getModeBg(m)}
-                                alt=""
-                                className="absolute inset-0 w-full h-full object-cover opacity-[0.06]"
-                              />
-                            )}
-                            {getModeIcon(m) && (
-                              <img
-                                src={getModeIcon(m)}
-                                alt=""
-                                className="w-4 h-4 brightness-0 invert opacity-60 relative"
-                              />
-                            )}
-                            <span className="relative">{getModeName(m)}</span>
-                            {active && (
-                              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-val-red relative" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                <div className="relative" ref={mapPickerRef}>
-                  <label className="text-[10px] font-body text-text-muted mb-0.5 block">Map</label>
-                  <button
-                    onClick={() => {
-                      setShowMapPicker((v) => !v);
-                      setShowModePicker(false);
-                    }}
-                    disabled={savingCustom}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 bg-base-600 border border-border rounded-lg text-[11px] font-body text-text-primary hover:border-val-red/40 transition-colors disabled:opacity-50 overflow-hidden relative"
-                  >
-                    {getMapImg(party.custom_map) && (
-                      <img
-                        src={getMapImg(party.custom_map)}
-                        alt=""
-                        className="w-8 h-5 object-cover rounded shrink-0"
-                      />
-                    )}
-                    <span className="flex-1 text-left">{getMapName(party.custom_map)}</span>
-                    <ChevronDown
-                      className={`text-text-muted transition-transform shrink-0 ${showMapPicker ? "rotate-180" : ""}`}
-                    />
-                  </button>
-                  {showMapPicker && (
-                    <div className="absolute z-50 mt-1 left-0 right-0 bg-base-800 border border-border rounded-lg shadow-xl max-h-64 overflow-y-auto">
-                      {filteredMaps.map((m) => {
-                        const active = m === party.custom_map;
-                        const img = getMapImg(m);
-                        return (
-                          <button
-                            key={m}
-                            onClick={() => {
-                              handleCustomSetting({ map: m });
-                              setShowMapPicker(false);
-                            }}
-                            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 text-[11px] font-body hover:bg-base-600 transition-colors ${active ? "bg-base-600 text-text-primary" : "text-text-secondary"}`}
-                          >
-                            {img ? (
-                              <img
-                                src={img}
-                                alt=""
-                                className="w-8 h-5 object-cover rounded shrink-0"
-                              />
-                            ) : (
-                              <div className="w-8 h-5 bg-base-600 rounded shrink-0" />
-                            )}
-                            <span className="flex-1 text-left">{getMapName(m)}</span>
-                            {active && (
-                              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-val-red" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                <div className="relative" ref={serverPickerRef}>
-                  <label className="text-[10px] font-body text-text-muted mb-0.5 block">
-                    Server
-                  </label>
-                  <button
-                    onClick={() => {
-                      setShowServerPicker((v) => !v);
-                      setShowMapPicker(false);
-                      setShowModePicker(false);
-                    }}
-                    disabled={savingCustom}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 bg-base-600 border border-border rounded-lg text-[11px] font-body text-text-primary hover:border-val-red/40 transition-colors disabled:opacity-50"
-                  >
-                    <Globe size={12} className="text-text-muted shrink-0" />
-                    <span className="flex-1 text-left">
-                      {(() => {
-                        const pts = (party.custom_pod || "").toLowerCase().split(/[.-]/);
-                        const c = pts.find((s) => SERVER_NAMES[s]);
-                        return c ? SERVER_NAMES[c] : party.custom_pod || "";
-                      })()}
-                    </span>
-                    <ChevronDown
-                      className={`text-text-muted transition-transform shrink-0 ${showServerPicker ? "rotate-180" : ""}`}
-                    />
-                  </button>
-                  {showServerPicker && (
-                    <div className="absolute z-50 mt-1 left-0 right-0 bg-base-800 border border-border rounded-lg shadow-xl max-h-64 overflow-y-auto">
-                      {customConfigs.pods.map((p) => {
-                        const active = p === party.custom_pod;
-                        const pts = p.toLowerCase().split(/[.-]/);
-                        const city = pts.find((s) => SERVER_NAMES[s]);
-                        return (
-                          <button
-                            key={p}
-                            onClick={() => {
-                              handleCustomSetting({ pod: p });
-                              setShowServerPicker(false);
-                            }}
-                            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 text-[11px] font-body hover:bg-base-600 transition-colors ${active ? "bg-base-600 text-text-primary" : "text-text-secondary"}`}
-                          >
-                            <Globe size={12} className="text-text-muted shrink-0" />
-                            <span className="flex-1 text-left">
-                              {city ? SERVER_NAMES[city] : p}
-                            </span>
-                            {active && (
-                              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-val-red" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                <div className="border-t border-border pt-2 space-y-1.5">
-                  <span className="text-[10px] font-display font-semibold text-text-muted">
-                    Game Rules
-                  </span>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                    {[
-                      { key: "allowCheats", label: "Allow Cheats", val: party.custom_allow_cheats },
-                      {
-                        key: "tournamentMode",
-                        label: "Tournament Mode",
-                        val: party.custom_tournament_mode,
-                      },
-                      {
-                        key: "overtimeWinByTwo",
-                        label: "Overtime Win By Two",
-                        val: party.custom_overtime_win_by_two,
-                      },
-                      {
-                        key: "playOutAllRounds",
-                        label: "Play Out All Rounds",
-                        val: party.custom_play_out_all_rounds,
-                      },
-                      {
-                        key: "skipMatchHistory",
-                        label: "Skip Match History",
-                        val: party.custom_skip_match_history,
-                      },
-                    ].map(({ key, label, val }) => (
-                      <label key={key} className="flex items-center gap-2 cursor-pointer group">
-                        <button
-                          onClick={() => handleCustomSetting({ [key]: !val })}
-                          disabled={savingCustom}
-                          className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors disabled:opacity-50 ${val ? "bg-val-red border-val-red" : "bg-base-600 border-border group-hover:border-text-muted"}`}
-                        >
-                          {val && <Check size={8} stroke="white" strokeWidth="3" />}
-                        </button>
-                        <span className="text-[11px] font-body text-text-primary select-none">
-                          {label}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
 
       <div className="space-y-1.5">
         {party.members.map((member, i) => (
@@ -964,321 +417,32 @@ export default function PartyPage({ connected, addLog, onRefresh }) {
         ))}
       </div>
 
-      <AnimatePresence>
-        {queueError && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-            onClick={() => setQueueError(null)}
-            onKeyDown={(e) => e.key === "Escape" && setQueueError(null)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 8 }}
-              transition={{ duration: 0.15 }}
-              className="bg-base-700 border border-border rounded-2xl p-5 w-80 shadow-xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <InfoCircle size={18} strokeWidth="2" className="text-status-red shrink-0" />
-                <h3 className="text-sm font-display font-bold text-text-primary">Queue Error</h3>
-              </div>
-              <p className="text-xs font-body text-text-secondary mb-4">{queueError}</p>
-              <button
-                onClick={() => setQueueError(null)}
-                className="w-full py-1.5 rounded-lg bg-val-red/20 border border-val-red/40 text-xs font-display font-semibold text-val-red hover:bg-val-red/30 transition-colors"
-              >
-                OK
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <QueueErrorModal queueError={queueError} onClose={() => setQueueError(null)} />
 
-      <AnimatePresence>
-        {showJoin && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-            onClick={() => {
-              setShowJoin(false);
-              setJoinCode("");
-            }}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 8 }}
-              transition={{ duration: 0.15 }}
-              className="bg-base-700 border border-border rounded-xl p-5 w-80 shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-sm font-display font-semibold text-text-primary mb-3">
-                Join Party
-              </h3>
-              <input
-                type="text"
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleJoin()}
-                placeholder="Enter party code"
-                autoFocus
-                className="w-full px-3 py-2 bg-base-600 border border-border rounded-lg text-sm font-body text-text-primary placeholder:text-text-muted/50 outline-none focus:border-val-red/60 transition-colors tracking-wider"
-              />
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() => {
-                    setShowJoin(false);
-                    setJoinCode("");
-                  }}
-                  className="flex-1 py-1.5 rounded-lg bg-base-600 border border-border text-xs font-body text-text-secondary hover:bg-base-500 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleJoin}
-                  className="flex-1 py-1.5 rounded-lg bg-val-red/20 border border-val-red/40 text-xs font-display font-semibold text-val-red hover:bg-val-red/30 transition-colors"
-                >
-                  Join
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <JoinPartyModal
+        open={showJoin}
+        joinCode={joinCode}
+        onJoinCodeChange={setJoinCode}
+        onJoin={handleJoin}
+        onClose={() => {
+          setShowJoin(false);
+          setJoinCode("");
+        }}
+      />
 
-      <AnimatePresence>
-        {showInvite && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowInvite(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 8 }}
-              transition={{ duration: 0.15 }}
-              className="bg-base-700 border border-border rounded-xl w-80 max-h-[420px] shadow-2xl flex flex-col"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="px-4 pt-3.5 pb-3 border-b border-border shrink-0">
-                <div className="flex items-center justify-between mb-2.5">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xs font-display font-semibold text-text-primary">
-                      Invite to Party
-                    </h3>
-                    {!friendsLoading && friends.length > 0 && (
-                      <span className="text-[10px] font-body text-text-muted">
-                        {friends.length}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setShowInvite(false)}
-                    className="w-5 h-5 rounded flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
-                  >
-                    <X size={10} strokeWidth="2.5" />
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  value={friendSearch}
-                  onChange={(e) => setFriendSearch(e.target.value)}
-                  placeholder="Search..."
-                  autoFocus
-                  className="w-full px-2.5 py-1.5 bg-base-600 border border-border rounded-lg text-[11px] font-body text-text-primary placeholder:text-text-muted/40 outline-none focus:border-val-red/60 transition-colors"
-                />
-              </div>
-              <div className="flex-1 overflow-y-auto py-1 min-h-0">
-                {friendsLoading ? (
-                  <div className="px-2 space-y-0.5">
-                    {[0, 1, 2, 3, 4, 5].map((i) => (
-                      <div key={i} className="flex items-center gap-2.5 px-2 py-2 animate-pulse">
-                        <div className="w-6 h-6 rounded-full bg-base-500 shrink-0" />
-                        <div className="h-3 w-28 rounded bg-base-500" />
-                      </div>
-                    ))}
-                  </div>
-                ) : friends.length === 0 ? (
-                  <div className="flex items-center justify-center py-10 text-text-muted">
-                    <p className="text-[11px] font-body">No friends found</p>
-                  </div>
-                ) : (
-                  friends
-                    .filter((f) => {
-                      if (!friendSearch.trim()) return true;
-                      const q = friendSearch.toLowerCase();
-                      return (
-                        f.game_name?.toLowerCase().includes(q) ||
-                        f.game_tag?.toLowerCase().includes(q)
-                      );
-                    })
-                    .slice()
-                    .sort((a, b) => {
-                      const fa = fitness[(a.puuid || "").toLowerCase()]?.fitness ?? -1;
-                      const fb = fitness[(b.puuid || "").toLowerCase()]?.fitness ?? -1;
-                      return fb - fa;
-                    })
-                    .map((friend, i) => (
-                      <FriendInviteCard
-                        key={friend.puuid}
-                        friend={friend}
-                        fitness={fitness[(friend.puuid || "").toLowerCase()]}
-                        tracker={trackerScores[(friend.puuid || "").toLowerCase()]}
-                        onInvite={() => handleInvite(friend)}
-                        inviting={invitingPuuid === friend.puuid}
-                        invited={invitedPuuids.has(friend.puuid)}
-                        index={i}
-                      />
-                    ))
-                )}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <InviteFriendsModal
+        open={showInvite}
+        onClose={() => setShowInvite(false)}
+        friends={friends}
+        friendsLoading={friendsLoading}
+        friendSearch={friendSearch}
+        onSearchChange={setFriendSearch}
+        fitness={fitness}
+        trackerScores={trackerScores}
+        invitingPuuid={invitingPuuid}
+        invitedPuuids={invitedPuuids}
+        onInvite={handleInvite}
+      />
     </motion.div>
-  );
-}
-
-function FriendInviteCard({
-  friend,
-  fitness,
-  tracker,
-  onInvite,
-  inviting,
-  invited,
-  index,
-  actionLabel = "Invite",
-  doneLabel = "Sent",
-}) {
-  const showFitness = fitness && fitness.games >= 2;
-  const fitColor = !showFitness
-    ? "text-text-muted/40"
-    : fitness.fitness >= 60
-      ? "text-green-400"
-      : fitness.fitness <= 40
-        ? "text-red-400"
-        : "text-text-muted";
-  // #11: solo TRN score next to the co-play fitness number. Same color
-  // bands; null score means we don't have enough cached matches with
-  // this friend in them yet.
-  const trackerTier = trackerScoreTier(tracker?.score);
-  const trackerColor =
-    trackerTier === "high"
-      ? "text-green-400"
-      : trackerTier === "low"
-        ? "text-red-400"
-        : trackerTier === "mid"
-          ? "text-text-muted"
-          : "text-text-muted/40";
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: -4 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={noAnim() ? T0 : { duration: 0.12, delay: index * 0.015 }}
-      className="flex items-center gap-2 mx-1 px-2.5 py-1.5 rounded-lg hover:bg-base-600/60 transition-colors group"
-    >
-      <div className="w-6 h-6 rounded-full bg-base-500/60 shrink-0 flex items-center justify-center">
-        <Person size={12} className="text-text-muted/60" />
-      </div>
-      <p className="text-[11px] font-display font-medium text-text-primary truncate flex-1 min-w-0">
-        {friend.game_name}
-        <span className="text-text-muted font-body font-normal ml-0.5">#{friend.game_tag}</span>
-      </p>
-      {tracker?.score != null && (
-        <span
-          className={`shrink-0 text-[9px] font-mono ${trackerColor}`}
-          title={`Tracker: ${tracker.score}/100 · ${tracker.breakdown.kd} K/D · ${tracker.breakdown.winrate}% WR · ${tracker.games}g${tracker.confidence < 1 ? " (low confidence)" : ""}`}
-        >
-          {tracker.score}
-        </span>
-      )}
-      {showFitness && (
-        <span
-          className={`shrink-0 text-[9px] font-mono ${fitColor}`}
-          title={`Fitness: ${fitness.fitness}/100 · ${fitness.wins}-${fitness.games - fitness.wins} together · ${fitness.soloDelta > 0 ? "+" : ""}${fitness.soloDelta}pp vs solo`}
-        >
-          {fitness.fitness}
-        </span>
-      )}
-      <button
-        onClick={onInvite}
-        disabled={inviting || invited}
-        className={`shrink-0 text-[10px] font-display font-semibold px-2 py-0.5 rounded transition-all ${
-          invited
-            ? "text-status-green"
-            : inviting
-              ? "text-text-muted"
-              : "text-text-muted/40 group-hover:text-val-red"
-        }`}
-      >
-        {invited ? `✓ ${doneLabel}` : inviting ? "..." : actionLabel}
-      </button>
-    </motion.div>
-  );
-}
-
-function MemberCard({ member, isLeader, isMe, onKick }) {
-  const [imgError, setImgError] = useState(false);
-
-  return (
-    <div className="flex items-center gap-3 p-3 rounded-xl bg-base-700 border border-border group">
-      <div className="w-10 h-10 rounded-lg overflow-hidden bg-base-500 shrink-0">
-        {member.player_card_url && !imgError ? (
-          <img
-            src={member.player_card_url}
-            alt=""
-            className="w-full h-full object-cover"
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Person size={18} className="text-text-muted" />
-          </div>
-        )}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          {member.is_owner && <CrownIcon size={12} />}
-          <p className="text-sm font-display font-medium text-text-primary truncate">
-            {member.incognito ? "Anonymous" : member.game_name}
-          </p>
-          {!member.incognito && (
-            <span className="text-xs font-body text-text-muted">#{member.game_tag}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-2 mt-0.5">
-          {!member.hide_account_level && (
-            <span className="text-[11px] font-body text-text-muted">Lv {member.account_level}</span>
-          )}
-          {member.is_ready && (
-            <span className="text-[11px] font-body text-status-green">Ready</span>
-          )}
-        </div>
-      </div>
-
-      {isLeader && !isMe && (
-        <button
-          onClick={onKick}
-          title="Kick"
-          className="w-7 h-7 rounded-lg flex items-center justify-center text-text-muted hover:text-status-red hover:bg-status-red/10 transition-colors opacity-0 group-hover:opacity-100 shrink-0"
-        >
-          <X size={14} />
-        </button>
-      )}
-    </div>
   );
 }

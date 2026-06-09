@@ -1,23 +1,22 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+﻿import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useApiLookup } from "../hooks/useApiLookup";
 import { motion } from "framer-motion";
-import { computeHighlights } from "../matchHighlights";
-import { noAnim, T0 } from "../utils/animation";
-import { MODE_NAMES } from "../utils/gameMode";
 import { rankIcon, rankName } from "../utils/rank";
 import { normalizePenaltiesResponse, normalizeRrEntry } from "../riotShapes";
-import { formatTimeRemaining, getPenaltyLabel } from "../utils/penalties";
-import { computeTrackerScore, trackerScoreTier } from "../utils/trackerScore";
+import { computeTrackerScore } from "../utils/trackerScore";
 import { useAsyncEffect } from "../hooks/useAsyncEffect";
 import { formatError } from "../utils/authError";
-import { Label } from "./ui/Label";
 import { getAgentLookup } from "../valApiSkins";
-import { customAgentIconByUuid } from "../utils/agents";
 import { formatTimer } from "../utils/format";
 import { getMapMetadataByUrl } from "../utils/maps";
-import { AlertTriangle, Clock, RefreshCcw, WifiSlash } from "../icons";
+import { Clock, RefreshCcw, WifiSlash } from "../icons";
 import { MatchDetailsModal } from "./home/MatchDetailsModal";
+import { StatCard, TrackerScoreCard } from "./home/StatCards";
+import { RRChart } from "./home/RRChart";
+import { AggregatePanels } from "./home/AggregatePanels";
+import { MatchHistorySection } from "./home/MatchHistorySection";
+import { SpendCard, AccountStatusBanner } from "./home/StatusBanners";
 
 const REFRESH_INTERVAL = 5 * 60 * 1000;
 
@@ -73,7 +72,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
       const raw = await invoke("get_home_stats", { queueFilter: "competitive" });
       const parsed = JSON.parse(raw);
       if (!parsed.level && !parsed.currentTier && !parsed.totalGames) {
-        throw new Error("Empty stats returned — token may be stale");
+        throw new Error("Empty stats returned â€” token may be stale");
       }
       setStats(parsed);
       lastFetchRef.current = Date.now();
@@ -109,7 +108,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
 
   // Live refresh from Riot: pull page 0 (newest), ingest into DB, re-read
   // the visible window. Called when `connected` flips and on every periodic
-  // refresh tick. Doesn't paginate backward — that's loadMore's job.
+  // refresh tick. Doesn't paginate backward â€” that's loadMore's job.
   const fetchMatches = useCallback(
     async (retry = false) => {
       if (!connected) return;
@@ -191,9 +190,9 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
       .catch((e) => console.warn("[History] distinct queues failed:", e));
   }, [matchLoading]);
 
-  // Read DB → matches on mount and on filter change. Replaces the old
+  // Read DB â†’ matches on mount and on filter change. Replaces the old
   // separate useAsyncEffect seed (this covers cache-render-before-connect).
-  // Resets visible window AND hasMoreInRiot — switching filters must
+  // Resets visible window AND hasMoreInRiot â€” switching filters must
   // un-latch the "End of history" flag so the user can keep paging.
   // Also bumps nextRiotPage so legacy users (with cached pages from the
   // old 3-page backfill) don't refetch already-cached pages on Load More.
@@ -208,7 +207,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
       .catch(() => {});
   }, [queueFilter, reloadVisible]);
 
-  // Aggregate stats panel — clear stale data first so the panel hides
+  // Aggregate stats panel â€” clear stale data first so the panel hides
   // (via the `overall?.games > 0` guard) until the new query lands.
   useEffect(() => {
     setAggregate(null);
@@ -223,7 +222,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
   // #11: separate competitive-only pull for the Tracker Score card so the
   // score sits next to Current Rank as a stable solo-MMR indicator. Pulled
   // off the same SQLite aggregate the panel below uses; same 500-row window.
-  // Gated on matchLoading === false so the boolean flipping true→false each
+  // Gated on matchLoading === false so the boolean flipping trueâ†’false each
   // refresh fires the aggregate query exactly once per cycle (after the
   // SQLite write has actually landed), not twice.
   useEffect(() => {
@@ -233,7 +232,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
       .catch((e) => console.warn("[History] comp aggregate failed:", e));
   }, [matchLoading]);
 
-  // Same pattern as the match-history seed above — render the RR chart from
+  // Same pattern as the match-history seed above â€” render the RR chart from
   // cache before login so reopening the app shows a trend immediately.
   useAsyncEffect(async (isCancelled) => {
     try {
@@ -277,7 +276,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
       const raw = await invoke("get_rr_history", { start: 0, end: 20 });
       const json = JSON.parse(raw);
       // The backend cache stores raw PascalCase entries (it keys on
-      // `MatchID`), so we filter and put the raw shape — normalization
+      // `MatchID`), so we filter and put the raw shape â€” normalization
       // happens when we read for display, below.
       const rawMatches = Array.isArray(json?.Matches) ? json.Matches : [];
       const usable = rawMatches.filter((m) => (m?.TierAfterUpdate || 0) > 0);
@@ -289,7 +288,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
     } catch (e) {
       console.warn("[RR] history fetch failed:", e);
     }
-    // Render from cache regardless of whether the API call succeeded — the
+    // Render from cache regardless of whether the API call succeeded â€” the
     // cache is the source of truth for the chart, the API just refreshes the
     // head of the window.
     try {
@@ -495,7 +494,7 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
                 {winRate}%
               </p>
               <p className="text-xs font-body text-text-muted">
-                {wins}W / {losses}L · {totalGames}g
+                {wins}W / {losses}L Â· {totalGames}g
               </p>
             </StatCard>
 
@@ -505,276 +504,28 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
 
         {rrHistory && rrHistory.length >= 2 && <RRChart matches={rrHistory} />}
 
-        {spend && (spend.thisMonthVp > 0 || spend.vpSpent > 0) && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={noAnim() ? T0 : { duration: 0.2 }}
-            className="rounded-xl border border-border bg-base-700/60 p-3"
-            title={
-              spend.trackingSinceMs
-                ? `Tracking since ${new Date(spend.trackingSinceMs).toLocaleDateString()}`
-                : ""
-            }
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Spent (last 30 days)</Label>
-                <p className="text-base font-display font-bold text-text-primary tabular-nums mt-0.5">
-                  {Number(spend.thisMonthVp || 0).toLocaleString()}{" "}
-                  <span className="text-xs text-text-muted">VP</span>
-                  {spend.thisMonthRp > 0 && (
-                    <span className="ml-2">
-                      {Number(spend.thisMonthRp).toLocaleString()}{" "}
-                      <span className="text-xs text-text-muted">RP</span>
-                    </span>
-                  )}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] font-display text-text-muted uppercase tracking-wider">
-                  All-time
-                </p>
-                <p className="text-xs font-mono text-text-secondary tabular-nums mt-0.5">
-                  {Number(spend.vpSpent || 0).toLocaleString()} VP
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        )}
+        {spend && (spend.thisMonthVp > 0 || spend.vpSpent > 0) && <SpendCard spend={spend} />}
 
-        {penalties.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={noAnim() ? T0 : { duration: 0.2 }}
-            className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-3 space-y-2"
-          >
-            <div className="flex items-center gap-2">
-              <AlertTriangle size={14} className="text-yellow-400" />
-              <p className="text-xs font-display font-bold text-yellow-400 uppercase tracking-wider">
-                Account Status
-              </p>
-            </div>
-            <div className="space-y-1">
-              {penalties.map((p, idx) => {
-                const remainingText = formatTimeRemaining(p.expiryMs);
-                const label = getPenaltyLabel(p.type);
-                const queueLabel = p.queueId ? MODE_NAMES[p.queueId] || p.queueId : "";
-                const meta = [queueLabel, p.rrPenalty > 0 ? `${p.rrPenalty} RR` : null].filter(
-                  Boolean
-                );
-                return (
-                  <div
-                    key={p.id || idx}
-                    className="flex items-center justify-between gap-2 text-[11px] font-body"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <span className="text-text-primary">{label}</span>
-                      {meta.length > 0 && (
-                        <span className="text-text-muted"> · {meta.join(" · ")}</span>
-                      )}
-                    </div>
-                    {remainingText && (
-                      <span className="text-yellow-400 tabular-nums shrink-0">{remainingText}</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
+        {penalties.length > 0 && <AccountStatusBanner penalties={penalties} />}
 
         {aggregate && aggregate.overall?.games > 0 && (
           <AggregatePanels aggregate={aggregate} maps={maps} agentNames={agentNames} />
         )}
 
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-display font-semibold text-text-primary uppercase tracking-wider">
-            Match History
-          </h3>
-          {availableQueues.length > 1 && (
-            <select
-              value={queueFilter}
-              onChange={(e) => setQueueFilter(e.target.value)}
-              className="text-[11px] font-body bg-base-700 border border-border rounded px-2 py-1 text-text-secondary focus:outline-none focus:border-text-muted"
-              aria-label="Filter by queue"
-            >
-              <option value="all">All queues</option>
-              {availableQueues.map((q) => (
-                <option key={q} value={q}>
-                  {MODE_NAMES[q] || (q ? q.charAt(0).toUpperCase() + q.slice(1) : "Custom")}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        {matchLoading && !matches && (
-          <div className="space-y-1.5 animate-pulse">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
-                className="h-14 rounded-lg bg-base-700 border border-border flex items-center px-3 gap-3"
-              >
-                <div className="w-8 h-8 rounded-full bg-base-600 shrink-0" />
-                <div className="w-14 space-y-1">
-                  <div className="h-2.5 w-12 rounded bg-base-600" />
-                  <div className="h-3 w-8 rounded bg-base-600" />
-                </div>
-                <div className="h-3 w-16 rounded bg-base-600" />
-                <div className="ml-auto space-y-1 text-right">
-                  <div className="h-3 w-20 rounded bg-base-600" />
-                  <div className="h-2.5 w-12 rounded bg-base-600 ml-auto" />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className={`space-y-1.5 ${matchLoading ? "opacity-60 pointer-events-none" : ""}`}>
-          {(matches || []).map((m, i) => {
-            const delay = Math.min(i * 0.03, 0.5);
-            const mapData = maps[m.map];
-            const mapName = mapData?.name || m.map;
-            const mapImg = mapData?.listIcon || mapData?.splash;
-            const agentIcon = m.agent
-              ? customAgentIconByUuid(m.agent) ||
-                `https://media.valorant-api.com/agents/${m.agent}/displayicon.png`
-              : null;
-            const kdaVal = m.deaths > 0 ? ((m.kills + m.assists) / m.deaths).toFixed(1) : null;
-            const kdaText = kdaVal ? `${kdaVal} KDA` : "Perfect KDA";
-
-            const q = m.queueId || "";
-            const modeName =
-              MODE_NAMES[q] || (q ? q.charAt(0).toUpperCase() + q.slice(1) : "Custom");
-            const isDeathmatch = q === "deathmatch";
-            const isEscalation = q === "ggteam" || q === "dodgeball";
-
-            let resultText, resultColor, borderColor;
-            if (isDeathmatch) {
-              const dmWon = m.kills >= 40;
-              resultText = dmWon ? "VICTORY" : "DEFEAT";
-              resultColor = dmWon ? "text-green-400" : "text-red-400";
-              borderColor = dmWon ? "border-green-500/20" : "border-red-500/20";
-            } else if (isEscalation) {
-              resultText = m.won ? "VICTORY" : "DEFEAT";
-              resultColor = m.won ? "text-green-400" : "text-red-400";
-              borderColor = m.won ? "border-green-500/20" : "border-red-500/20";
-            } else {
-              const draw = m.roundsWon === m.roundsLost && m.roundsWon === 0;
-              const realDraw = !draw && m.roundsWon === m.roundsLost;
-              if (draw) {
-                resultText = "REMAKE";
-                resultColor = "text-text-muted";
-                borderColor = "border-text-muted/20";
-              } else if (realDraw) {
-                resultText = "DRAW";
-                resultColor = "text-text-muted";
-                borderColor = "border-text-muted/20";
-              } else if (m.won) {
-                resultText = "VICTORY";
-                resultColor = "text-green-400";
-                borderColor = "border-green-500/20";
-              } else {
-                resultText = "DEFEAT";
-                resultColor = "text-red-400";
-                borderColor = "border-red-500/20";
-              }
-            }
-
-            const clickable = !!m.matchId;
-            return (
-              <motion.div
-                key={m.matchId || `idx-${i}`}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={noAnim() ? T0 : { duration: 0.2, delay }}
-                onClick={clickable ? () => setOpenMatch(m) : undefined}
-                className={`relative rounded-lg overflow-hidden border ${borderColor} h-14 group ${clickable ? "cursor-pointer hover:border-text-muted/40 transition-colors" : ""}`}
-              >
-                {mapImg && (
-                  <img
-                    src={mapImg}
-                    alt=""
-                    className="absolute inset-0 w-full h-full object-cover opacity-20 group-hover:opacity-30 transition-opacity"
-                  />
-                )}
-                <div className="absolute inset-0 bg-gradient-to-r from-base-900/90 via-base-900/70 to-base-900/50" />
-
-                <div className="relative h-full flex items-center px-3 gap-3">
-                  {agentIcon && (
-                    <img
-                      src={agentIcon}
-                      alt=""
-                      className="w-8 h-8 rounded-full border border-white/10 shrink-0"
-                    />
-                  )}
-
-                  <div className="w-16 shrink-0">
-                    <p
-                      className={`text-[10px] font-display font-bold uppercase tracking-wide ${resultColor}`}
-                    >
-                      {resultText}
-                    </p>
-                    <p className="text-xs font-mono text-text-muted">
-                      {isDeathmatch || isEscalation
-                        ? `${m.kills} kills`
-                        : `${m.roundsWon}-${m.roundsLost}`}
-                    </p>
-                  </div>
-
-                  <div className="w-20 shrink-0">
-                    <p className="text-xs font-display font-medium text-text-primary">{mapName}</p>
-                    <p className="text-[9px] font-body text-text-muted/60">{modeName}</p>
-                  </div>
-
-                  <div className="flex items-center gap-1 flex-wrap min-w-0">
-                    {computeHighlights(m).map((b) => (
-                      <span
-                        key={b.id}
-                        title={b.hint}
-                        className={`px-1.5 py-0.5 rounded-full text-[9px] font-display font-bold uppercase tracking-wider border border-current/30 bg-base-700/40 ${b.color}`}
-                      >
-                        {b.label}
-                      </span>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center gap-3 ml-auto">
-                    <div className="text-right">
-                      <div className="flex items-center justify-end gap-0.5 text-xs font-mono">
-                        <span className="text-text-primary font-semibold">{m.kills}</span>
-                        <span className="text-text-muted">/</span>
-                        <span className="text-red-400 font-semibold">{m.deaths}</span>
-                        <span className="text-text-muted">/</span>
-                        <span className="text-text-muted">{m.assists}</span>
-                      </div>
-                      <p className="text-[10px] font-mono text-text-muted">{kdaText}</p>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
-          {matches && matches.length > 0 && (
-            <div className="pt-2 flex items-center justify-center">
-              <button
-                onClick={loadMore}
-                disabled={loadingMore || (!hasMoreInRiot && (matches?.length || 0) < visibleCount)}
-                className={`text-[11px] font-display font-semibold tracking-wider uppercase px-3 py-1.5 rounded-md bg-base-700 hover:bg-base-600 border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${loadError ? "border-red-500/40 text-red-400 hover:text-red-300" : "border-border text-text-secondary hover:text-text-primary"}`}
-              >
-                {loadingMore
-                  ? "Loading…"
-                  : loadError
-                    ? "Load failed — click to retry"
-                    : !hasMoreInRiot && (matches?.length || 0) < visibleCount
-                      ? "End of history"
-                      : `Load more (${matches?.length || 0} shown)`}
-              </button>
-            </div>
-          )}
-        </div>
+        <MatchHistorySection
+          matches={matches}
+          matchLoading={matchLoading}
+          maps={maps}
+          queueFilter={queueFilter}
+          availableQueues={availableQueues}
+          onQueueFilterChange={setQueueFilter}
+          loadingMore={loadingMore}
+          hasMoreInRiot={hasMoreInRiot}
+          loadError={loadError}
+          visibleCount={visibleCount}
+          onLoadMore={loadMore}
+          onOpenMatch={setOpenMatch}
+        />
       </div>
       {openMatch && (
         <MatchDetailsModal
@@ -785,262 +536,6 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
           selfTag={player?.game_tag}
           onClose={() => setOpenMatch(null)}
         />
-      )}
-    </div>
-  );
-}
-
-// #11: TRN-style 0-100 score. Replaces the old Total Games card — that
-// number now lives in the Win Rate card's subtext, freeing a slot for a
-// more interesting at-a-glance metric. Color tier matches the fitness
-// score convention used in PartyPage's invite list.
-function TrackerScoreCard({ score, loading }) {
-  const tier = trackerScoreTier(score?.score);
-  const colorClass =
-    tier === "high"
-      ? "text-green-400"
-      : tier === "low"
-        ? "text-red-400"
-        : tier === "mid"
-          ? "text-text-primary"
-          : "text-text-muted/50";
-  const display = score?.score == null ? "—" : score.score;
-  const hint = score
-    ? score.score == null
-      ? `Need ${10 - score.games} more competitive game${10 - score.games === 1 ? "" : "s"}`
-      : `${score.breakdown.kd} K/D · ${score.breakdown.winrate}% WR · ${score.games}g${
-          score.confidence < 1 ? ` (low confidence)` : ""
-        }`
-    : "";
-  return (
-    <StatCard label="Tracker Score" loading={loading}>
-      <p className={`text-xl font-display font-bold tabular-nums ${colorClass}`} title={hint}>
-        {display}
-        {score?.score != null && (
-          <span className="text-xs text-text-muted font-body font-normal">/100</span>
-        )}
-      </p>
-      <p className="text-xs font-body text-text-muted">
-        {score?.score != null
-          ? `${score.breakdown.kd} K/D · ${score.breakdown.winrate}% WR`
-          : score?.games
-            ? `${score.games}g · keep going`
-            : "Competitive"}
-      </p>
-    </StatCard>
-  );
-}
-
-function StatCard({ label, children, loading }) {
-  return (
-    <motion.div
-      variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}
-      transition={{ duration: 0.2 }}
-      className={`p-3 rounded-xl bg-base-700 border border-border space-y-1.5 ${loading ? "opacity-60" : ""}`}
-    >
-      <p className="text-[10px] font-display font-medium text-text-muted uppercase tracking-wider">
-        {label}
-      </p>
-      {children}
-    </motion.div>
-  );
-}
-
-// #24: hand-rolled SVG line chart for RR over the most recent ~20 ranked
-// matches. Riot returns matches most-recent-first; we reverse for
-// left-to-right time. Y axis uses tier*100 + rr to give a continuous signal
-// across tier promotion/demotion boundaries.
-//
-// `matches` is an array of normalized RrEntry from riotShapes.js — all
-// fields are camelCase, defensively coerced to numbers.
-function RRChart({ matches }) {
-  // Reverse so left = oldest, right = most recent.
-  const points = [...matches].reverse().map((m) => ({
-    y: m.tierAfter * 100 + m.rrAfter,
-    rr: m.rrAfter,
-    earned: m.rrEarned,
-  }));
-  const ys = points.map((p) => p.y);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
-  const span = Math.max(1, maxY - minY);
-  // Padding around the polyline so the top/bottom dots don't clip.
-  const pad = 12;
-  const w = 600; // logical width; SVG scales to container
-  const h = 140;
-  const innerH = h - pad * 2;
-  const xStep = points.length > 1 ? (w - pad * 2) / (points.length - 1) : 0;
-  const coords = points.map((p, i) => {
-    const x = pad + i * xStep;
-    const yNorm = (p.y - minY) / span; // 0..1
-    const y = pad + (1 - yNorm) * innerH;
-    // NB: spread `p` first so the scaled `x`/`y` override the raw `p.y`.
-    // Spreading after `{ x, y }` would clobber the scaled `y` with the
-    // raw tier*100+rr value and push the polyline off the viewBox.
-    return { ...p, x, y };
-  });
-  const pathD = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x},${c.y}`).join(" ");
-  const last = coords[coords.length - 1];
-  const totalDelta = points.reduce((acc, p) => acc + p.earned, 0);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={noAnim() ? T0 : { duration: 0.2 }}
-      className="rounded-xl border border-border bg-base-700/60 p-3"
-    >
-      <div className="flex items-baseline justify-between mb-2">
-        <Label>RR Trend</Label>
-        <p
-          className={`text-[10px] font-mono tabular-nums ${totalDelta >= 0 ? "text-green-400" : "text-red-400"}`}
-        >
-          {totalDelta >= 0 ? "+" : ""}
-          {totalDelta} RR over {points.length} matches
-        </p>
-      </div>
-      <div className="relative w-full h-[140px]">
-        {/* eslint-disable-next-line no-restricted-syntax -- dynamic data viz, not an icon */}
-        <svg
-          viewBox={`0 0 ${w} ${h}`}
-          className="absolute inset-0 w-full h-full"
-          preserveAspectRatio="none"
-        >
-          <path
-            d={pathD}
-            fill="none"
-            stroke="rgb(var(--val-red))"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            vectorEffect="non-scaling-stroke"
-          />
-          {coords.map((c, i) => (
-            <circle
-              key={i}
-              cx={c.x}
-              cy={c.y}
-              r={i === coords.length - 1 ? 4 : 2.5}
-              fill="rgb(var(--val-red))"
-              vectorEffect="non-scaling-stroke"
-            />
-          ))}
-        </svg>
-        {/* Labels as HTML overlays so preserveAspectRatio="none" doesn't
-            horizontally smear the text along with the line. */}
-        <span className="absolute right-1.5 top-1 text-[9px] font-mono tabular-nums text-text-muted">
-          {maxY}
-        </span>
-        <span className="absolute right-1.5 bottom-1 text-[9px] font-mono tabular-nums text-text-muted">
-          {minY}
-        </span>
-        <span
-          className="absolute right-2 text-[10px] font-mono tabular-nums text-text-primary"
-          style={{ top: `${(last.y / h) * 100}%`, transform: "translateY(-130%)" }}
-        >
-          {last.rr}
-        </span>
-      </div>
-    </motion.div>
-  );
-}
-
-// Tracker.gg-style rollup panels. Renders three sections collapsed inside
-// a <details> so the page layout doesn't change for users who don't care:
-// overall stats for the current queue filter, top agents, top maps.
-//
-// Data shape (from `match_history_aggregate`):
-//   { byAgent: [{agentId, games, wins, kills, deaths, assists}, ...],
-//     byMap:   [{mapId,   games, wins}, ...],
-//     overall: {games, wins, kills, deaths, assists}, limit, queueId }
-function AggregatePanels({ aggregate, maps, agentNames }) {
-  const { overall, byAgent, byMap } = aggregate;
-  const winPct = overall.games > 0 ? Math.round((overall.wins / overall.games) * 100) : 0;
-  const kdRatio = overall.deaths > 0 ? (overall.kills / overall.deaths).toFixed(2) : "—";
-  const avgK = overall.games > 0 ? (overall.kills / overall.games).toFixed(1) : "—";
-  const avgD = overall.games > 0 ? (overall.deaths / overall.games).toFixed(1) : "—";
-  const avgA = overall.games > 0 ? (overall.assists / overall.games).toFixed(1) : "—";
-
-  return (
-    <details className="rounded-xl border border-border bg-base-700/60 group" open>
-      <summary className="cursor-pointer list-none p-3 flex items-center justify-between hover:bg-base-700/80 rounded-xl">
-        <div className="flex items-baseline gap-3">
-          <Label>Stats</Label>
-          <span className="text-[11px] font-mono tabular-nums text-text-muted">
-            {overall.games} games · {winPct}% WR · {kdRatio} K/D · {avgK}/{avgD}/{avgA}
-          </span>
-        </div>
-        <span className="text-text-muted text-[10px] group-open:rotate-90 transition-transform">
-          ▶
-        </span>
-      </summary>
-      <div className="px-3 pb-3 grid grid-cols-2 gap-3">
-        <AggregateList
-          title="Top Agents"
-          rows={byAgent.slice(0, 5)}
-          renderRow={(r) => {
-            const iconUrl = r.agentId
-              ? customAgentIconByUuid(r.agentId) ||
-                `https://media.valorant-api.com/agents/${r.agentId}/displayicon.png`
-              : null;
-            const wr = r.games > 0 ? Math.round((r.wins / r.games) * 100) : 0;
-            const kd = r.deaths > 0 ? (r.kills / r.deaths).toFixed(2) : "—";
-            return (
-              <>
-                {iconUrl && <img src={iconUrl} alt="" className="w-5 h-5 rounded-full shrink-0" />}
-                <span className="flex-1 truncate text-text-primary">
-                  {agentNames[r.agentId?.toLowerCase()] || r.agentId?.slice(0, 8) || "Unknown"}
-                </span>
-                <span className="text-text-muted tabular-nums">{r.games}g</span>
-                <span className={`tabular-nums ${wr >= 50 ? "text-green-400" : "text-red-400"}`}>
-                  {wr}%
-                </span>
-                <span className="text-text-muted tabular-nums">{kd}</span>
-              </>
-            );
-          }}
-        />
-        <AggregateList
-          title="Top Maps"
-          rows={byMap.slice(0, 5)}
-          renderRow={(r) => {
-            const key = r.mapId?.split("/").pop();
-            const mapData = key ? maps[key] : null;
-            const name = mapData?.name || key || "Unknown";
-            const wr = r.games > 0 ? Math.round((r.wins / r.games) * 100) : 0;
-            return (
-              <>
-                <span className="flex-1 truncate text-text-primary">{name}</span>
-                <span className="text-text-muted tabular-nums">{r.games}g</span>
-                <span className={`tabular-nums ${wr >= 50 ? "text-green-400" : "text-red-400"}`}>
-                  {wr}%
-                </span>
-              </>
-            );
-          }}
-        />
-      </div>
-    </details>
-  );
-}
-
-function AggregateList({ title, rows, renderRow }) {
-  return (
-    <div className="space-y-1">
-      <p className="text-[9px] font-display font-bold text-text-muted uppercase tracking-wider mb-1">
-        {title}
-      </p>
-      {rows.length === 0 ? (
-        <p className="text-[10px] font-body text-text-muted italic">No data</p>
-      ) : (
-        rows.map((r, i) => (
-          <div
-            key={i}
-            className="flex items-center gap-2 text-[10px] font-mono px-1.5 py-1 rounded hover:bg-base-600/40"
-          >
-            {renderRow(r)}
-          </div>
-        ))
       )}
     </div>
   );

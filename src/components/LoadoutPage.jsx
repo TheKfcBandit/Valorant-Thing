@@ -1,102 +1,21 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  ArrowLeft,
-  CheckBadge,
-  HeartToggle,
-  LoadoutTab,
-  RefreshCcw,
-  Spinner,
-  TypeMark,
-} from "../icons";
+import { LoadoutTab, RefreshCcw, Spinner } from "../icons";
 import { formatError } from "../utils/authError";
-
-const ITEM_TYPES = {
-  SKIN_LEVEL: "3ad1b2b2-acdb-4524-852f-954a76ddae0a",
-  SKIN_CHROMA: "e7c63390-eda7-46e0-bb7a-a6abdacd2433",
-  BUDDY: "dd3bf334-87f3-40bd-b043-682a57a8dc3a",
-  SPRAY: "d5f120f8-ff8c-4aac-92ea-f2b5acbe9475",
-  CARD: "3f296c07-64c3-494c-923b-fe692a4fa1bd",
-  TITLE: "de7caa6b-adf7-4588-bbd1-143831e786c6",
-};
-
-const CATEGORY_ORDER = {
-  "EEquippableCategory::Sidearm": 0,
-  "EEquippableCategory::SMG": 1,
-  "EEquippableCategory::Shotgun": 2,
-  "EEquippableCategory::Rifle": 3,
-  "EEquippableCategory::Sniper": 4,
-  "EEquippableCategory::Heavy": 5,
-  "EEquippableCategory::Melee": 6,
-};
-
-const CATEGORY_LABELS = {
-  "EEquippableCategory::Sidearm": "SIDEARMS",
-  "EEquippableCategory::SMG": "SMGS",
-  "EEquippableCategory::Shotgun": "SHOTGUNS",
-  "EEquippableCategory::Rifle": "RIFLES",
-  "EEquippableCategory::Sniper": "SNIPERS",
-  "EEquippableCategory::Heavy": "HEAVY WEAPONS",
-  "EEquippableCategory::Melee": "MELEE",
-};
-
-const RARITY_COLORS = {
-  "0cebb8be-46d7-c12a-d306-e9907bfc5a25": "#5a9fe2",
-  "60bca009-4182-7998-dee7-b8a2558dc369": "#009587",
-  "12683d76-48d7-84a3-4e09-6985794f0445": "#d1548d",
-  "411e4a55-4e59-7757-41f0-86a53f101bb5": "#f5955b",
-  "e046854e-406c-37f4-6607-19a9ba8426fc": "#fad663",
-};
-
-const SPRAY_SLOTS = [
-  { id: "0814b2fe-4512-60a4-5288-1fbdcec6ca48", label: "Pre-Round" },
-  { id: "04af080a-4071-487b-61c0-5b9c0cfaac74", label: "Mid-Round" },
-  { id: "5863985e-43ac-b05d-cb2d-139e72970571", label: "Post-Round" },
-];
-
-let apiCache = {};
-async function apiFetch(endpoint) {
-  if (apiCache[endpoint]) return apiCache[endpoint];
-  const res = await fetch(`https://valorant-api.com/v1/${endpoint}`);
-  const data = await res.json();
-  apiCache[endpoint] = data.data;
-  return data.data;
-}
-
-async function fetchOwnedIds(typeId) {
-  try {
-    const raw = await invoke("get_owned_items", { itemTypeId: typeId });
-    const json = JSON.parse(raw);
-    let items = [];
-    if (json.Entitlements) {
-      items = json.Entitlements;
-    } else if (json.EntitlementsByTypes) {
-      for (const group of json.EntitlementsByTypes) {
-        items.push(...(group.Entitlements || []));
-      }
-    }
-    return new Set(items.map((e) => e.ItemID.toLowerCase()));
-  } catch (e) {
-    console.error(`[Loadout] Failed to fetch owned ${typeId}:`, e);
-    return new Set();
-  }
-}
-
-function Img({ src, className = "", fallback = null }) {
-  const [err, setErr] = useState(false);
-  if (!src || err) return fallback || <div className={`bg-base-600/50 ${className}`} />;
-  return (
-    <img
-      src={src}
-      alt=""
-      className={className}
-      onError={() => setErr(true)}
-      loading="lazy"
-      draggable={false}
-    />
-  );
-}
+import {
+  ITEM_TYPES,
+  CATEGORY_ORDER,
+  CATEGORY_LABELS,
+  SPRAY_SLOTS,
+  apiFetch,
+  fetchOwnedIds,
+} from "../utils/loadout";
+import { Img } from "./loadout/Img";
+import { SkinPicker } from "./loadout/SkinPicker";
+import { GridPicker } from "./loadout/GridPicker";
+import { PresetsPanel } from "./loadout/PresetsPanel";
+import { WeaponCard, SprayCard, IdentityCards } from "./loadout/CollectionCards";
 
 export default function LoadoutPage({ connected }) {
   const [weapons, setWeapons] = useState([]);
@@ -120,10 +39,6 @@ export default function LoadoutPage({ connected }) {
   });
   const [picker, setPicker] = useState(null);
   const [search, setSearch] = useState("");
-  const [presets, setPresets] = useState([]);
-  const [presetName, setPresetName] = useState("");
-  const [presetBusy, setPresetBusy] = useState(false);
-  const [presetError, setPresetError] = useState(null);
   const [favoriteSkins, setFavoriteSkins] = useState(() => {
     try {
       const arr = JSON.parse(localStorage.getItem("favorite_skins") || "[]");
@@ -192,71 +107,11 @@ export default function LoadoutPage({ connected }) {
     fetchAll();
   }, [fetchAll]);
 
-  const refreshPresets = useCallback(async () => {
-    try {
-      const list = await invoke("list_loadout_presets");
-      setPresets(Array.isArray(list) ? list : []);
-    } catch (e) {
-      console.warn("[Presets] list failed:", e);
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshPresets();
-  }, [refreshPresets]);
-
-  const savePreset = useCallback(async () => {
-    const name = presetName.trim();
-    if (!name || presetBusy) return;
-    setPresetError(null);
-    setPresetBusy(true);
-    try {
-      await invoke("save_loadout_preset", { name });
-      setPresetName("");
-      await refreshPresets();
-    } catch (e) {
-      setPresetError(typeof e === "string" ? e : e?.message || "Save failed");
-    } finally {
-      setPresetBusy(false);
-    }
-  }, [presetName, presetBusy, refreshPresets]);
-
-  const applyPreset = useCallback(
-    async (id) => {
-      if (presetBusy) return;
-      setPresetError(null);
-      setPresetBusy(true);
-      try {
-        await invoke("apply_loadout_preset", { presetId: id });
-        setSuccessMsg("Preset applied! Restart game to see changes.");
-        setTimeout(() => setSuccessMsg(null), 3000);
-        // Refresh the live loadout so the rest of the page reflects the change.
-        await fetchAll();
-      } catch (e) {
-        setPresetError(typeof e === "string" ? e : e?.message || "Apply failed");
-      } finally {
-        setPresetBusy(false);
-      }
-    },
-    [presetBusy, fetchAll]
-  );
-
-  const deletePreset = useCallback(
-    async (id) => {
-      if (presetBusy) return;
-      setPresetError(null);
-      setPresetBusy(true);
-      try {
-        await invoke("delete_loadout_preset", { presetId: id });
-        await refreshPresets();
-      } catch (e) {
-        setPresetError(typeof e === "string" ? e : e?.message || "Delete failed");
-      } finally {
-        setPresetBusy(false);
-      }
-    },
-    [presetBusy, refreshPresets]
-  );
+  const handlePresetApplied = useCallback(async () => {
+    setSuccessMsg("Preset applied! Restart game to see changes.");
+    setTimeout(() => setSuccessMsg(null), 3000);
+    await fetchAll();
+  }, [fetchAll]);
 
   const weaponsByCategory = useMemo(() => {
     const groups = {};
@@ -270,47 +125,12 @@ export default function LoadoutPage({ connected }) {
     );
   }, [weapons]);
 
-  const findSkinByLevel = useCallback((weapon, levelId) => {
-    if (!weapon?.skins || !levelId) return null;
-    for (const skin of weapon.skins) {
-      if (skin.levels?.some((l) => l.uuid.toLowerCase() === levelId.toLowerCase())) return skin;
-    }
-    return null;
-  }, []);
-
-  const findChroma = useCallback((skin, chromaId) => {
-    if (!skin?.chromas || !chromaId) return null;
-    return skin.chromas.find((c) => c.uuid.toLowerCase() === chromaId.toLowerCase()) || null;
-  }, []);
-
   const getEquipped = useCallback(
     (weaponUuid) => {
       return pending?.Guns?.find((g) => g.ID.toLowerCase() === weaponUuid.toLowerCase());
     },
     [pending]
   );
-
-  const getSkinImg = (skin, chroma) => {
-    if (chroma) return chroma.fullRender || chroma.displayIcon || skin?.displayIcon;
-    return skin?.chromas?.[0]?.fullRender || skin?.chromas?.[0]?.displayIcon || skin?.displayIcon;
-  };
-
-  const getAllSkins = useCallback((weapon) => {
-    if (!weapon?.skins) return [];
-    return weapon.skins.filter(
-      (s) => s.displayIcon || s.chromas?.[0]?.displayIcon || s.chromas?.[0]?.fullRender
-    );
-  }, []);
-
-  const getOwnedChromas = useCallback((skin) => {
-    if (!skin?.chromas) return [];
-    return skin.chromas;
-  }, []);
-
-  const getOwnedLevels = useCallback((skin) => {
-    if (!skin?.levels) return [];
-    return skin.levels;
-  }, []);
 
   const equipSkin = useCallback((weaponUuid, skin, chroma, level) => {
     setPending((prev) => {
@@ -468,398 +288,76 @@ export default function LoadoutPage({ connected }) {
     );
   }
 
-  const renderWeaponCard = (weapon) => {
-    const eq = getEquipped(weapon.uuid);
-    const skin = eq ? findSkinByLevel(weapon, eq.SkinLevelID) : null;
-    const chroma = skin ? findChroma(skin, eq?.ChromaID) : null;
-    const imgUrl = getSkinImg(skin, chroma) || weapon.displayIcon;
-    const skinName = skin?.displayName?.replace(weapon.displayName, "").trim() || "Standard";
-    const rarity = skin?.contentTierUuid;
-    const rarityColor = rarity ? RARITY_COLORS[rarity] : null;
-
-    return (
-      <button
-        key={weapon.uuid}
-        onClick={() => {
-          setPicker({ type: "weapon", weapon });
-          setSearch("");
-        }}
-        className="group relative bg-base-700/60 hover:bg-base-600/80 border border-border/50 hover:border-border rounded-lg overflow-hidden transition-all duration-150 flex flex-col"
-      >
-        {rarityColor && (
-          <div
-            className="absolute top-0 left-0 right-0 h-[2px]"
-            style={{ backgroundColor: rarityColor }}
-          />
-        )}
-        <div className="flex-1 flex items-center justify-center p-3 min-h-[70px]">
-          <Img src={imgUrl} className="max-w-full max-h-[56px] object-contain drop-shadow-lg" />
-        </div>
-        <div className="px-2 pb-2 text-center">
-          <div className="text-[10px] font-display font-bold text-text-primary uppercase tracking-wide truncate">
-            {weapon.displayName}
-          </div>
-          <div
-            className="text-[9px] text-text-muted truncate"
-            style={rarityColor ? { color: rarityColor } : {}}
-          >
-            {skinName}
-          </div>
-        </div>
-      </button>
-    );
-  };
-
-  const renderSprayCard = (slot) => {
-    const eq = pending?.Sprays?.find((s) => s.EquipSlotID === slot.id);
-    const sprayData = sprays.find((s) => s.uuid === eq?.SprayID);
-    return (
-      <button
-        key={slot.id}
-        onClick={() => {
-          setPicker({ type: "spray", slot });
-          setSearch("");
-        }}
-        className="bg-base-700/60 hover:bg-base-600/80 border border-border/50 hover:border-border rounded-lg overflow-hidden transition-all duration-150 flex flex-col"
-      >
-        <div className="flex-1 flex items-center justify-center p-2 min-h-[70px]">
-          {sprayData?.displayIcon ? (
-            <Img src={sprayData.displayIcon} className="max-w-full max-h-[56px] object-contain" />
-          ) : (
-            <div className="w-12 h-12 rounded bg-base-600/50" />
-          )}
-        </div>
-        <div className="px-2 pb-2 text-center">
-          <div className="text-[10px] font-display font-bold text-text-primary uppercase tracking-wide">
-            {slot.label}
-          </div>
-          <div className="text-[9px] text-text-muted truncate">
-            {sprayData?.displayName || "None"}
-          </div>
-        </div>
-      </button>
-    );
-  };
-
-  const renderIdentitySection = () => {
-    const cardId = pending?.Identity?.PlayerCardID;
-    const titleId = pending?.Identity?.PlayerTitleID;
-    const cardData = cards.find((c) => c.uuid === cardId);
-    const titleData = titles.find((t) => t.uuid === titleId);
-
-    return (
-      <div className="flex gap-3">
-        <button
-          onClick={() => {
-            setPicker({ type: "card" });
-            setSearch("");
-          }}
-          className="flex items-center gap-3 bg-base-700/60 hover:bg-base-600/80 border border-border/50 hover:border-border rounded-lg p-2.5 transition-all flex-1 min-w-0"
-        >
-          {cardData?.smallArt ? (
-            <Img src={cardData.smallArt} className="w-10 h-10 rounded object-cover flex-shrink-0" />
-          ) : (
-            <div className="w-10 h-10 rounded bg-base-600/50 flex-shrink-0" />
-          )}
-          <div className="text-left min-w-0">
-            <div className="text-[9px] font-display text-text-muted uppercase tracking-wider">
-              Player Card
-            </div>
-            <div className="text-xs text-text-primary truncate">
-              {cardData?.displayName || "Default"}
-            </div>
-          </div>
-        </button>
-        <button
-          onClick={() => {
-            setPicker({ type: "title" });
-            setSearch("");
-          }}
-          className="flex items-center gap-3 bg-base-700/60 hover:bg-base-600/80 border border-border/50 hover:border-border rounded-lg p-2.5 transition-all flex-1 min-w-0"
-        >
-          <div className="w-10 h-10 rounded bg-base-600/50 flex-shrink-0 flex items-center justify-center">
-            <TypeMark className="text-text-muted" />
-          </div>
-          <div className="text-left min-w-0">
-            <div className="text-[9px] font-display text-text-muted uppercase tracking-wider">
-              Title
-            </div>
-            <div className="text-xs text-text-primary truncate">
-              {titleData?.titleText || "None"}
-            </div>
-          </div>
-        </button>
-      </div>
-    );
-  };
-
-  const renderSkinPicker = () => {
-    const weapon = picker.weapon;
-    const ownedSkins = getAllSkins(weapon);
-    const eq = getEquipped(weapon.uuid);
-    const q = search.toLowerCase();
-    const filtered = q
-      ? ownedSkins.filter((s) => s.displayName.toLowerCase().includes(q))
-      : ownedSkins;
-
-    return (
-      <div className="flex-1 flex flex-col min-h-0">
-        <div className="px-4 py-3 border-b border-border flex items-center gap-3">
-          <button
-            onClick={closePicker}
-            className="text-text-muted hover:text-text-primary transition-colors"
-          >
-            <ArrowLeft size={18} />
-          </button>
-          <div className="flex-1">
-            <div className="text-sm font-display font-bold text-text-primary uppercase tracking-wide">
-              {weapon.displayName}
-            </div>
-            <div className="text-[10px] text-text-muted">{filtered.length} skins</div>
-          </div>
-          <button
-            onClick={() => randomizeWeapon(weapon)}
-            className="px-2 py-1 rounded text-[10px] font-display font-semibold bg-base-600 hover:bg-base-500 border border-border text-text-secondary transition-colors"
-            title="Random from your favorites for this weapon"
-          >
-            Random Favorite
-          </button>
-        </div>
-        <div className="px-4 py-2">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search skins..."
-            autoFocus
-            className="w-full bg-base-700 border border-border rounded px-3 py-1.5 text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-text-muted/50"
-          />
-        </div>
-        <div className="flex-1 overflow-y-auto custom-scroll px-4 pb-4 space-y-1.5">
-          {filtered.map((skin) => {
-            const isEquipped = eq?.SkinID?.toLowerCase() === skin.uuid.toLowerCase();
-            const ownedChroms = getOwnedChromas(skin);
-            const ownedLvls = getOwnedLevels(skin);
-            const topLevel = ownedLvls[ownedLvls.length - 1] || skin.levels?.[0];
-            const rarity = skin.contentTierUuid;
-            const rarityColor = rarity ? RARITY_COLORS[rarity] : null;
-
-            const skinFav = favoriteSkins.has(skin.uuid.toLowerCase());
-
-            return (
-              <div
-                key={skin.uuid}
-                className={`rounded-lg border overflow-hidden transition-colors ${isEquipped ? "border-val-red/60 bg-val-red/5" : "border-border/50 bg-base-700/40 hover:bg-base-600/60"}`}
-              >
-                <div className="w-full p-3 flex items-center gap-4">
-                  <button
-                    onClick={() => equipSkin(weapon.uuid, skin, ownedChroms[0], topLevel)}
-                    className="flex items-center gap-4 flex-1 min-w-0"
-                  >
-                    <div className="w-28 h-14 flex-shrink-0 flex items-center justify-center">
-                      <Img
-                        src={getSkinImg(skin, null)}
-                        className="max-w-full max-h-full object-contain"
-                      />
-                    </div>
-                    <div className="text-left min-w-0 flex-1">
-                      <div className="text-xs font-display font-semibold text-text-primary">
-                        {skin.displayName}
-                      </div>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        {rarityColor && (
-                          <div
-                            className="w-2 h-2 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: rarityColor }}
-                          />
-                        )}
-                        <span className="text-[10px] text-text-muted">
-                          {ownedLvls.length} level{ownedLvls.length !== 1 ? "s" : ""} ·{" "}
-                          {ownedChroms.length} variant{ownedChroms.length !== 1 ? "s" : ""}
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleFavoriteSkin(skin.uuid);
-                    }}
-                    className="p-1.5 rounded hover:bg-base-500/40 transition-colors flex-shrink-0"
-                    title={skinFav ? "Unfavorite" : "Favorite"}
-                  >
-                    <HeartToggle
-                      filled={skinFav}
-                      style={{ color: skinFav ? "rgb(var(--val-red))" : "rgb(var(--text-muted))" }}
-                    />
-                  </button>
-                  {isEquipped && <CheckBadge className="text-val-red flex-shrink-0" />}
-                </div>
-                {isEquipped && ownedChroms.length > 1 && (
-                  <div className="px-3 pb-2.5 pt-0.5 flex gap-1.5 flex-wrap border-t border-border/30">
-                    <span className="text-[9px] text-text-muted mr-1 self-center">Variants:</span>
-                    {ownedChroms.map((ch) => {
-                      const isCur = eq?.ChromaID?.toLowerCase() === ch.uuid.toLowerCase();
-                      return (
-                        <button
-                          key={ch.uuid}
-                          onClick={() => equipSkin(weapon.uuid, skin, ch, topLevel)}
-                          className={`rounded border transition-colors ${isCur ? "border-val-red ring-1 ring-val-red/30" : "border-border/50 hover:border-text-muted/40"}`}
-                          title={ch.displayName}
-                        >
-                          {ch.swatch ? (
-                            <img src={ch.swatch} alt="" className="w-6 h-6 rounded" />
-                          ) : (
-                            <div className="w-6 h-6 rounded bg-base-500 text-[8px] text-text-muted flex items-center justify-center">
-                              {ownedChroms.indexOf(ch) + 1}
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                {isEquipped && ownedLvls.length > 1 && (
-                  <div className="px-3 pb-2.5 pt-0.5 flex gap-1 flex-wrap border-t border-border/30">
-                    <span className="text-[9px] text-text-muted mr-1 self-center">Level:</span>
-                    {ownedLvls.map((lvl, idx) => {
-                      const isCur = eq?.SkinLevelID?.toLowerCase() === lvl.uuid.toLowerCase();
-                      const lvlFav = favoriteLevels.has(lvl.uuid.toLowerCase());
-                      return (
-                        <div key={lvl.uuid} className="flex items-center">
-                          <button
-                            onClick={() =>
-                              equipSkin(weapon.uuid, skin, findChroma(skin, eq.ChromaID), lvl)
-                            }
-                            className={`px-2 py-0.5 rounded text-[10px] border transition-colors ${isCur ? "border-val-red text-val-red bg-val-red/10" : "border-border/50 text-text-muted hover:border-text-muted/40"}`}
-                          >
-                            {idx + 1}
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleFavoriteLevel(lvl.uuid);
-                            }}
-                            className="ml-0.5 p-0.5 rounded hover:bg-base-500/40 transition-colors"
-                            title={lvlFav ? "Unfavorite this level" : "Favorite this level"}
-                          >
-                            <HeartToggle
-                              size={9}
-                              filled={lvlFav}
-                              strokeWidth="2.5"
-                              style={{
-                                color: lvlFav ? "rgb(var(--val-red))" : "rgb(var(--text-muted))",
-                              }}
-                            />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
-  const renderGridPicker = (items, equippedId, onSelect, label, renderItem) => {
-    const q = search.toLowerCase();
-    const filtered = q
-      ? items.filter((i) => (i.displayName || i.titleText || "").toLowerCase().includes(q))
-      : items;
-
-    return (
-      <div className="flex-1 flex flex-col min-h-0">
-        <div className="px-4 py-3 border-b border-border flex items-center gap-3">
-          <button
-            onClick={closePicker}
-            className="text-text-muted hover:text-text-primary transition-colors"
-          >
-            <ArrowLeft size={18} />
-          </button>
-          <div>
-            <div className="text-sm font-display font-bold text-text-primary uppercase tracking-wide">
-              {label}
-            </div>
-            <div className="text-[10px] text-text-muted">{filtered.length} items</div>
-          </div>
-        </div>
-        <div className="px-4 py-2">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search ${label.toLowerCase()}...`}
-            autoFocus
-            className="w-full bg-base-700 border border-border rounded px-3 py-1.5 text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-text-muted/50"
-          />
-        </div>
-        <div className="flex-1 overflow-y-auto custom-scroll px-4 pb-4">
-          <div
-            className={`grid gap-2 ${label === "Player Cards" ? "grid-cols-5" : label === "Player Titles" ? "grid-cols-3" : "grid-cols-5"}`}
-          >
-            {filtered.map((item) => {
-              const isEq = equippedId?.toLowerCase() === item.uuid.toLowerCase();
-              return (
-                <button
-                  key={item.uuid}
-                  onClick={() => onSelect(item.uuid)}
-                  className={`rounded-lg border p-1.5 flex flex-col items-center gap-1 transition-colors ${isEq ? "border-val-red bg-val-red/5" : "border-border/50 bg-base-700/40 hover:bg-base-600/60"}`}
-                  title={item.displayName || item.titleText || ""}
-                >
-                  {renderItem(item)}
-                  <div className="text-[8px] text-text-muted text-center truncate w-full leading-tight">
-                    {item.displayName || item.titleText || "None"}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    );
+  const openPicker = (p) => {
+    setPicker(p);
+    setSearch("");
   };
 
   const renderPicker = () => {
     if (!picker) return null;
 
-    if (picker.type === "weapon") return renderSkinPicker();
+    if (picker.type === "weapon") {
+      return (
+        <SkinPicker
+          weapon={picker.weapon}
+          eq={getEquipped(picker.weapon.uuid)}
+          search={search}
+          onSearchChange={setSearch}
+          onClose={closePicker}
+          favoriteSkins={favoriteSkins}
+          favoriteLevels={favoriteLevels}
+          onToggleFavoriteSkin={toggleFavoriteSkin}
+          onToggleFavoriteLevel={toggleFavoriteLevel}
+          onEquip={equipSkin}
+          onRandomize={randomizeWeapon}
+        />
+      );
+    }
 
     if (picker.type === "spray") {
       const ownedList = sprays.filter(
         (s) => owned.sprays.has(s.uuid.toLowerCase()) || s.displayName === "Random Favorite Spray"
       );
       const eq = pending?.Sprays?.find((s) => s.EquipSlotID === picker.slot.id);
-      return renderGridPicker(
-        ownedList,
-        eq?.SprayID,
-        (id) => equipSpray(picker.slot.id, id),
-        `${picker.slot.label} Spray`,
-        (item) => (
-          <Img
-            src={item.displayIcon}
-            className="w-14 h-14 object-contain"
-            fallback={<div className="w-14 h-14 bg-base-600/50 rounded" />}
-          />
-        )
+      return (
+        <GridPicker
+          items={ownedList}
+          equippedId={eq?.SprayID}
+          onSelect={(id) => equipSpray(picker.slot.id, id)}
+          label={`${picker.slot.label} Spray`}
+          search={search}
+          onSearchChange={setSearch}
+          onClose={closePicker}
+          renderItem={(item) => (
+            <Img
+              src={item.displayIcon}
+              className="w-14 h-14 object-contain"
+              fallback={<div className="w-14 h-14 bg-base-600/50 rounded" />}
+            />
+          )}
+        />
       );
     }
 
     if (picker.type === "card") {
       const ownedList = cards.filter((c) => owned.cards.has(c.uuid.toLowerCase()));
-      return renderGridPicker(
-        ownedList,
-        pending?.Identity?.PlayerCardID,
-        equipCard,
-        "Player Cards",
-        (item) => (
-          <Img
-            src={item.smallArt}
-            className="w-12 h-16 object-cover rounded"
-            fallback={<div className="w-12 h-16 bg-base-600/50 rounded" />}
-          />
-        )
+      return (
+        <GridPicker
+          items={ownedList}
+          equippedId={pending?.Identity?.PlayerCardID}
+          onSelect={equipCard}
+          label="Player Cards"
+          search={search}
+          onSearchChange={setSearch}
+          onClose={closePicker}
+          renderItem={(item) => (
+            <Img
+              src={item.smallArt}
+              className="w-12 h-16 object-cover rounded"
+              fallback={<div className="w-12 h-16 bg-base-600/50 rounded" />}
+            />
+          )}
+        />
       );
     }
 
@@ -867,18 +365,23 @@ export default function LoadoutPage({ connected }) {
       const ownedList = titles.filter(
         (t) => owned.titles.has(t.uuid.toLowerCase()) || t.titleText === "" || !t.titleText
       );
-      return renderGridPicker(
-        ownedList,
-        pending?.Identity?.PlayerTitleID,
-        equipTitle,
-        "Player Titles",
-        (item) => (
-          <div className="w-full h-8 flex items-center justify-center">
-            <span className="text-[9px] text-text-primary text-center leading-tight px-1">
-              {item.titleText || "None"}
-            </span>
-          </div>
-        )
+      return (
+        <GridPicker
+          items={ownedList}
+          equippedId={pending?.Identity?.PlayerTitleID}
+          onSelect={equipTitle}
+          label="Player Titles"
+          search={search}
+          onSearchChange={setSearch}
+          onClose={closePicker}
+          renderItem={(item) => (
+            <div className="w-full h-8 flex items-center justify-center">
+              <span className="text-[9px] text-text-primary text-center leading-tight px-1">
+                {item.titleText || "None"}
+              </span>
+            </div>
+          )}
+        />
       );
     }
     return null;
@@ -967,83 +470,18 @@ export default function LoadoutPage({ connected }) {
             transition={{ duration: 0.1 }}
           >
             <div className="p-4 space-y-5">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-[10px] font-display font-bold text-text-muted uppercase tracking-widest">
-                    Presets
-                  </div>
-                  {presetError && (
-                    <span className="text-[10px] text-red-400 truncate max-w-[180px]">
-                      {presetError}
-                    </span>
-                  )}
-                </div>
-                <div className="rounded-lg border border-border bg-base-700/40 p-3 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={presetName}
-                      onChange={(e) => setPresetName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") savePreset();
-                      }}
-                      placeholder="Name your current loadout..."
-                      className="flex-1 px-2.5 py-1.5 bg-base-800 border border-border rounded text-xs font-body text-text-primary placeholder:text-text-muted/50 outline-none focus:border-val-red/60"
-                      maxLength={60}
-                    />
-                    <button
-                      onClick={savePreset}
-                      disabled={presetBusy || !presetName.trim()}
-                      className="px-3 py-1.5 rounded text-[10px] font-display font-bold uppercase tracking-wider border border-val-red/40 bg-val-red/20 hover:bg-val-red/30 text-val-red disabled:opacity-50"
-                    >
-                      Save current
-                    </button>
-                  </div>
-                  {presets.length === 0 ? (
-                    <p className="text-[10px] font-body text-text-muted">
-                      No presets yet. Save your current loadout to recall it later.
-                    </p>
-                  ) : (
-                    <ul className="space-y-1">
-                      {presets.map((p) => (
-                        <li
-                          key={p.id}
-                          className="flex items-center gap-2 px-2 py-1.5 rounded bg-base-800 border border-border"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-display font-semibold text-text-primary truncate">
-                              {p.name}
-                            </p>
-                            <p className="text-[9px] font-body text-text-muted">
-                              Saved {new Date(p.saved_at_ms).toLocaleString()}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => applyPreset(p.id)}
-                            disabled={presetBusy}
-                            className="px-2 py-1 rounded text-[10px] font-display font-semibold border border-val-red/40 bg-val-red/10 text-val-red hover:bg-val-red/20 disabled:opacity-50"
-                          >
-                            Apply
-                          </button>
-                          <button
-                            onClick={() => deletePreset(p.id)}
-                            disabled={presetBusy}
-                            className="px-2 py-1 rounded text-[10px] font-display font-semibold border border-border bg-base-600 hover:bg-base-500 text-text-secondary disabled:opacity-50"
-                          >
-                            Delete
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </div>
+              <PresetsPanel onApplied={handlePresetApplied} />
 
               <div className="space-y-2">
                 <div className="text-[10px] font-display font-bold text-text-muted uppercase tracking-widest">
                   Identity
                 </div>
-                {renderIdentitySection()}
+                <IdentityCards
+                  cardData={cards.find((c) => c.uuid === pending?.Identity?.PlayerCardID)}
+                  titleData={titles.find((t) => t.uuid === pending?.Identity?.PlayerTitleID)}
+                  onOpenCard={() => openPicker({ type: "card" })}
+                  onOpenTitle={() => openPicker({ type: "title" })}
+                />
               </div>
 
               <div className="space-y-2">
@@ -1051,7 +489,17 @@ export default function LoadoutPage({ connected }) {
                   Sprays
                 </div>
                 <div className="grid grid-cols-3 gap-2">
-                  {SPRAY_SLOTS.map((slot) => renderSprayCard(slot))}
+                  {SPRAY_SLOTS.map((slot) => {
+                    const eq = pending?.Sprays?.find((s) => s.EquipSlotID === slot.id);
+                    return (
+                      <SprayCard
+                        key={slot.id}
+                        slot={slot}
+                        sprayData={sprays.find((s) => s.uuid === eq?.SprayID)}
+                        onOpen={() => openPicker({ type: "spray", slot })}
+                      />
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1061,7 +509,14 @@ export default function LoadoutPage({ connected }) {
                     {CATEGORY_LABELS[cat] || cat}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    {weaps.map((w) => renderWeaponCard(w))}
+                    {weaps.map((w) => (
+                      <WeaponCard
+                        key={w.uuid}
+                        weapon={w}
+                        eq={getEquipped(w.uuid)}
+                        onOpen={() => openPicker({ type: "weapon", weapon: w })}
+                      />
+                    ))}
                   </div>
                 </div>
               ))}

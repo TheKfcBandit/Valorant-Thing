@@ -127,6 +127,86 @@ export function normalizePenaltiesResponse(raw) {
 }
 
 // ---------------------------------------------------------------------
+// /pregame/v1/matches/{matchId} + /core-game/v1/matches/{matchId}
+// (PascalCase). The backend's check_current_game returns whichever of the
+// two answered, tagged with `_phase: "pregame" | "ingame"`.
+// ---------------------------------------------------------------------
+
+/**
+ * One roster entry from either live-match endpoint.
+ * @typedef {Object} LivePlayer
+ * @property {string} puuid
+ * @property {string} characterId  - agent UUID, empty until picked
+ * @property {string} team         - "ally" in pregame (endpoint only
+ *                                   returns your team); TeamID in-game
+ * @property {number} accountLevel
+ * @property {boolean} incognito
+ * @property {boolean} hideLevel
+ */
+
+/** @param {any} raw  @param {string} team  @returns {LivePlayer} */
+export function normalizeLivePlayer(raw, team) {
+  return {
+    puuid: String(raw?.Subject || ""),
+    characterId: String(raw?.CharacterID || ""),
+    team,
+    accountLevel: Number(raw?.PlayerIdentity?.AccountLevel) || 0,
+    incognito: Boolean(raw?.PlayerIdentity?.Incognito),
+    hideLevel: Boolean(raw?.PlayerIdentity?.HideAccountLevel),
+  };
+}
+
+/**
+ * Whole check_current_game payload.
+ * @param {any} raw
+ * @returns {{ matchId: string, phase: "PREGAME"|"INGAME", mapId: string,
+ *             modeUrl: string, queueId: string, gamePodId: string,
+ *             players: LivePlayer[] }}
+ */
+export function normalizeLiveMatch(raw) {
+  const phase = raw?._phase === "pregame" ? "PREGAME" : "INGAME";
+  const players =
+    phase === "PREGAME"
+      ? (raw?.AllyTeam?.Players || []).map((p) => normalizeLivePlayer(p, "ally"))
+      : (raw?.Players || []).map((p) => normalizeLivePlayer(p, String(p?.TeamID || "")));
+  return {
+    matchId: String(raw?.ID || raw?.MatchID || ""),
+    phase,
+    mapId: String(raw?.MapID || ""),
+    modeUrl: String(raw?.GameMode || raw?.Mode || ""),
+    queueId: String(raw?.MatchmakingData?.QueueID || raw?.QueueID || ""),
+    gamePodId: String(raw?.GamePodID || ""),
+    players,
+  };
+}
+
+// ---------------------------------------------------------------------
+// /mmr/v1/players/{puuid}  (PascalCase)
+// ---------------------------------------------------------------------
+
+/**
+ * Best historical competitive tier from the seasonal map. Tier wins;
+ * RR breaks ties within the same tier.
+ * @param {any} raw - the full /mmr/v1/players response
+ * @returns {{ peaktier: number, peak_rr: number }}
+ */
+export function normalizeSeasonalPeak(raw) {
+  const seasons = raw?.QueueSkills?.competitive?.SeasonalInfoBySeasonID;
+  if (!seasons || typeof seasons !== "object") return { peaktier: 0, peak_rr: 0 };
+  let best = 0;
+  let bestRr = 0;
+  for (const s of Object.values(seasons)) {
+    const t = Number(s?.CompetitiveTier) || 0;
+    const r = Number(s?.RankedRating) || 0;
+    if (t > best || (t === best && r > bestRr)) {
+      best = t;
+      bestRr = r;
+    }
+  }
+  return { peaktier: best, peak_rr: bestRr };
+}
+
+// ---------------------------------------------------------------------
 // Future endpoints normalize here as they're consumed by new code.
 // Don't add normalizers for fields nothing is reading yet — premature.
 // ---------------------------------------------------------------------
