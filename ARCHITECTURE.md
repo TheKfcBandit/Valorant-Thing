@@ -51,6 +51,9 @@ The map of how Valorant-Thing is layered, where new things belong, and which bou
 │     logging.rs                     cloud.rs (VT Cloud reqwest)       │
 │     types.rs   (ConnectionState)   store.rs (Riot storefront)        │
 │                                    coach.rs (LLM)                    │
+│   background.rs (boot OAuth        tray.rs (system tray)             │
+│     refresh, db migration,                                           │
+│     storefront poller)                                               │
 └──────────────────────────────────────────────────────────────────────┘
                              │
                              ▼
@@ -69,7 +72,7 @@ The map of how Valorant-Thing is layered, where new things belong, and which bou
 - **`riot/http.rs`** is the only file that knows how Node-shelled HTTP requests are constructed. Everyone else calls `pd_get`, `glz_post`, etc. If a new endpoint family appears (e.g., `affinity-*`), add a helper here.
 - **Persistent state** = a `value_cache::Cache<T>` in `src-tauri/src/<name>_cache.rs`. T is a `#[derive(Default, Serialize, Deserialize)]` struct. Each cache owns its own filename; the cache module handles concurrent writes, lazy load, and corruption rescue.
 - **Cross-cutting Rust state** (Discord RPC, XMPP) is `Arc<Mutex<…>>` stored via `app.manage()` in `lib.rs::run()`.
-- **Long-lived background work** (XMPP socket, OAuth webview, identity cache writes) lives in its own dedicated module. Don't bury it inside `connection.rs`.
+- **Long-lived background work** (XMPP socket, OAuth webview, identity cache writes) lives in its own dedicated module. Don't bury it inside `connection.rs`. Setup-time spawns (boot OAuth hydration + refresh loop, legacy match-db migration, storefront poller) live in `background.rs`; tray wiring in `tray.rs`.
 - **No HTTP outside `riot/`** except `cloud.rs` (VT Cloud uses `reqwest` directly, not Node — distinct concern, distinct dependency).
 
 ### Layer 2 (Tauri bridge)
