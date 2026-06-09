@@ -95,8 +95,7 @@ pub async fn get_player_match_summaries(
     cache: tauri::State<'_, MatchDetailsCache>,
     puuids: Vec<String>,
 ) -> Result<String, String> {
-    let want: std::collections::HashSet<String> =
-        puuids.iter().map(|p| p.to_lowercase()).collect();
+    let want: std::collections::HashSet<String> = puuids.iter().map(|p| p.to_lowercase()).collect();
     let by_puuid = cache.read(&app, |map| extract_summaries(map, &want))?;
     serde_json::to_string(&by_puuid).map_err(|e| e.to_string())
 }
@@ -123,8 +122,7 @@ fn extract_summaries(
         if let Some(teams) = detail["teams"].as_array() {
             for t in teams {
                 if let Some(team_id) = t["teamId"].as_str() {
-                    won_by_team
-                        .insert(team_id.to_lowercase(), t["won"].as_bool().unwrap_or(false));
+                    won_by_team.insert(team_id.to_lowercase(), t["won"].as_bool().unwrap_or(false));
                 }
             }
         }
@@ -220,10 +218,7 @@ fn extract_deaths(map: &HashMap<String, Value>, player_puuid: &str) -> Vec<Death
                         y: loc["y"].as_f64().unwrap_or(0.0),
                         killer_puuid: killer,
                         killer_agent,
-                        weapon_id: fd["damageItem"]
-                            .as_str()
-                            .unwrap_or("")
-                            .to_lowercase(),
+                        weapon_id: fd["damageItem"].as_str().unwrap_or("").to_lowercase(),
                         is_secondary: fd["isSecondaryFireMode"].as_bool().unwrap_or(false),
                         damage_type: fd["damageType"].as_str().unwrap_or("Weapon").to_string(),
                     });
