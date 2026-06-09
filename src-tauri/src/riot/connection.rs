@@ -9,7 +9,14 @@ use super::process::{
 };
 use super::types::{ConnectionState, PlayerInfo};
 
-pub fn connect_and_store(state: &Mutex<ConnectionState>) -> Result<PlayerInfo, String> {
+// `include_debug` controls whether the raw /userinfo and playerloadout
+// response bodies ride along in PlayerInfo for the dev log viewer. They
+// contain account PII, so they only cross the Tauri bridge when the dev
+// tab is enabled on the frontend.
+pub fn connect_and_store(
+    state: &Mutex<ConnectionState>,
+    include_debug: bool,
+) -> Result<PlayerInfo, String> {
     log_info("[Connect] Reading lockfile...");
     let (pid, port, password) = read_lockfile()?;
 
@@ -59,7 +66,9 @@ pub fn connect_and_store(state: &Mutex<ConnectionState>) -> Result<PlayerInfo, S
     let mut rso_debug: Option<String> = None;
     match authed_get("https://auth.riotgames.com/userinfo", &access_token) {
         Ok(raw) => {
-            rso_debug = Some(raw.clone());
+            if include_debug {
+                rso_debug = Some(raw.clone());
+            }
             if let Ok(ui) = serde_json::from_str::<serde_json::Value>(&raw) {
                 if let Some(n) = ui["acct"]["game_name"].as_str().filter(|s| !s.is_empty()) {
                     game_name = n.to_string();
@@ -107,7 +116,9 @@ pub fn connect_and_store(state: &Mutex<ConnectionState>) -> Result<PlayerInfo, S
         &client_version,
     ) {
         Ok(raw) => {
-            loadout_debug = Some(raw.clone());
+            if include_debug {
+                loadout_debug = Some(raw.clone());
+            }
             if let Ok(loadout) = serde_json::from_str::<serde_json::Value>(&raw) {
                 if let Some(card_id) = loadout["Identity"]["PlayerCardID"].as_str() {
                     player_card_url = Some(format!(

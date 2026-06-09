@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { open } from "@tauri-apps/plugin-dialog";
 import { appDataDir } from "@tauri-apps/api/path";
 import { noAnim, T0 } from "../utils/animation";
+import { useAsyncEffect } from "../hooks/useAsyncEffect";
 import { AlertTriangle, Check, Filmstrip, MiscTab, X } from "../icons";
 
 const MENU_VIDEO_SUBPATH = "ShooterGame\\Content\\Movies\\Menu";
@@ -200,34 +201,34 @@ export default function MiscPage({
     sync();
   }, [videoConfig?.sourceBackupPath, valorantPath]);
 
-  useEffect(() => {
-    if (!connected) {
-      setIsLeader(false);
-      setLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    const check = async () => {
-      try {
-        const raw = await invoke("get_party");
-        if (cancelled) return;
-        const data = JSON.parse(raw);
-        const leader = data.members?.some((m) => m.puuid === data.my_puuid && m.is_owner);
-        setIsLeader(!!leader);
-      } catch {
-        if (!cancelled) setIsLeader(false);
+  useAsyncEffect(
+    async (isCancelled) => {
+      if (!connected) {
+        setIsLeader(false);
+        setLoading(false);
+        return;
       }
-      if (!cancelled) setLoading(false);
-    };
 
-    check();
-    const interval = setInterval(check, 15000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [connected]);
+      const check = async () => {
+        try {
+          const raw = await invoke("get_party");
+          if (isCancelled()) return;
+          const data = JSON.parse(raw);
+          const leader = data.members?.some((m) => m.puuid === data.my_puuid && m.is_owner);
+          setIsLeader(!!leader);
+        } catch {
+          if (!isCancelled()) setIsLeader(false);
+        }
+        if (!isCancelled()) setLoading(false);
+      };
+
+      while (!isCancelled()) {
+        await check();
+        await new Promise((resolve) => setTimeout(resolve, 15000));
+      }
+    },
+    [connected]
+  );
 
   const handleChangeMenuVideo = async () => {
     try {

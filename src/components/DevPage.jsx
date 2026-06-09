@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { DevTab } from "../icons";
+import { useAsyncEffect } from "../hooks/useAsyncEffect";
 
 const TABS = [
   { id: "logs", label: "Logs" },
@@ -200,15 +201,14 @@ function GameLogTab() {
     return () => el?.removeEventListener("scroll", handleScroll);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
+  useAsyncEffect(async (isCancelled) => {
     let initialized = false;
     const poll = async () => {
-      if (cancelled) return;
+      if (isCancelled()) return;
       if (!pausedRef.current) {
         try {
           const res = await invoke("read_game_log", { offset: offsetRef.current });
-          if (cancelled) return;
+          if (isCancelled()) return;
           setError(null);
           setFileSize(res.fileSize);
           if (!initialized) {
@@ -227,15 +227,12 @@ function GameLogTab() {
             offsetRef.current = res.offset;
           }
         } catch (e) {
-          if (!cancelled) setError(String(e));
+          if (!isCancelled()) setError(String(e));
         }
       }
-      if (!cancelled) setTimeout(poll, POLL_MS);
+      if (!isCancelled()) setTimeout(poll, POLL_MS);
     };
-    poll();
-    return () => {
-      cancelled = true;
-    };
+    await poll();
   }, []);
 
   useEffect(() => {

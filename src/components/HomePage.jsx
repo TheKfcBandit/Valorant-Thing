@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useApiLookup } from "../hooks/useApiLookup";
 import { motion } from "framer-motion";
 import { computeHighlights } from "../matchHighlights";
 import { noAnim, T0 } from "../utils/animation";
@@ -29,8 +30,15 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [timeLeft, setTimeLeft] = useState(REFRESH_INTERVAL);
-  const [maps, setMaps] = useState({});
-  const [agentNames, setAgentNames] = useState({});
+  const maps = useApiLookup(getMapMetadataByUrl);
+  const agentLookup = useApiLookup(getAgentLookup);
+  const agentNames = useMemo(() => {
+    const names = {};
+    for (const [id, a] of Object.entries(agentLookup)) {
+      if (a?.displayName) names[id] = a.displayName;
+    }
+    return names;
+  }, [agentLookup]);
   const [matches, setMatches] = useState(null);
   const [matchLoading, setMatchLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -56,19 +64,6 @@ export default function HomePage({ connected, player, playerIsStale, refreshKey,
   const [openMatch, setOpenMatch] = useState(null);
   const lastFetchRef = useRef(0);
   const lastAutoRefresh = useRef(0);
-
-  useEffect(() => {
-    getMapMetadataByUrl().then(setMaps);
-    getAgentLookup()
-      .then((lookup) => {
-        const names = {};
-        for (const [id, a] of Object.entries(lookup)) {
-          if (a?.displayName) names[id] = a.displayName;
-        }
-        setAgentNames(names);
-      })
-      .catch(() => {});
-  }, []);
 
   const fetchStats = useCallback(async () => {
     if (!connected) return;
