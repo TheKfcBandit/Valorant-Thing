@@ -29,7 +29,7 @@ External Riot blobs use mixed case conventions; this file maps them to stable ca
 
 `Cache<T>` (where T: Default + Serialize + DeserializeOwned). `.read(app, |v| ...)` for reads, `.write(app, |v| (result, should_persist))` for mutations. Lazy-load, corrupt-file rescue, concurrent-safe.
 
-All seven existing persistent stores use it: `match_details_cache`, `rr_cache`, `premier_cache`, `identity_cache`, `token_store`, `spend_tracker`, `loadout_presets`. **A new persistent store MUST be another `Cache<T>` instance**, not a hand-rolled file IO module.
+All six file-backed stores use it: `match_details_cache`, `rr_cache`, `premier_cache`, `identity_cache`, `spend_tracker`, `loadout_presets`. (`token_store` and `secret_store` are deliberate exceptions — OS keychain primary with a JSON fallback; `match_db` is SQLite.) **A new persistent store MUST be another `Cache<T>` instance**, not a hand-rolled file IO module.
 
 ### Plugin registry — `src/live/registry.js`
 
