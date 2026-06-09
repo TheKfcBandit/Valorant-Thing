@@ -237,3 +237,115 @@ pub async fn get_spend_summary(
 
     spend.read(&app, |d| build_summary(d, now, new_items.len()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_owned_skin_levels_handles_flat_entitlements_shape() {
+        let json = serde_json::json!({
+            "Entitlements": [
+                { "ItemID": "AAAA-1111" },
+                { "ItemID": "bbbb-2222" },
+                { "NotAnItem": true }
+            ]
+        });
+        let owned = parse_owned_skin_levels(&json);
+        assert_eq!(owned.len(), 2);
+        assert!(owned.contains("aaaa-1111"), "ids must be lowercased");
+        assert!(owned.contains("bbbb-2222"));
+    }
+
+    #[test]
+    fn parse_owned_skin_levels_handles_grouped_shape() {
+        let json = serde_json::json!({
+            "EntitlementsByTypes": [
+                { "Entitlements": [{ "ItemID": "CCCC-3333" }] },
+                { "Entitlements": [{ "ItemID": "dddd-4444" }] }
+            ]
+        });
+        let owned = parse_owned_skin_levels(&json);
+        assert_eq!(owned.len(), 2);
+        assert!(owned.contains("cccc-3333"));
+    }
+
+    #[test]
+    fn parse_owned_skin_levels_returns_empty_on_unknown_shape() {
+        assert!(parse_owned_skin_levels(&serde_json::json!({})).is_empty());
+        assert!(parse_owned_skin_levels(&serde_json::json!({ "Entitlements": "nope" })).is_empty());
+    }
+
+    #[test]
+    fn build_summary_folds_totals_and_30_day_window() {
+        let now: i64 = 100 * 24 * 3600 * 1000;
+        let cutoff = now - 30 * 24 * 3600 * 1000;
+        let d = SpendData {
+            tracking_since_ms: Some(1),
+            last_owned: HashSet::new(),
+            purchases: vec![
+                Purchase {
+                    skin_level_uuid: "old".into(),
+                    date_ms: cutoff - 1,
+                    vp: 1000,
+                    rp: 10,
+                    kc: 1,
+                },
+                Purchase {
+                    skin_level_uuid: "edge".into(),
+                    date_ms: cutoff,
+                    vp: 2000,
+                    rp: 20,
+                    kc: 2,
+                },
+                Purchase {
+                    skin_level_uuid: "new".into(),
+                    date_ms: now,
+                    vp: 4000,
+                    rp: 40,
+                    kc: 4,
+                },
+            ],
+            offer_cache: HashMap::new(),
+        };
+        let summary = build_summary(&d, now, 1);
+        assert_eq!(summary["vpSpent"], 7000);
+        assert_eq!(summary["rpSpent"], 70);
+        assert_eq!(summary["kcSpent"], 7);
+        // The cutoff is inclusive (>=), so "edge" counts toward the month.
+        assert_eq!(summary["thisMonthVp"], 6000);
+        assert_eq!(summary["thisMonthRp"], 60);
+        assert_eq!(summary["newSinceLast"], 1);
+        assert_eq!(summary["trackingSinceMs"], 1);
+    }
+
+    #[test]
+    fn spend_data_on_disk_shape_is_stable() {
+        // Pins the JSON field names so the Cache<SpendData> migration (and
+        // any future refactor) can't silently orphan existing spend files.
+        let json = r#"{
+            "tracking_since_ms": 42,
+            "last_owned": ["aaaa"],
+            "purchases": [
+                { "skin_level_uuid": "aaaa", "date_ms": 7, "vp": 100, "rp": 0, "kc": 0 }
+            ],
+            "offer_cache": { "aaaa": { "vp": 100, "rp": 0, "kc": 0 } }
+        }"#;
+        let d: SpendData = serde_json::from_str(json).expect("legacy shape must parse");
+        assert_eq!(d.tracking_since_ms, Some(42));
+        assert_eq!(d.purchases.len(), 1);
+        assert_eq!(d.purchases[0].vp, 100);
+
+        let back = serde_json::to_string(&d).unwrap();
+        for field in [
+            "tracking_since_ms",
+            "last_owned",
+            "purchases",
+            "skin_level_uuid",
+            "date_ms",
+            "offer_cache",
+        ] {
+            assert!(back.contains(field), "serialized output lost field {field}");
+        }
+    }
+}

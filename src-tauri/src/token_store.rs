@@ -179,3 +179,71 @@ pub fn blob_from_state(s: &crate::riot::ConnectionState) -> Option<TokenBlob> {
         saved_at_ms: now_ms(),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::riot::ConnectionState;
+
+    fn full_state() -> ConnectionState {
+        ConnectionState {
+            access_token: Some("at".into()),
+            entitlements: Some("ent".into()),
+            puuid: Some("puuid-1".into()),
+            region: Some("na".into()),
+            shard: Some("na".into()),
+            client_version: Some("release-09".into()),
+            game_name: Some("Name".into()),
+            game_tag: Some("TAG".into()),
+            player_card_url: Some("https://x/card.png".into()),
+            ..ConnectionState::default()
+        }
+    }
+
+    #[test]
+    fn blob_from_state_builds_from_complete_state() {
+        let blob = blob_from_state(&full_state()).expect("complete state must yield a blob");
+        assert_eq!(blob.access_token, "at");
+        assert_eq!(blob.puuid, "puuid-1");
+        assert_eq!(blob.player_card_url.as_deref(), Some("https://x/card.png"));
+        assert!(blob.saved_at_ms > 0);
+    }
+
+    #[test]
+    fn blob_from_state_requires_every_token_field() {
+        let mutations: [fn(&mut ConnectionState); 8] = [
+            |s| s.access_token = None,
+            |s| s.entitlements = None,
+            |s| s.puuid = None,
+            |s| s.region = None,
+            |s| s.shard = None,
+            |s| s.client_version = None,
+            |s| s.game_name = None,
+            |s| s.game_tag = None,
+        ];
+        for mutate in mutations {
+            let mut s = full_state();
+            mutate(&mut s);
+            assert!(blob_from_state(&s).is_none());
+        }
+    }
+
+    #[test]
+    fn blob_from_state_allows_missing_card_url() {
+        let mut s = full_state();
+        s.player_card_url = None;
+        let blob = blob_from_state(&s).expect("card url is optional");
+        assert!(blob.player_card_url.is_none());
+    }
+
+    #[test]
+    fn token_blob_serde_roundtrip_preserves_fields() {
+        let blob = blob_from_state(&full_state()).unwrap();
+        let json = serde_json::to_string(&blob).unwrap();
+        let back: TokenBlob = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.access_token, blob.access_token);
+        assert_eq!(back.entitlements, blob.entitlements);
+        assert_eq!(back.game_tag, blob.game_tag);
+        assert_eq!(back.saved_at_ms, blob.saved_at_ms);
+    }
+}
