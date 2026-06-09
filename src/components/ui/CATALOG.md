@@ -33,6 +33,34 @@ import { Label } from "./ui/Label";
 
 ---
 
+## `Toggle`
+
+[`./Toggle.jsx`](./Toggle.jsx)
+
+On/off switch. Consolidates the three near-identical local `Toggle` declarations that lived in `SettingsPage`, `FakeStatusPage` and `MiscPage` (superset of the FakeStatusPage variant, which added `disabled`).
+
+```jsx
+import { Toggle } from "./ui/Toggle";
+
+<Toggle enabled={notificationsEnabled} onChange={setNotificationsEnabled} />
+<Toggle enabled={active} onChange={handleToggle} disabled={!connected} />
+```
+
+**Props**
+
+| Prop        | Default | Notes                                              |
+| ----------- | ------- | -------------------------------------------------- |
+| `enabled`   | —       | Current on/off state.                              |
+| `onChange`  | —       | Called with the toggled value (`!enabled`).        |
+| `disabled`  | `false` | Dims the track, pins the knob left, blocks clicks. |
+| `className` | `""`    | Appended after the base classes.                   |
+| `...rest`   | —       | Forwarded to the underlying `<button>`.            |
+
+**When to use**: any boolean setting row.
+**When NOT to use**: multi-state choices (use a segmented button row), destructive confirms.
+
+---
+
 ## Planned primitives (extract on second use)
 
 These don't exist yet. As the page decomposition sweep (PR 3 in the leash plan) finds the same pattern in two places, extract it into `ui/` and add a catalog entry. **Don't pre-extract** — let the second use case justify the lift.
@@ -56,10 +84,6 @@ The `bg-base-700 border border-border rounded-lg p-4` pattern. Pages declare thi
 ### `Modal`
 
 The overlay + escape-handling + click-outside pattern. Currently re-implemented inconsistently in `SettingsPage`, `MatchInfoPage`, `LoadoutPage`, `StorePage`. Should be one primitive.
-
-### `Toggle`
-
-The on/off switch UI. At least three different implementations exist today (`MapDodgePage`, `MiscPage`, `SettingsPage`, `InstalockPage`).
 
 ### `Tabs`
 

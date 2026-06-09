@@ -11,6 +11,27 @@ export const DM_MAPS = new Set(["Kasbah", "Glitch", "Drift", "Piazza", "District
 // SKIRMISH_ALLOWED in utils/agents.js.
 export const SKIRMISH_MAPS = new Set(["Skirmish A", "Skirmish B", "Skirmish C"]);
 
+// Riot internal map codenames (the last path segment of a custom-game map
+// asset URL) → player-facing names. Used when valorant-api metadata
+// hasn't loaded or doesn't know the asset yet.
+export const MAP_CODENAMES = {
+  Duality: "Bind",
+  Triad: "Haven",
+  Bonsai: "Split",
+  Port: "Icebox",
+  Foxtrot: "Breeze",
+  Canyon: "Fracture",
+  Pitt: "Pearl",
+  Jam: "Lotus",
+  Juliett: "Sunset",
+  Infinity: "Abyss",
+  HURM_Yard: "District",
+  HURM_Alley: "Kasbah",
+  HURM_Bowl: "Piazza",
+  HURM_Helix: "Drift",
+  HURM_ShipLong: "Glitch",
+};
+
 // Memoized URL-fragment → metadata lookup. The home and live pages
 // need a fast { mapUrl → { name, splash, listIcon } } table. Built
 // once on first call.
