@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { normalizeRrEntry, normalizeRrResponse } from "../riotShapes";
+import {
+  normalizeRrEntry,
+  normalizeRrResponse,
+  normalizeLiveMatch,
+  normalizeSeasonalPeak,
+} from "../riotShapes";
 
 describe("normalizeRrEntry", () => {
   test("round-trips a real competitiveupdates entry", () => {
@@ -67,5 +72,96 @@ describe("normalizeRrResponse", () => {
     expect(normalizeRrResponse({}).matches).toEqual([]);
     expect(normalizeRrResponse({ Matches: null }).matches).toEqual([]);
     expect(normalizeRrResponse({ Matches: "nope" }).matches).toEqual([]);
+  });
+});
+
+describe("normalizeLiveMatch", () => {
+  test("normalizes a pregame payload to camelCase with ally-only roster", () => {
+    const raw = {
+      _phase: "pregame",
+      ID: "match-1",
+      MapID: "/Game/Maps/Ascent/Ascent",
+      GameMode: "/Game/GameModes/Bomb/BombGameMode.BombGameMode_C",
+      MatchmakingData: { QueueID: "competitive" },
+      GamePodID: "aresriot.aws-use1.na-gp-ashburn-1",
+      AllyTeam: {
+        Players: [
+          {
+            Subject: "p1",
+            CharacterID: "AGENT-UUID",
+            PlayerIdentity: { AccountLevel: 120, Incognito: true, HideAccountLevel: false },
+          },
+        ],
+      },
+    };
+    const live = normalizeLiveMatch(raw);
+    expect(live.phase).toBe("PREGAME");
+    expect(live.matchId).toBe("match-1");
+    expect(live.mapId).toBe("/Game/Maps/Ascent/Ascent");
+    expect(live.queueId).toBe("competitive");
+    expect(live.gamePodId).toContain("ashburn");
+    expect(live.players).toEqual([
+      {
+        puuid: "p1",
+        characterId: "AGENT-UUID",
+        team: "ally",
+        accountLevel: 120,
+        incognito: true,
+        hideLevel: false,
+      },
+    ]);
+  });
+
+  test("normalizes a core-game payload with TeamIDs and identity defaults", () => {
+    const raw = {
+      _phase: "ingame",
+      MatchID: "match-2",
+      MapID: "/Game/Maps/Bonsai/Bonsai",
+      Players: [
+        { Subject: "blue1", CharacterID: "c1", TeamID: "Blue" },
+        { Subject: "red1", CharacterID: "c2", TeamID: "Red", PlayerIdentity: {} },
+      ],
+    };
+    const live = normalizeLiveMatch(raw);
+    expect(live.phase).toBe("INGAME");
+    expect(live.matchId).toBe("match-2");
+    expect(live.players.map((p) => p.team)).toEqual(["Blue", "Red"]);
+    // Missing PlayerIdentity falls back to safe defaults, not crashes.
+    expect(live.players[0].accountLevel).toBe(0);
+    expect(live.players[0].incognito).toBe(false);
+    expect(live.players[0].hideLevel).toBe(false);
+  });
+
+  test("survives an empty payload", () => {
+    const live = normalizeLiveMatch({});
+    expect(live.matchId).toBe("");
+    expect(live.phase).toBe("INGAME");
+    expect(live.players).toEqual([]);
+  });
+});
+
+describe("normalizeSeasonalPeak", () => {
+  test("picks the highest tier, breaking ties on RR", () => {
+    const raw = {
+      QueueSkills: {
+        competitive: {
+          SeasonalInfoBySeasonID: {
+            s1: { CompetitiveTier: 18, RankedRating: 40 },
+            s2: { CompetitiveTier: 21, RankedRating: 12 },
+            s3: { CompetitiveTier: 21, RankedRating: 77 },
+          },
+        },
+      },
+    };
+    expect(normalizeSeasonalPeak(raw)).toEqual({ peaktier: 21, peak_rr: 77 });
+  });
+
+  test("returns zeros when the seasonal map is absent or malformed", () => {
+    expect(normalizeSeasonalPeak(null)).toEqual({ peaktier: 0, peak_rr: 0 });
+    expect(normalizeSeasonalPeak({})).toEqual({ peaktier: 0, peak_rr: 0 });
+    expect(normalizeSeasonalPeak({ QueueSkills: { competitive: {} } })).toEqual({
+      peaktier: 0,
+      peak_rr: 0,
+    });
   });
 });
