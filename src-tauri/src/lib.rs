@@ -33,11 +33,14 @@ async fn connect(
     app: tauri::AppHandle,
     state: tauri::State<'_, SharedState>,
     identity: tauri::State<'_, identity_cache::IdentityCache>,
+    include_debug: Option<bool>,
 ) -> Result<riot::PlayerInfo, String> {
     let state_clone = Arc::clone(&state);
-    let info = tauri::async_runtime::spawn_blocking(move || riot::connect_and_store(&state_clone))
-        .await
-        .map_err(|e| format!("Task failed: {}", e))??;
+    let debug = include_debug.unwrap_or(false);
+    let info =
+        tauri::async_runtime::spawn_blocking(move || riot::connect_and_store(&state_clone, debug))
+            .await
+            .map_err(|e| format!("Task failed: {}", e))??;
     // Phase A of #18: persist a snapshot of the identity so HomePage etc.
     // can render last-seen data when Valorant is closed. Best-effort —
     // a failed write must NOT break the connect. The identity file is
@@ -1086,7 +1089,7 @@ pub fn run() {
         .manage(match_db::new_db())
         .manage(match_details_cache::new_cache())
         .manage(rr_cache::new_cache())
-        .manage(Mutex::new(spend_tracker::SpendState::default()))
+        .manage(spend_tracker::new_cache())
         .manage(identity_cache::new_cache())
         .manage(loadout_presets::new_cache())
         .manage(premier_cache::new_cache())
@@ -1128,7 +1131,13 @@ pub fn run() {
                                 riot::validate_token(&state)
                             })
                             .await
-                            .unwrap_or(false)
+                            .unwrap_or_else(|e| {
+                                riot::logging::log_error(&format!(
+                                    "[OAuth-Boot] validate task failed: {}",
+                                    e
+                                ));
+                                false
+                            })
                         };
                         if valid {
                             oauth::mark_oauth_active(&state);
@@ -1159,7 +1168,12 @@ pub fn run() {
                     // catch-up ticks racing on the cookie data_dir.
                     let notify = match state.lock() {
                         Ok(s) => Arc::clone(&s.oauth_refresh_notify),
-                        Err(_) => return,
+                        Err(_) => {
+                            riot::logging::log_error(
+                                "[OAuth-Bg] state mutex poisoned; background refresh disabled",
+                            );
+                            return;
+                        }
                     };
                     let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
                     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -1182,7 +1196,14 @@ pub fn run() {
                                     (signalled || age >= 540, age)
                                 }
                             }
-                            Err(_) => (false, 0),
+                            Err(_) => {
+                                // A poisoned mutex never heals — stop the loop
+                                // instead of silently spinning every 60s.
+                                riot::logging::log_error(
+                                    "[OAuth-Bg] state mutex poisoned; stopping background refresh",
+                                );
+                                return;
+                            }
                         };
                         if !should_act {
                             continue;
@@ -1225,8 +1246,7 @@ pub fn run() {
                 .item(&quit_item)
                 .build()?;
 
-            let _tray = TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
+            let mut tray_builder = TrayIconBuilder::new()
                 .tooltip("Valorant Thing")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id().as_ref() {
@@ -1254,8 +1274,15 @@ pub fn run() {
                             let _ = window.set_focus();
                         }
                     }
-                })
-                .build(app)?;
+                });
+            if let Some(icon) = app.default_window_icon() {
+                tray_builder = tray_builder.icon(icon.clone());
+            } else {
+                riot::logging::log_error(
+                    "[Tray] default window icon missing; building tray without icon",
+                );
+            }
+            let _tray = tray_builder.build(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

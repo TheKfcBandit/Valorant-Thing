@@ -93,10 +93,8 @@ export default function HeatmapPage({ player }) {
   // filter wiped its only event — rare but possible).
   useEffect(() => {
     if (mapOptions.length === 0) return;
-    if (!mapKey || !mapOptions.some((m) => m.key === mapKey)) {
-      setMapKey(mapOptions[0].key);
-    }
-  }, [mapOptions, mapKey]);
+    setMapKey((k) => (k && mapOptions.some((m) => m.key === k) ? k : mapOptions[0].key));
+  }, [mapOptions]);
 
   const selectedMap = mapOptions.find((m) => m.key === mapKey) || null;
 

@@ -98,7 +98,9 @@ export function useConnectionLifecycle({ addLog, setRefreshKey }) {
         connectingRef.current = false;
         return;
       }
-      const info = await invoke("connect");
+      const info = await invoke("connect", {
+        includeDebug: localStorage.getItem("dev_tab_enabled") === "true",
+      });
       setPlayer(info);
       setPlayerIsStale(false);
       setStatus("connected");

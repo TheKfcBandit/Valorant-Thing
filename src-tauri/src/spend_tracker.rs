@@ -7,7 +7,8 @@ use tauri::AppHandle;
 
 use crate::riot::logging::{log_error, log_info};
 use crate::riot::{self, ConnectionState};
-use crate::util::{cache_path, now_ms};
+use crate::util::now_ms;
+use crate::value_cache::Cache;
 
 const SKIN_LEVEL_ITEM_TYPE: &str = "3ad1b2b2-acdb-4524-852f-954a76ddae0a";
 const COST_VP: &str = "85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741";
@@ -15,7 +16,7 @@ const COST_RP: &str = "e59aa87c-4cbf-517a-5983-6e81511be9b7";
 const COST_KC: &str = "85ca954a-41f2-ce94-9b45-8ca3dd39a00d";
 
 #[derive(Default, Serialize, Deserialize)]
-struct SpendData {
+pub struct SpendData {
     tracking_since_ms: Option<i64>,
     last_owned: HashSet<String>,
     purchases: Vec<Purchase>,
@@ -38,56 +39,13 @@ struct OfferCost {
     kc: u64,
 }
 
-#[derive(Default)]
-pub struct SpendState {
-    data: SpendData,
-    loaded: bool,
+pub type SpendTrackerCache = Cache<SpendData>;
+
+pub fn new_cache() -> SpendTrackerCache {
+    Cache::new("spend-tracker.json", "[Spend]")
 }
 
-fn spend_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
-    cache_path(app, "spend-tracker.json")
-}
-
-fn ensure_loaded(app: &AppHandle, state: &Mutex<SpendState>) -> Result<(), String> {
-    {
-        let s = state.lock().map_err(|e| e.to_string())?;
-        if s.loaded {
-            return Ok(());
-        }
-    }
-    let path = spend_path(app)?;
-    let data: SpendData = if path.exists() {
-        match std::fs::read_to_string(&path) {
-            Ok(s) => serde_json::from_str(&s).unwrap_or_else(|e| {
-                log_error(&format!("[Spend] parse failed, starting empty: {}", e));
-                SpendData::default()
-            }),
-            Err(_) => SpendData::default(),
-        }
-    } else {
-        SpendData::default()
-    };
-    let mut s = state.lock().map_err(|e| e.to_string())?;
-    s.data = data;
-    s.loaded = true;
-    Ok(())
-}
-
-fn persist(app: &AppHandle, state: &Mutex<SpendState>) -> Result<(), String> {
-    let path = spend_path(app)?;
-    let snapshot = {
-        let s = state.lock().map_err(|e| e.to_string())?;
-        serde_json::to_string(&s.data).map_err(|e| format!("serialize: {}", e))?
-    };
-    let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, snapshot).map_err(|e| format!("write tmp: {}", e))?;
-    std::fs::rename(&tmp, &path).map_err(|e| format!("rename: {}", e))?;
-    Ok(())
-}
-
-fn fetch_owned_skin_levels(state: &Mutex<ConnectionState>) -> Result<HashSet<String>, String> {
-    let raw = riot::get_owned_items(state, SKIN_LEVEL_ITEM_TYPE)?;
-    let json: Value = serde_json::from_str(&raw).map_err(|e| format!("parse owned: {}", e))?;
+fn parse_owned_skin_levels(json: &Value) -> HashSet<String> {
     let mut out = HashSet::new();
     if let Some(arr) = json["Entitlements"].as_array() {
         for e in arr {
@@ -106,7 +64,13 @@ fn fetch_owned_skin_levels(state: &Mutex<ConnectionState>) -> Result<HashSet<Str
             }
         }
     }
-    Ok(out)
+    out
+}
+
+fn fetch_owned_skin_levels(state: &Mutex<ConnectionState>) -> Result<HashSet<String>, String> {
+    let raw = riot::get_owned_items(state, SKIN_LEVEL_ITEM_TYPE)?;
+    let json: Value = serde_json::from_str(&raw).map_err(|e| format!("parse owned: {}", e))?;
+    Ok(parse_owned_skin_levels(&json))
 }
 
 fn fetch_offer_catalog(
@@ -161,43 +125,62 @@ fn fetch_offer_catalog(
     Ok(by_reward_id)
 }
 
+fn build_summary(d: &SpendData, now: i64, new_since_last: usize) -> Value {
+    let (vp_total, rp_total, kc_total) = d.purchases.iter().fold((0u64, 0u64, 0u64), |acc, p| {
+        (acc.0 + p.vp, acc.1 + p.rp, acc.2 + p.kc)
+    });
+    let month_cutoff = now - 30 * 24 * 3600 * 1000;
+    let (vp_month, rp_month) = d
+        .purchases
+        .iter()
+        .filter(|p| p.date_ms >= month_cutoff)
+        .fold((0u64, 0u64), |acc, p| (acc.0 + p.vp, acc.1 + p.rp));
+
+    serde_json::json!({
+        "trackingSinceMs": d.tracking_since_ms,
+        "purchases": d.purchases,
+        "vpSpent": vp_total,
+        "rpSpent": rp_total,
+        "kcSpent": kc_total,
+        "thisMonthVp": vp_month,
+        "thisMonthRp": rp_month,
+        "newSinceLast": new_since_last,
+    })
+}
+
 #[tauri::command]
 pub async fn get_spend_summary(
     app: AppHandle,
     state: tauri::State<'_, std::sync::Arc<Mutex<ConnectionState>>>,
-    spend: tauri::State<'_, Mutex<SpendState>>,
+    spend: tauri::State<'_, SpendTrackerCache>,
 ) -> Result<Value, String> {
-    ensure_loaded(&app, &spend)?;
-
     let state_for_owned = std::sync::Arc::clone(&state);
     let owned =
         tauri::async_runtime::spawn_blocking(move || fetch_owned_skin_levels(&state_for_owned))
             .await
             .map_err(|e| format!("Task failed: {}", e))??;
 
-    let (had_prior, new_items) = {
-        let s = spend.lock().map_err(|e| e.to_string())?;
-        let had = s.data.tracking_since_ms.is_some();
-        let prior = &s.data.last_owned;
+    let (had_prior, new_items) = spend.read(&app, |d| {
+        let had = d.tracking_since_ms.is_some();
         let news: Vec<String> = owned
             .iter()
-            .filter(|id| !prior.contains(*id))
+            .filter(|id| !d.last_owned.contains(*id))
             .cloned()
             .collect();
         (had, news)
-    };
+    })?;
 
     // First-ever snapshot: just baseline, no purchases.
     if !had_prior {
-        {
-            let mut s = spend.lock().map_err(|e| e.to_string())?;
-            s.data.tracking_since_ms = Some(now_ms());
-            s.data.last_owned = owned;
-        }
-        persist(&app, &spend)?;
+        let since = now_ms();
+        spend.write(&app, |d| {
+            d.tracking_since_ms = Some(since);
+            d.last_owned = owned;
+            ((), true)
+        })?;
         log_info("[Spend] First-ever baseline snapshot taken — tracking starts now");
         return Ok(serde_json::json!({
-            "trackingSinceMs": now_ms(),
+            "trackingSinceMs": since,
             "purchases": Value::Array(vec![]),
             "vpSpent": 0,
             "rpSpent": 0,
@@ -210,12 +193,9 @@ pub async fn get_spend_summary(
 
     // Fetch catalog only if there's something new and it's not all cached.
     if !new_items.is_empty() {
-        let need_catalog = {
-            let s = spend.lock().map_err(|e| e.to_string())?;
-            new_items
-                .iter()
-                .any(|id| !s.data.offer_cache.contains_key(id))
-        };
+        let need_catalog = spend.read(&app, |d| {
+            new_items.iter().any(|id| !d.offer_cache.contains_key(id))
+        })?;
         if need_catalog {
             let state_for_cat = std::sync::Arc::clone(&state);
             let catalog =
@@ -224,10 +204,14 @@ pub async fn get_spend_summary(
                     .map_err(|e| format!("Task failed: {}", e))?;
             match catalog {
                 Ok(cat) => {
-                    let mut s = spend.lock().map_err(|e| e.to_string())?;
-                    for (k, v) in cat {
-                        s.data.offer_cache.insert(k, v);
-                    }
+                    // No persist here: the purchases write below always
+                    // follows on this path and commits the merged cache.
+                    spend.write(&app, |d| {
+                        for (k, v) in cat {
+                            d.offer_cache.insert(k, v);
+                        }
+                        ((), false)
+                    })?;
                 }
                 Err(e) => log_error(&format!("[Spend] catalog fetch failed: {}", e)),
             }
@@ -236,11 +220,10 @@ pub async fn get_spend_summary(
 
     // Apply purchases.
     let now = now_ms();
-    {
-        let mut s = spend.lock().map_err(|e| e.to_string())?;
+    spend.write(&app, |d| {
         for id in &new_items {
-            let oc = s.data.offer_cache.get(id).cloned().unwrap_or_default();
-            s.data.purchases.push(Purchase {
+            let oc = d.offer_cache.get(id).cloned().unwrap_or_default();
+            d.purchases.push(Purchase {
                 skin_level_uuid: id.clone(),
                 date_ms: now,
                 vp: oc.vp,
@@ -248,32 +231,9 @@ pub async fn get_spend_summary(
                 kc: oc.kc,
             });
         }
-        s.data.last_owned = owned;
-    }
-    persist(&app, &spend)?;
+        d.last_owned = owned;
+        ((), true)
+    })?;
 
-    // Build summary.
-    let s = spend.lock().map_err(|e| e.to_string())?;
-    let (vp_total, rp_total, kc_total) =
-        s.data.purchases.iter().fold((0u64, 0u64, 0u64), |acc, p| {
-            (acc.0 + p.vp, acc.1 + p.rp, acc.2 + p.kc)
-        });
-    let month_cutoff = now - 30 * 24 * 3600 * 1000;
-    let (vp_month, rp_month) = s
-        .data
-        .purchases
-        .iter()
-        .filter(|p| p.date_ms >= month_cutoff)
-        .fold((0u64, 0u64), |acc, p| (acc.0 + p.vp, acc.1 + p.rp));
-
-    Ok(serde_json::json!({
-        "trackingSinceMs": s.data.tracking_since_ms,
-        "purchases": s.data.purchases,
-        "vpSpent": vp_total,
-        "rpSpent": rp_total,
-        "kcSpent": kc_total,
-        "thisMonthVp": vp_month,
-        "thisMonthRp": rp_month,
-        "newSinceLast": new_items.len(),
-    }))
+    spend.read(&app, |d| build_summary(d, now, new_items.len()))
 }
