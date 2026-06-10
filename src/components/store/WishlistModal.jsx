@@ -3,7 +3,14 @@ import { motion } from "framer-motion";
 import { noAnim, T0 } from "../../utils/animation";
 import { X } from "../../icons";
 
-export function WishlistModal({ open, wishlistedIds, levelLookup, onClose, onRemove }) {
+export function WishlistModal({
+  open,
+  wishlistedIds,
+  levelLookup,
+  accessoryLookup = {},
+  onClose,
+  onRemove,
+}) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => {
@@ -13,8 +20,18 @@ export function WishlistModal({ open, wishlistedIds, levelLookup, onClose, onRem
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
   if (!open) return null;
+  // Skins resolve via the level lookup; buddies/sprays/cards/titles
+  // wishlisted from the Assets browser resolve via the accessory lookup
+  // (shape: { kind, name, image } — adapted to the row's icon/weapon).
+  const resolve = (id) => {
+    const lvl = levelLookup[id];
+    if (lvl) return lvl;
+    const acc = accessoryLookup[id];
+    if (acc) return { name: acc.name, icon: acc.image, weapon: acc.kind };
+    return null;
+  };
   const rows = wishlistedIds
-    .map((id) => ({ id: id.toLowerCase(), meta: levelLookup[id.toLowerCase()] }))
+    .map((id) => ({ id: id.toLowerCase(), meta: resolve(id.toLowerCase()) }))
     .sort((a, b) => (a.meta?.name || "").localeCompare(b.meta?.name || ""));
   return (
     <div
@@ -66,7 +83,7 @@ export function WishlistModal({ open, wishlistedIds, levelLookup, onClose, onRem
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-display font-semibold text-text-primary truncate">
-                      {meta?.name || "Unknown skin"}
+                      {meta?.name || "Unknown item"}
                     </p>
                     <p className="text-[10px] uppercase tracking-wider text-text-muted">
                       {meta?.weapon || ""}

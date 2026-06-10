@@ -4,6 +4,7 @@ import {
   CoachTab,
   Crosshair,
   DevTab,
+  Grid4,
   FakeStatusTab,
   HeatmapTab,
   HomeTab,
@@ -119,6 +120,13 @@ export default function Sidebar({
           activeTab={activeTab}
           onTabChange={onTabChange}
           icon={<Crosshair size={18} />}
+        />
+        <NavButton
+          id="assets"
+          label="Assets"
+          activeTab={activeTab}
+          onTabChange={onTabChange}
+          icon={<Grid4 size={16} />}
         />
 
         <SectionLabel>Tools</SectionLabel>

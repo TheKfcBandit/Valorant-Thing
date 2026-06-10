@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getLevelLookup, getBundleLookup, getAccessoryLookup } from "../valApiSkins";
+import { useWishlist } from "../hooks/useWishlist";
 import { fmtCost, fmtRemaining } from "../utils/store";
 import { HeartFilled, StoreTab } from "../icons";
 import { Section, NightMarketSubtitle, StoreViewToggle } from "./store/StoreSections";
@@ -21,19 +22,7 @@ export default function StorePage({ connected }) {
   const [wishlistOpen, setWishlistOpen] = useState(false);
   const [view, setView] = useState("store");
   const [bundleIndex, setBundleIndex] = useState(0);
-  const [wishlist, setWishlist] = useState(() => {
-    try {
-      const raw = localStorage.getItem("wishlist_skins");
-      const parsed = raw ? JSON.parse(raw) : [];
-      return new Set(
-        (Array.isArray(parsed) ? parsed : [])
-          .filter((s) => s != null)
-          .map((s) => String(s).toLowerCase())
-      );
-    } catch {
-      return new Set();
-    }
-  });
+  const { wishlist, toggleWishlist } = useWishlist();
   const [now, setNow] = useState(Date.now());
   const fetchedAtRef = useRef(0);
 
@@ -103,29 +92,6 @@ export default function StorePage({ connected }) {
   useEffect(() => {
     setBundleIndex(0);
   }, [storeRaw]);
-
-  const persistWishlist = useCallback((set) => {
-    const arr = Array.from(set);
-    localStorage.setItem("wishlist_skins", JSON.stringify(arr));
-    invoke("set_wishlist", { items: arr }).catch((e) =>
-      console.warn("[Store] set_wishlist failed:", e)
-    );
-  }, []);
-
-  const toggleWishlist = useCallback(
-    (levelUuid) => {
-      if (!levelUuid) return;
-      setWishlist((prev) => {
-        const next = new Set(prev);
-        const k = levelUuid.toLowerCase();
-        if (next.has(k)) next.delete(k);
-        else next.add(k);
-        persistWishlist(next);
-        return next;
-      });
-    },
-    [persistWishlist]
-  );
 
   const dailyOffers = useMemo(() => {
     if (!storeRaw) return [];
@@ -379,6 +345,7 @@ export default function StorePage({ connected }) {
         open={wishlistOpen}
         wishlistedIds={Array.from(wishlist)}
         levelLookup={levelLookup}
+        accessoryLookup={accessoryLookup}
         onClose={() => setWishlistOpen(false)}
         onRemove={toggleWishlist}
       />
