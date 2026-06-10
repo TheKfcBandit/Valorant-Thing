@@ -42,6 +42,13 @@ pub struct ConnectionState {
     pub game_name: Option<String>,
     pub game_tag: Option<String>,
     pub player_card_url: Option<String>,
+    // Serialized `name=value; …` Cookie header for auth.riotgames.com,
+    // captured from the OAuth webviews / refresh responses. WebView2 holds
+    // Riot's ssid as a session cookie, so the on-disk jar comes up empty
+    // after every app restart — replaying this header at boot is what keeps
+    // the user signed in across launches. Persisted only inside the
+    // keychain token blob; never crosses the Tauri bridge.
+    pub auth_cookies: Option<String>,
     pub token_fetched_at: Option<Instant>,
     pub last_token_check: Option<Instant>,
     // Phase B (#26): true when the active session came from the webview OAuth

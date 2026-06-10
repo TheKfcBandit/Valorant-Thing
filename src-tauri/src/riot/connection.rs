@@ -342,6 +342,7 @@ pub fn disconnect(state: &Mutex<ConnectionState>) {
         s.local_auth = None;
         s.access_token = None;
         s.entitlements = None;
+        s.auth_cookies = None;
         s.oauth_session = false;
         // Default to Inactive. Rung-3 overrides to NeedsReauth after the
         // disconnect call returns, since that's the path that needs the
