@@ -1,9 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 
 // Riot entitlement item-type UUIDs (PD /store/v1/entitlements groups).
+// Per the public endpoint docs: e7c63390 is "Skins" (entitlements are skin
+// LEVEL uuids — what the store sells), 3ad1b2b2 is "Skin Variants"
+// (chromas). These two were historically swapped here, which is what fed
+// chroma ids into the spend tracker (#41 follow-up).
 export const ITEM_TYPES = {
-  SKIN_LEVEL: "3ad1b2b2-acdb-4524-852f-954a76ddae0a",
-  SKIN_CHROMA: "e7c63390-eda7-46e0-bb7a-a6abdacd2433",
+  SKIN_LEVEL: "e7c63390-eda7-46e0-bb7a-a6abdacd2433",
+  SKIN_CHROMA: "3ad1b2b2-acdb-4524-852f-954a76ddae0a",
   BUDDY: "dd3bf334-87f3-40bd-b043-682a57a8dc3a",
   SPRAY: "d5f120f8-ff8c-4aac-92ea-f2b5acbe9475",
   CARD: "3f296c07-64c3-494c-923b-fe692a4fa1bd",

@@ -11,7 +11,12 @@ use crate::riot::{self, ConnectionState};
 use crate::util::now_ms;
 use crate::value_cache::Cache;
 
-const SKIN_LEVEL_ITEM_TYPE: &str = "3ad1b2b2-acdb-4524-852f-954a76ddae0a";
+// Riot's "Skins" entitlement type — its ItemIDs are skin-level UUIDs, the
+// currency of the storefront, the offers catalog, and valorant-api's level
+// lookup. NOT "3ad1b2b2-…", which is "Skin Variants" (chromas): tracking
+// that type is why every ledger entry rendered as an unpriceable
+// "Unknown skin" (#41 follow-up).
+const SKIN_LEVEL_ITEM_TYPE: &str = "e7c63390-eda7-46e0-bb7a-a6abdacd2433";
 const COST_VP: &str = "85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741";
 const COST_RP: &str = "e59aa87c-4cbf-517a-5983-6e81511be9b7";
 const COST_KC: &str = "85ca954a-41f2-ce94-9b45-8ca3dd39a00d";
@@ -22,6 +27,10 @@ pub struct SpendData {
     last_owned: HashSet<String>,
     purchases: Vec<Purchase>,
     offer_cache: HashMap<String, OfferCost>,
+    // Flipped by the one-time chroma→skin-level re-baseline; defaults false
+    // so ledgers written before the item-type fix migrate on first load.
+    #[serde(default)]
+    retracked_v2: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -56,6 +65,12 @@ fn parse_owned_skin_levels(json: &Value) -> HashSet<String> {
         }
     } else if let Some(groups) = json["EntitlementsByTypes"].as_array() {
         for g in groups {
+            // Only the requested type should come back, but if Riot ever
+            // returns the full grouped inventory, flattening every group
+            // would log agents/cards/sprays as phantom skin purchases.
+            if g["ItemTypeID"].as_str() != Some(SKIN_LEVEL_ITEM_TYPE) {
+                continue;
+            }
             if let Some(arr) = g["Entitlements"].as_array() {
                 for e in arr {
                     if let Some(id) = e["ItemID"].as_str() {
@@ -66,6 +81,23 @@ fn parse_owned_skin_levels(json: &Value) -> HashSet<String> {
         }
     }
     out
+}
+
+// One-time migration for ledgers written while the tracker queried the
+// "Skin Variants" (chroma) entitlement type. Those entries match neither
+// the level lookup nor the offers catalog (all zero-cost), and last_owned
+// holds chroma UUIDs — without a re-baseline, the first correctly-typed
+// diff would log the user's entire skin collection as phantom purchases.
+// Returns the number of purged junk entries, or None if already migrated.
+fn rebaseline_v2(d: &mut SpendData, owned: &HashSet<String>) -> Option<usize> {
+    if d.retracked_v2 {
+        return None;
+    }
+    let before = d.purchases.len();
+    d.purchases.retain(|p| p.vp > 0 || p.rp > 0 || p.kc > 0);
+    d.last_owned = owned.clone();
+    d.retracked_v2 = true;
+    Some(before - d.purchases.len())
 }
 
 fn fetch_owned_skin_levels(state: &Mutex<ConnectionState>) -> Result<HashSet<String>, String> {
@@ -190,6 +222,17 @@ pub async fn get_spend_summary(
             .await
             .map_err(|e| format!("Task failed: {}", e))??;
 
+    let purged = spend.write(&app, |d| {
+        let purged = rebaseline_v2(d, &owned);
+        (purged, purged.is_some())
+    })?;
+    if let Some(n) = purged {
+        log_info(&format!(
+            "[Spend] re-baselined on skin-level entitlements; purged {} junk chroma-era entries",
+            n
+        ));
+    }
+
     let (had_prior, new_items, has_unpriced) = spend.read(&app, |d| {
         let had = d.tracking_since_ms.is_some();
         let news: Vec<String> = owned
@@ -309,13 +352,75 @@ mod tests {
     fn parse_owned_skin_levels_handles_grouped_shape() {
         let json = serde_json::json!({
             "EntitlementsByTypes": [
-                { "Entitlements": [{ "ItemID": "CCCC-3333" }] },
-                { "Entitlements": [{ "ItemID": "dddd-4444" }] }
+                {
+                    "ItemTypeID": SKIN_LEVEL_ITEM_TYPE,
+                    "Entitlements": [{ "ItemID": "CCCC-3333" }, { "ItemID": "dddd-4444" }]
+                }
             ]
         });
         let owned = parse_owned_skin_levels(&json);
         assert_eq!(owned.len(), 2);
         assert!(owned.contains("cccc-3333"));
+    }
+
+    #[test]
+    fn parse_owned_skin_levels_ignores_foreign_groups() {
+        // A full grouped inventory must not leak agents/cards/sprays into
+        // the owned-skin set — that's how 56 junk "purchases" happened.
+        let json = serde_json::json!({
+            "EntitlementsByTypes": [
+                {
+                    "ItemTypeID": "01bb38e1-da47-4e6a-9b3d-945fe4655707",
+                    "Entitlements": [{ "ItemID": "agent-1" }]
+                },
+                {
+                    "ItemTypeID": SKIN_LEVEL_ITEM_TYPE,
+                    "Entitlements": [{ "ItemID": "level-1" }]
+                },
+                {
+                    "Entitlements": [{ "ItemID": "untyped-1" }]
+                }
+            ]
+        });
+        let owned = parse_owned_skin_levels(&json);
+        assert_eq!(owned.len(), 1);
+        assert!(owned.contains("level-1"));
+    }
+
+    #[test]
+    fn rebaseline_purges_junk_and_runs_exactly_once() {
+        let mut d = SpendData {
+            tracking_since_ms: Some(1),
+            last_owned: HashSet::from(["chroma-1".to_string(), "chroma-2".to_string()]),
+            purchases: vec![
+                Purchase {
+                    skin_level_uuid: "chroma-junk".into(),
+                    date_ms: 1,
+                    vp: 0,
+                    rp: 0,
+                    kc: 0,
+                },
+                Purchase {
+                    skin_level_uuid: "real-priced".into(),
+                    date_ms: 2,
+                    vp: 1775,
+                    rp: 0,
+                    kc: 0,
+                },
+            ],
+            offer_cache: HashMap::new(),
+            retracked_v2: false,
+        };
+        let owned = HashSet::from(["level-1".to_string()]);
+
+        assert_eq!(rebaseline_v2(&mut d, &owned), Some(1));
+        assert_eq!(d.purchases.len(), 1, "priced entries survive the purge");
+        assert_eq!(d.purchases[0].skin_level_uuid, "real-priced");
+        assert_eq!(d.last_owned, owned, "diff restarts from the typed set");
+        assert!(d.retracked_v2);
+
+        // Second call is a no-op: the migration must never re-purge.
+        assert_eq!(rebaseline_v2(&mut d, &owned), None);
     }
 
     #[test]
@@ -355,6 +460,7 @@ mod tests {
                 },
             ],
             offer_cache: HashMap::new(),
+            retracked_v2: true,
         };
         let summary = build_summary(&d, now, 1);
         assert_eq!(summary["vpSpent"], 7000);
@@ -395,6 +501,7 @@ mod tests {
                 ),
                 ("zero-offer".to_string(), OfferCost::default()),
             ]),
+            retracked_v2: true,
         };
         assert_eq!(backfill_unpriced(&mut d), 1);
         assert_eq!(d.purchases[0].vp, 1775);
@@ -420,6 +527,7 @@ mod tests {
         assert_eq!(d.tracking_since_ms, Some(42));
         assert_eq!(d.purchases.len(), 1);
         assert_eq!(d.purchases[0].vp, 100);
+        assert!(!d.retracked_v2, "pre-migration files default to unmigrated");
 
         let back = serde_json::to_string(&d).unwrap();
         for field in [
