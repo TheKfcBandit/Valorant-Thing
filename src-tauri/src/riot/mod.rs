@@ -14,6 +14,7 @@ mod process;
 mod queue;
 mod stats;
 mod types;
+mod wallet;
 pub mod xmpp;
 
 pub use agent_select::{
@@ -46,3 +47,4 @@ pub use process::{
 pub use queue::{change_queue, enter_queue, get_penalties, leave_queue};
 pub use stats::get_home_stats;
 pub use types::{ConnectionState, OAuthState, PlayerInfo};
+pub use wallet::get_wallet;

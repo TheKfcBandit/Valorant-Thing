@@ -148,6 +148,22 @@ fn build_summary(d: &SpendData, now: i64, new_since_last: usize) -> Value {
     })
 }
 
+// Read-only view for the Purchase History panel (#41): no network fetch,
+// no owned-items diff — just the cached ledger, so the page renders
+// offline and never mutates tracking state as a side effect of viewing.
+#[tauri::command]
+pub async fn list_purchases(
+    app: AppHandle,
+    spend: tauri::State<'_, SpendTrackerCache>,
+) -> Result<Value, String> {
+    spend.read(&app, |d| {
+        serde_json::json!({
+            "trackingSinceMs": d.tracking_since_ms,
+            "purchases": d.purchases,
+        })
+    })
+}
+
 #[tauri::command]
 pub async fn get_spend_summary(
     app: AppHandle,

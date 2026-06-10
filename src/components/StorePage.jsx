@@ -4,7 +4,8 @@ import { listen } from "@tauri-apps/api/event";
 import { getLevelLookup, getBundleLookup, getAccessoryLookup } from "../valApiSkins";
 import { fmtCost, fmtRemaining } from "../utils/store";
 import { HeartFilled, StoreTab } from "../icons";
-import { Section, NightMarketSubtitle } from "./store/StoreSections";
+import { Section, NightMarketSubtitle, StoreViewToggle } from "./store/StoreSections";
+import { PurchaseHistoryPanel } from "./store/PurchaseHistoryPanel";
 import { SkinCard } from "./store/SkinCard";
 import { BundleCarousel } from "./store/BundleCarousel";
 import { AccessoryCard } from "./store/AccessoryCard";
@@ -18,6 +19,7 @@ export default function StorePage({ connected }) {
   const [bundleLookup, setBundleLookup] = useState({});
   const [accessoryLookup, setAccessoryLookup] = useState({});
   const [wishlistOpen, setWishlistOpen] = useState(false);
+  const [view, setView] = useState("store");
   const [bundleIndex, setBundleIndex] = useState(0);
   const [wishlist, setWishlist] = useState(() => {
     try {
@@ -207,13 +209,27 @@ export default function StorePage({ connected }) {
     return Math.max(0, accessoryResetSecs - elapsed);
   }, [accessoryResetSecs, now]);
 
+  // #41: the purchases view reads the local ledger, so it stays reachable
+  // even when the storefront itself can't render (offline, no cache).
+  if (view === "purchases") {
+    return (
+      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-4 gap-3">
+        <header className="flex items-center justify-between">
+          <h1 className="text-2xl font-display font-bold text-text-primary">Store</h1>
+          <StoreViewToggle view={view} onViewChange={setView} />
+        </header>
+        <PurchaseHistoryPanel levelLookup={levelLookup} />
+      </div>
+    );
+  }
+
   // Phase A of #18: we render even when not connected — the backend falls back
   // to the on-disk cached storefront and tells us via `staleSinceMs`. The only
   // not-rendering case is "no cache + no connection", which falls through the
   // error banner below.
   if (!connected && !storeRaw && !loading) {
     return (
-      <div className="flex-1 flex items-center justify-center p-5">
+      <div className="flex-1 flex flex-col items-center justify-center p-5 gap-4">
         <div className="text-center space-y-2">
           <StoreTab size={32} className="text-text-muted mx-auto" />
           <p className="text-sm font-display text-text-muted">No store data yet</p>
@@ -221,6 +237,7 @@ export default function StorePage({ connected }) {
             Open Valorant once and reopen this page
           </p>
         </div>
+        <StoreViewToggle view={view} onViewChange={setView} />
       </div>
     );
   }
@@ -244,6 +261,7 @@ export default function StorePage({ connected }) {
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-display font-bold text-text-primary">Store</h1>
         <div className="flex items-center gap-2">
+          <StoreViewToggle view={view} onViewChange={setView} />
           <button
             onClick={() => setWishlistOpen(true)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-display font-semibold border border-border bg-base-700 hover:bg-base-600 text-text-primary"

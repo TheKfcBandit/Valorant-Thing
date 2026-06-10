@@ -4,7 +4,9 @@ import {
   normalizeRrResponse,
   normalizeLiveMatch,
   normalizeSeasonalPeak,
+  normalizeWallet,
 } from "../riotShapes";
+import { COST_VP, COST_RP, COST_KC } from "../utils/store";
 
 describe("normalizeRrEntry", () => {
   test("round-trips a real competitiveupdates entry", () => {
@@ -163,5 +165,25 @@ describe("normalizeSeasonalPeak", () => {
       peaktier: 0,
       peak_rr: 0,
     });
+  });
+});
+
+describe("normalizeWallet", () => {
+  test("maps currency UUIDs to vp/rp/kc and ignores unknown currencies", () => {
+    const raw = {
+      Balances: {
+        [COST_VP]: 1475,
+        [COST_RP]: 30,
+        [COST_KC]: 9001,
+        "ffffffff-0000-0000-0000-000000000000": 123,
+      },
+    };
+    expect(normalizeWallet(raw)).toEqual({ vp: 1475, rp: 30, kc: 9001 });
+  });
+
+  test("returns zeros for missing or malformed payloads", () => {
+    expect(normalizeWallet(null)).toEqual({ vp: 0, rp: 0, kc: 0 });
+    expect(normalizeWallet({})).toEqual({ vp: 0, rp: 0, kc: 0 });
+    expect(normalizeWallet({ Balances: { [COST_VP]: "nope" } })).toEqual({ vp: 0, rp: 0, kc: 0 });
   });
 });

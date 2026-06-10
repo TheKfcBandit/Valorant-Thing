@@ -6,6 +6,8 @@
 //
 // Add a normalizer here whenever a new component starts reading raw
 // Riot fields. Don't sprinkle PascalCase access through component code.
+
+import { COST_VP, COST_RP, COST_KC } from "./utils/store";
 //
 // ---------------------------------------------------------------------
 // Field-name conventions per endpoint
@@ -204,6 +206,25 @@ export function normalizeSeasonalPeak(raw) {
     }
   }
   return { peaktier: best, peak_rr: bestRr };
+}
+
+// ---------------------------------------------------------------------
+// /store/v1/wallet/{puuid}  (PascalCase)
+// ---------------------------------------------------------------------
+
+/**
+ * Wallet balances. The response is `{ Balances: { <currencyUuid>: n } }`;
+ * unknown currencies are ignored.
+ * @param {any} raw
+ * @returns {{ vp: number, rp: number, kc: number }}
+ */
+export function normalizeWallet(raw) {
+  const balances = raw?.Balances || {};
+  return {
+    vp: Number(balances[COST_VP]) || 0,
+    rp: Number(balances[COST_RP]) || 0,
+    kc: Number(balances[COST_KC]) || 0,
+  };
 }
 
 // ---------------------------------------------------------------------

@@ -13,3 +13,4 @@ pub mod premier;
 pub mod presence;
 pub mod process;
 pub mod stats;
+pub mod wallet;
