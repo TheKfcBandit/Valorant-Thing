@@ -39,7 +39,7 @@ pub use party::{
     invite_to_party, join_party_by_code, kick_from_party, request_to_join_party,
     set_custom_settings, set_party_accessibility, start_custom_game_match,
 };
-pub use pd_session::pd_get_authed;
+pub use pd_session::{pd_get_authed, pd_post_authed};
 pub use premier::{get_premier_conference, get_premier_division, get_premier_player};
 pub use process::{
     find_valorant_path, get_valorant_monitor, is_valorant_foreground, is_valorant_running,

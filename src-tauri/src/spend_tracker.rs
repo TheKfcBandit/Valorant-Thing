@@ -112,15 +112,8 @@ fn fetch_owned_skin_levels(state: &Mutex<ConnectionState>) -> Result<HashSet<Str
     Ok(parse_owned_skin_levels(&json))
 }
 
-fn fetch_offer_catalog(
-    state: &Mutex<ConnectionState>,
-) -> Result<HashMap<String, OfferCost>, String> {
-    // Refresh-aware wrapper (#14). The old raw pd_get path here 401'd
-    // silently on a stale token while the owned-items diff (already on the
-    // authed wrapper) succeeded — which is exactly how ledger entries got
-    // written with zero cost and the UI showed "price unknown" everywhere.
-    let raw = riot::pd_get_authed(state, "/store/v1/offers/")?;
-    let json: Value = serde_json::from_str(&raw).map_err(|e| format!("parse offers: {}", e))?;
+fn parse_offer_catalog(raw: &str) -> Result<HashMap<String, OfferCost>, String> {
+    let json: Value = serde_json::from_str(raw).map_err(|e| format!("parse offers: {}", e))?;
     let mut by_reward_id: HashMap<String, OfferCost> = HashMap::new();
     if let Some(offers) = json["Offers"].as_array() {
         for offer in offers {
@@ -148,6 +141,58 @@ fn fetch_offer_catalog(
         }
     }
     Ok(by_reward_id)
+}
+
+// Riot retired GET /store/v1/offers/ around client 12.x — it now 404s with
+// RESOURCE_NOT_FOUND, the same way the storefront's GET v2 died in favor of
+// POST v3. The replacement isn't publicly documented, so probe the
+// plausible variants in order and take the first one that yields offers.
+// This only runs when a catalog is actually needed (once per session for
+// backfill/collection, or when a new purchase lacks a price), so the probe
+// cost is negligible; the logs record which variant the API accepted.
+fn fetch_offer_catalog(
+    state: &Mutex<ConnectionState>,
+) -> Result<HashMap<String, OfferCost>, String> {
+    const ATTEMPTS: [(&str, bool); 6] = [
+        ("/store/v1/offers/", false),
+        ("/store/v2/offers/", false),
+        ("/store/v3/offers/", false),
+        ("/store/v1/offers/", true),
+        ("/store/v2/offers/", true),
+        ("/store/v3/offers/", true),
+    ];
+    let mut last_err = String::new();
+    for (path, post) in ATTEMPTS {
+        let method = if post { "POST" } else { "GET" };
+        let res = if post {
+            riot::pd_post_authed(state, path, "{}")
+        } else {
+            riot::pd_get_authed(state, path)
+        };
+        match res.and_then(|raw| parse_offer_catalog(&raw)) {
+            Ok(map) if !map.is_empty() => {
+                log_info(&format!(
+                    "[Spend] offers catalog loaded via {} {} ({} priced items)",
+                    method,
+                    path,
+                    map.len()
+                ));
+                return Ok(map);
+            }
+            Ok(_) => {
+                last_err = format!("{} {}: 200 but no offers in payload", method, path);
+                log_info(&format!("[Spend] offers variant rejected: {}", last_err));
+            }
+            Err(e) => {
+                last_err = format!("{} {}: {}", method, path, e);
+                log_info(&format!("[Spend] offers variant failed: {}", last_err));
+            }
+        }
+    }
+    Err(format!(
+        "all offers endpoint variants failed; last: {}",
+        last_err
+    ))
 }
 
 // Retro-price ledger entries that were written while the offers catalog was
@@ -549,6 +594,36 @@ mod tests {
         assert_eq!(summary["thisMonthRp"], 60);
         assert_eq!(summary["newSinceLast"], 1);
         assert_eq!(summary["trackingSinceMs"], 1);
+    }
+
+    #[test]
+    fn parse_offer_catalog_maps_rewards_to_costs() {
+        let raw = serde_json::json!({
+            "Offers": [
+                {
+                    "Cost": { COST_VP: 1775 },
+                    "Rewards": [{ "ItemID": "LEVEL-AAA" }]
+                },
+                {
+                    "Cost": { COST_KC: 4500 },
+                    "Rewards": [{ "ItemID": "level-bbb" }]
+                }
+            ]
+        })
+        .to_string();
+        let map = parse_offer_catalog(&raw).expect("valid payload parses");
+        assert_eq!(map.len(), 2);
+        assert_eq!(map["level-aaa"].vp, 1775);
+        assert_eq!(map["level-bbb"].kc, 4500);
+    }
+
+    #[test]
+    fn parse_offer_catalog_yields_empty_for_unknown_shapes() {
+        // A 200 from the wrong endpoint variant must come back empty (the
+        // cascade treats empty as "try the next variant"), not error out.
+        assert!(parse_offer_catalog("{}").unwrap().is_empty());
+        assert!(parse_offer_catalog(r#"{"Offers": []}"#).unwrap().is_empty());
+        assert!(parse_offer_catalog("not json").is_err());
     }
 
     #[test]

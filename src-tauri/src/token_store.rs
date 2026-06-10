@@ -70,22 +70,30 @@ pub fn save(app: &AppHandle, blob: &TokenBlob) -> Result<(), String> {
         }
     }
 
-    // Primary: OS keychain.
-    match keyring::Entry::new(SERVICE, KEY) {
-        Ok(entry) => match entry.set_password(&json) {
-            Ok(()) => {
-                log_info("[TokenStore] saved to keychain");
-                return Ok(());
-            }
+    // Primary: OS keychain — but Windows Credential Manager caps blobs at
+    // 2560 UTF-16 chars, and the blob (two JWTs + auth cookies) routinely
+    // exceeds that. Don't burn a guaranteed-failing write plus an ERROR log
+    // on every save; route oversized blobs straight to the JSON fallback.
+    const KEYCHAIN_CHAR_LIMIT: usize = 2400;
+    if json.chars().count() > KEYCHAIN_CHAR_LIMIT {
+        log_info("[TokenStore] blob exceeds the Windows keychain size cap; using JSON fallback");
+    } else {
+        match keyring::Entry::new(SERVICE, KEY) {
+            Ok(entry) => match entry.set_password(&json) {
+                Ok(()) => {
+                    log_info("[TokenStore] saved to keychain");
+                    return Ok(());
+                }
+                Err(e) => log_error(&format!(
+                    "[TokenStore] keychain set failed, using JSON fallback: {}",
+                    e
+                )),
+            },
             Err(e) => log_error(&format!(
-                "[TokenStore] keychain set failed, using JSON fallback: {}",
+                "[TokenStore] keychain unavailable, using JSON fallback: {}",
                 e
             )),
-        },
-        Err(e) => log_error(&format!(
-            "[TokenStore] keychain unavailable, using JSON fallback: {}",
-            e
-        )),
+        }
     }
 
     // Fallback: atomic-rename JSON write. Same pattern as value_cache.rs.
