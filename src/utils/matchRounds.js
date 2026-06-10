@@ -83,18 +83,22 @@ export function getRoundMultiKills(round) {
  * because everyone's loadout is forced low and the comparison doesn't
  * make sense. Caller renders a pistol-glyph instead of a buy pill.
  *
- * Thresholds match community-accepted Valorant brackets: a full-buy with
- * Vandal+full shield+util is ~3900 per player, ×5 ≈ 19500.
+ * The input is teamRoundEconomy's PER-PLAYER average, so the brackets are
+ * per-player too: a full-buy (rifle + heavy shield + util) values around
+ * 3900; an SMG/light-shield force sits in the 2000s; saves stay under
+ * ~2000. The original thresholds here were written for ×5 team totals
+ * against the per-player average, which classified almost every real
+ * round as "eco".
  *
- * @param {number} avgLoadoutValue
+ * @param {number} avgLoadoutValue   per-player average for one team
  * @param {number} roundNum    0-indexed
  * @returns {"pistol" | "eco" | "half-buy" | "full-buy"}
  */
 export function classifyEconomy(avgLoadoutValue, roundNum) {
   if ((roundNum || 0) % 12 === 0) return "pistol";
   const v = Number(avgLoadoutValue) || 0;
-  if (v < 5000) return "eco";
-  if (v < 20000) return "half-buy";
+  if (v < 2000) return "eco";
+  if (v < 3900) return "half-buy";
   return "full-buy";
 }
 

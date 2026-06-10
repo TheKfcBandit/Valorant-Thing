@@ -155,20 +155,23 @@ describe("classifyEconomy", () => {
     expect(classifyEconomy(700, 24)).toBe("pistol");
   });
 
-  test("low avg → eco", () => {
-    expect(classifyEconomy(2500, 5)).toBe("eco");
-    expect(classifyEconomy(4999, 5)).toBe("eco");
+  // Brackets are PER-PLAYER averages (what teamRoundEconomy returns):
+  // a save sits under ~2000, an SMG force in the 2000s-3000s, and a
+  // rifle + heavy shield + util full buy lands around 3900+.
+  test("save-round avg → eco", () => {
+    expect(classifyEconomy(800, 5)).toBe("eco");
+    expect(classifyEconomy(1999, 5)).toBe("eco");
   });
 
-  test("mid avg → half-buy", () => {
-    expect(classifyEconomy(5000, 5)).toBe("half-buy");
-    expect(classifyEconomy(12000, 5)).toBe("half-buy");
-    expect(classifyEconomy(19999, 5)).toBe("half-buy");
+  test("force-buy avg → half-buy", () => {
+    expect(classifyEconomy(2000, 5)).toBe("half-buy");
+    expect(classifyEconomy(2900, 5)).toBe("half-buy");
+    expect(classifyEconomy(3899, 5)).toBe("half-buy");
   });
 
-  test("high avg → full-buy", () => {
-    expect(classifyEconomy(20000, 5)).toBe("full-buy");
-    expect(classifyEconomy(25000, 14)).toBe("full-buy");
+  test("full-buy avg → full-buy", () => {
+    expect(classifyEconomy(3900, 5)).toBe("full-buy");
+    expect(classifyEconomy(4700, 14)).toBe("full-buy");
   });
 
   test("missing avg defaults to 0 → eco (for non-pistol)", () => {
