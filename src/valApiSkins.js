@@ -283,3 +283,56 @@ export async function getAccessoryLookup() {
   accessoryLookup = out;
   return out;
 }
+
+// --- Assets browser catalogs (#28) -----------------------------------------
+//
+// Flat arrays for the Assets tab, one entry per browsable item. Each `id`
+// is the UUID the wishlist/store pipeline keys on: a skin's BASE level
+// uuid (what storefront offers reference), a buddy's first level uuid
+// (what the accessory store sells), and the plain uuid for the rest.
+
+let skinCatalog = null;
+
+export async function getSkinCatalog() {
+  if (skinCatalog) return skinCatalog;
+  const weapons = await getWeapons();
+  const out = [];
+  for (const w of weapons || []) {
+    for (const skin of w.skins || []) {
+      const baseLevel = (skin.levels || [])[0];
+      if (!baseLevel?.uuid) continue;
+      out.push({
+        id: baseLevel.uuid.toLowerCase(),
+        kind: "skin",
+        name: skin.displayName,
+        image: baseLevel.displayIcon || skin.displayIcon || null,
+        tier: skin.contentTierUuid?.toLowerCase() || null,
+        weapon: w.displayName,
+      });
+    }
+  }
+  out.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  skinCatalog = out;
+  return out;
+}
+
+let accessoryCatalog = null;
+
+export async function getAccessoryCatalog() {
+  if (accessoryCatalog) return accessoryCatalog;
+  const lookup = await getAccessoryLookup();
+  const out = [];
+  const seenBuddies = new Set();
+  for (const [id, meta] of Object.entries(lookup)) {
+    // The lookup holds one entry per buddy LEVEL; multi-level buddies
+    // would otherwise show as duplicates in the browser.
+    if (meta.kind === "buddy") {
+      if (seenBuddies.has(meta.name)) continue;
+      seenBuddies.add(meta.name);
+    }
+    out.push({ id, kind: meta.kind, name: meta.name, image: meta.image, tier: null, weapon: null });
+  }
+  out.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  accessoryCatalog = out;
+  return out;
+}

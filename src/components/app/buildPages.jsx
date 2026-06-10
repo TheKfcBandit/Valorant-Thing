@@ -8,6 +8,7 @@ import CrosshairPage from "../CrosshairPage";
 import MapDodgePage from "../MapDodgePage";
 import LoadoutPage from "../LoadoutPage";
 import StorePage from "../StorePage";
+import AssetsPage from "../AssetsPage";
 import WrappedPage from "../WrappedPage";
 import CoachPage from "../CoachPage";
 import ChatPage from "../ChatPage";
@@ -80,6 +81,7 @@ export function buildPages(props) {
     loadout: make("loadout", () => <LoadoutPage connected={connected} />),
     crosshair: make("crosshair", () => <CrosshairPage />),
     store: make("store", () => <StorePage connected={connected} />),
+    assets: make("assets", () => <AssetsPage />),
     wrapped: make("wrapped", () => <WrappedPage />),
     coach: make("coach", () => <CoachPage />),
     chat: make("chat", () => <ChatPage connected={connected} addLog={props.addLog} />),
