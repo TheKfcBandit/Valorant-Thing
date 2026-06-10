@@ -10,6 +10,7 @@ src-tauri/gen/schemas/
 .windsurf/
 .agents/
 .claude/
+CLAUDE.md
 changelog.md
 *.js.map
 cloud-worker/

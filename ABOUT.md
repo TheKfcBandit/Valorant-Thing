@@ -1,8 +1,8 @@
 # ABOUT — Codebase Reference
 
 A descriptive map of what exists in this repository, written for future
-sessions (human or AI). [ARCHITECTURE.md](ARCHITECTURE.md) says where new
-things _belong_; this file says what is actually _here_. Regenerated after
+contributors. [ARCHITECTURE.md](ARCHITECTURE.md) says where new things
+_belong_; this file says what is actually _here_. Regenerated after
 the June 2026 health pass (lib.rs → `commands/` decomposition, page
 decomposition sweep); if a major refactor lands, regenerate this file again
 rather than patching it line by line.
@@ -193,7 +193,6 @@ tmp-rename writes, corrupt-file quarantine to `.corrupt-{ts}`):
 
 ## Where process docs live
 
-- Rules / leash: [CLAUDE.md](CLAUDE.md)
-- Layering / boundaries: [ARCHITECTURE.md](ARCHITECTURE.md)
+- Layering / boundaries / working rules: [ARCHITECTURE.md](ARCHITECTURE.md)
 - UI primitive contracts: [src/components/ui/CATALOG.md](src/components/ui/CATALOG.md)
 - Roadmap: GitHub issues (label `roadmap`, milestone "v2.x Roadmap (User Wishlist)")

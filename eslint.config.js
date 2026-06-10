@@ -7,7 +7,7 @@ import globals from "globals";
 // Style is prettier's job; semantic issues are eslint's.
 //
 // Structural rules (max-lines, restricted-imports, restricted-syntax) were
-// added with the Leash & Purge plan — see CLAUDE.md. They start at `warn`
+// added with the Leash & Purge plan — see ARCHITECTURE.md. They start at `warn`
 // for rules that have existing violations (cleanup is staged, not big-bang)
 // and at `error` for rules that have zero violations now.
 export default [

@@ -1,6 +1,6 @@
 # Architecture
 
-The map of how Valorant-Thing is layered, where new things belong, and which boundary they must cross. This is prescriptive — read it before adding code that spans more than one file. For long-form reference (every file, every command, every localStorage key), read [ABOUT.md](ABOUT.md). For working rules, read [CLAUDE.md](CLAUDE.md).
+The map of how Valorant-Thing is layered, where new things belong, and which boundary they must cross. This is prescriptive — read it before adding code that spans more than one file. For long-form reference (every file, every command, every localStorage key), read [ABOUT.md](ABOUT.md).
 
 ---
 
@@ -140,5 +140,5 @@ There is exactly one channel between layers 3 and 1: the Tauri `invoke` call. **
 
 - **`generate-icons.mjs`** — build-time script that produces app icons from a single source. Standalone, not part of the runtime.
 - **`src/live/`** — a small plugin registry (`LiveModule` contract) for `MatchInfoPage`'s live cards. Modules don't reach into the page's state; they expose `fetch`, `CardSlot`, `DialogSection`. New live widgets register here.
-- **`ABOUT.md`** — descriptive long-form codebase reference, written _by_ an AI agent _for_ future AI agents. It documents the historical shape of the codebase. As pages get decomposed, ABOUT.md may drift — refresh it after each major refactor.
+- **`ABOUT.md`** — descriptive long-form codebase reference. It documents the current shape of the codebase. As pages get decomposed, ABOUT.md may drift — refresh it after each major refactor.
 - **VT Cloud (`vt-cloud.ajaxfnc.com`)** — anonymous share-code blob store. No auth, no user accounts. The codebase makes no assumptions about the cloud beyond `POST /share`, `GET /share/:code`.

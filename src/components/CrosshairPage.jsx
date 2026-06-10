@@ -14,7 +14,7 @@ import { Crosshair, Check, X } from "../icons";
 //
 // Storage choice: localStorage matches the existing per-page preference
 // pattern (favorite_skins, instalock-config, mapdodge-config, wishlist_skins,
-// etc.). CLAUDE.md's value_cache::Cache<T> rule is for Rust-side disk
+// etc.). The value_cache::Cache<T> rule (ARCHITECTURE.md) is for Rust-side disk
 // state — crosshair presets are pure frontend state with no backend
 // consumer. If a future feature needs Rust to read the preset list
 // (e.g. pushing a crosshair into the live game), that's the moment to
