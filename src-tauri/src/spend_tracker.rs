@@ -55,6 +55,12 @@ pub fn new_cache() -> SpendTrackerCache {
     Cache::new("spend-tracker.json", "[Spend]")
 }
 
+// Once-per-app-session guard for refreshing the (large) offers catalog when
+// it's only needed opportunistically: backfilling old zero-cost ledger
+// entries and computing the collection view. New-purchase pricing bypasses
+// this and always fetches when an id is missing.
+static CATALOG_REFRESHED: AtomicBool = AtomicBool::new(false);
+
 fn parse_owned_skin_levels(json: &Value) -> HashSet<String> {
     let mut out = HashSet::new();
     if let Some(arr) = json["Entitlements"].as_array() {
@@ -194,6 +200,79 @@ fn build_summary(d: &SpendData, now: i64, new_since_last: usize) -> Value {
     })
 }
 
+// Collection view (#41 follow-up): Riot keeps no purchase ledger, so the
+// only complete answer to "what have I bought and what did it cost" is the
+// entitlement list itself — every owned skin level, priced from the offers
+// catalog. No dates (ownership isn't a transaction log), and it's an
+// estimate: gifts count as spend, bundle discounts and battlepass items
+// don't price. Owned levels with no catalog offer (BP rewards, upgrade
+// levels, bundle-only) are counted but not priced.
+#[tauri::command]
+pub async fn get_owned_collection(
+    app: AppHandle,
+    state: tauri::State<'_, std::sync::Arc<Mutex<ConnectionState>>>,
+    spend: tauri::State<'_, SpendTrackerCache>,
+) -> Result<Value, String> {
+    let state_for_owned = std::sync::Arc::clone(&state);
+    let owned =
+        tauri::async_runtime::spawn_blocking(move || fetch_owned_skin_levels(&state_for_owned))
+            .await
+            .map_err(|e| format!("Task failed: {}", e))??;
+
+    // Make sure the catalog is loaded once per session (or whenever the
+    // persisted cache is still empty) so the collection can price itself.
+    let cache_empty = spend.read(&app, |d| d.offer_cache.is_empty())?;
+    if cache_empty || !CATALOG_REFRESHED.load(Ordering::Relaxed) {
+        let state_for_cat = std::sync::Arc::clone(&state);
+        let catalog =
+            tauri::async_runtime::spawn_blocking(move || fetch_offer_catalog(&state_for_cat))
+                .await
+                .map_err(|e| format!("Task failed: {}", e))?;
+        match catalog {
+            Ok(cat) => {
+                CATALOG_REFRESHED.store(true, Ordering::Relaxed);
+                spend.write(&app, |d| {
+                    for (k, v) in cat {
+                        d.offer_cache.insert(k, v);
+                    }
+                    ((), true)
+                })?;
+            }
+            Err(e) => log_error(&format!("[Spend] collection catalog fetch failed: {}", e)),
+        }
+    }
+
+    spend.read(&app, |d| {
+        let mut items: Vec<Value> = Vec::new();
+        let (mut vp, mut rp, mut kc) = (0u64, 0u64, 0u64);
+        for id in &owned {
+            let Some(oc) = d.offer_cache.get(id) else {
+                continue;
+            };
+            if oc.vp == 0 && oc.rp == 0 && oc.kc == 0 {
+                continue;
+            }
+            vp += oc.vp;
+            rp += oc.rp;
+            kc += oc.kc;
+            items.push(serde_json::json!({
+                "uuid": id,
+                "vp": oc.vp,
+                "rp": oc.rp,
+                "kc": oc.kc,
+            }));
+        }
+        serde_json::json!({
+            "items": items,
+            "vpTotal": vp,
+            "rpTotal": rp,
+            "kcTotal": kc,
+            "ownedLevels": owned.len(),
+            "unpriced": owned.len() - items.len(),
+        })
+    })
+}
+
 // Read-only view for the Purchase History panel (#41): no network fetch,
 // no owned-items diff — just the cached ledger, so the page renders
 // offline and never mutates tracking state as a side effect of viewing.
@@ -277,7 +356,6 @@ pub async fn get_spend_summary(
         && spend.read(&app, |d| {
             new_items.iter().any(|id| !d.offer_cache.contains_key(id))
         })?;
-    static CATALOG_REFRESHED: AtomicBool = AtomicBool::new(false);
     let needs_for_backfill = has_unpriced && !CATALOG_REFRESHED.load(Ordering::Relaxed);
     if needs_for_new || needs_for_backfill {
         let state_for_cat = std::sync::Arc::clone(&state);

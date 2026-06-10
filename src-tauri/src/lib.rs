@@ -191,6 +191,7 @@ pub fn run() {
             rr_cache::rr_history_stats,
             spend_tracker::get_spend_summary,
             spend_tracker::list_purchases,
+            spend_tracker::get_owned_collection,
             commands::wallet::get_wallet,
             coach::coach_analyze,
             identity_cache::get_cached_identity,
