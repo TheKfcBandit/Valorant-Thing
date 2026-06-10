@@ -39,14 +39,19 @@ fn save_storefront_to_disk(app: &AppHandle, raw: &str) {
             return;
         }
     };
-    let tmp = path.with_extension("json.tmp");
-    let _ = std::fs::remove_file(&tmp);
+    // Unique tmp name per write: the poller thread and the get_storefront
+    // command can persist concurrently, and a SHARED tmp name lets writer B
+    // rename the file writer A already renamed away — the "[StoreCache]
+    // rename: cannot find the file" error from the field. Last rename wins;
+    // both candidates are complete snapshots, so either outcome is valid.
+    let tmp = path.with_extension(format!("json.tmp{}", now_ms()));
     if let Err(e) = std::fs::write(&tmp, serialized) {
         riot::logging::log_error(&format!("[StoreCache] write tmp: {}", e));
         return;
     }
     if let Err(e) = std::fs::rename(&tmp, &path) {
         riot::logging::log_error(&format!("[StoreCache] rename: {}", e));
+        let _ = std::fs::remove_file(&tmp);
     }
 }
 
