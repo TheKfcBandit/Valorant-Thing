@@ -122,6 +122,81 @@ impl Drop for WebviewCloseGuard {
     }
 }
 
+// Snapshot the auth.riotgames.com cookie jar out of a live OAuth webview as
+// a Cookie header. WebView2 keeps Riot's ssid as a session cookie — gone on
+// process exit — so this in-memory capture (persisted via the keychain token
+// blob) is the only thing that survives an app restart. Without it, every
+// boot found an empty jar, rungs 1+2 failed, and rung-3 wiped the session:
+// the "signed out every time I close the app" bug.
+fn capture_auth_cookies(win: &tauri::WebviewWindow) -> Option<String> {
+    let url: Url = "https://auth.riotgames.com/".parse().ok()?;
+    let cookies = win.cookies_for_url(url).ok()?;
+    if cookies.is_empty() {
+        return None;
+    }
+    Some(
+        cookies
+            .iter()
+            .map(|c| format!("{}={}", c.name(), c.value()))
+            .collect::<Vec<_>>()
+            .join("; "),
+    )
+}
+
+fn store_auth_cookies(state: &Mutex<ConnectionState>, header: Option<String>) {
+    if let Some(h) = header {
+        if let Ok(mut s) = state.lock() {
+            s.auth_cookies = Some(h);
+        }
+    }
+}
+
+// Merge Set-Cookie response values into an existing Cookie header. Riot
+// rotates ssid on /api/v1/authorization calls; replaying the stale value on
+// the next boot would be rejected, so rotated values must win while cookies
+// the response didn't touch are kept.
+fn merge_cookie_header(existing: &str, set_cookies: &[String]) -> String {
+    let mut order: Vec<String> = Vec::new();
+    let mut values: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut push = |name: &str, value: &str| {
+        let name = name.trim().to_string();
+        if name.is_empty() {
+            return;
+        }
+        if !values.contains_key(&name) {
+            order.push(name.clone());
+        }
+        values.insert(name, value.trim().to_string());
+    };
+    for pair in existing.split(';') {
+        if let Some((n, v)) = pair.split_once('=') {
+            push(n, v);
+        }
+    }
+    for sc in set_cookies {
+        let first = sc.split(';').next().unwrap_or("");
+        if let Some((n, v)) = first.split_once('=') {
+            push(n, v);
+        }
+    }
+    order
+        .into_iter()
+        .map(|n| format!("{}={}", n, values[&n]))
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+// How a refresh rung failed — decides whether rung-3 may destroy state.
+pub(crate) enum RefreshFailure {
+    // The auth server actively refused our cookies/credentials: the session
+    // is genuinely dead and wiping the stores is correct.
+    Rejected(String),
+    // Network/setup trouble (offline boot, webview hiccup, 5xx). Nothing
+    // proved the session dead, so rung-3 must NOT wipe a possibly-valid
+    // keychain blob — the next launch retries it.
+    Transient(String),
+}
+
 #[tauri::command]
 pub async fn oauth_signin(
     app: AppHandle,
@@ -201,6 +276,9 @@ pub async fn oauth_signin(
                 return Err("Sign-in timed out.".to_string());
             }
         };
+    // Capture the session cookies while the webview is still alive — this is
+    // the keep-me-signed-in material the keychain blob persists across runs.
+    let signin_cookies = capture_auth_cookies(&win);
     let _ = win.close();
 
     let (access_token, _id_token) = parse_tokens_from_redirect(&captured_url).ok_or_else(|| {
@@ -222,6 +300,8 @@ pub async fn oauth_signin(
     if let Err(e) = identity_cache::save(&app, &identity, &info) {
         riot::logging::log_error(&format!("[OAuth] identity_cache save failed: {}", e));
     }
+
+    store_auth_cookies(&state, signin_cookies);
 
     // Persist the full token blob so the next app launch can hydrate
     // ConnectionState without a manual sign-in. Best-effort — a keychain
@@ -521,14 +601,21 @@ pub async fn refresh_oauth_session(
 
     riot::logging::log_info("[OAuth] Starting silent refresh chain");
 
-    match try_rung1_cookie_refresh(&app, &state).await {
+    let rung1_rejected = match try_rung1_cookie_refresh(&app, &state).await {
         Ok(()) => {
             riot::logging::log_info("[OAuth] Refresh succeeded via rung 1 (cookies API)");
             persist_state_token_blob(&app, &state);
             return Ok(());
         }
-        Err(e) => riot::logging::log_info(&format!("[OAuth] Rung 1 failed: {}", e)),
-    }
+        Err(RefreshFailure::Rejected(e)) => {
+            riot::logging::log_info(&format!("[OAuth] Rung 1 rejected by auth server: {}", e));
+            true
+        }
+        Err(RefreshFailure::Transient(e)) => {
+            riot::logging::log_info(&format!("[OAuth] Rung 1 failed (transient): {}", e));
+            false
+        }
+    };
 
     match try_rung2_silent_webview(&app, &state).await {
         Ok(()) => {
@@ -539,24 +626,31 @@ pub async fn refresh_oauth_session(
         Err(e) => riot::logging::log_info(&format!("[OAuth] Rung 2 failed: {}", e)),
     }
 
-    // Rung 3: terminal. Mirror oauth_signout — wipe BOTH the persisted token
-    // store AND the webview cookie jar (the cookies are what caused rung-3
-    // in the first place; reusing them on the next manual sign-in would just
-    // loop the failure). disconnect() resets oauth_state to Inactive; we
-    // then explicitly mark NeedsReauth so the React banner appears via the
-    // state-poll path (the event below is a fast-path hint).
-    riot::logging::log_error("[OAuth] All refresh rungs failed; user must re-sign-in");
-    token_store::wipe(&app);
-    if let Ok(data_dir) = auth_data_dir(&app) {
-        if data_dir.exists() {
-            if let Err(e) = std::fs::remove_dir_all(&data_dir) {
-                riot::logging::log_error(&format!(
-                    "[OAuth] rung-3 failed to wipe {}: {}",
-                    data_dir.display(),
-                    e
-                ));
+    // Rung 3: terminal. Wiping is only correct when the auth server ACTIVELY
+    // refused our cookies in rung 1 — that session is dead and reusing the
+    // cookies would just loop the failure. A transient rung-1 (offline boot,
+    // webview hiccup, Riot 5xx) followed by a rung-2 timeout proves nothing:
+    // destroying the keychain blob there is exactly the old "signed out
+    // every time I close the app" bug. Keep the stores; the next launch (or
+    // a manual sign-in) retries them.
+    if rung1_rejected {
+        riot::logging::log_error("[OAuth] Session rejected by auth server; user must re-sign-in");
+        token_store::wipe(&app);
+        if let Ok(data_dir) = auth_data_dir(&app) {
+            if data_dir.exists() {
+                if let Err(e) = std::fs::remove_dir_all(&data_dir) {
+                    riot::logging::log_error(&format!(
+                        "[OAuth] rung-3 failed to wipe {}: {}",
+                        data_dir.display(),
+                        e
+                    ));
+                }
             }
         }
+    } else {
+        riot::logging::log_error(
+            "[OAuth] Refresh failed without an auth rejection; keeping stored session for retry",
+        );
     }
     riot::disconnect(&state);
     if let Ok(mut s) = state.lock() {
@@ -582,74 +676,32 @@ fn persist_state_token_blob(app: &AppHandle, state: &Mutex<ConnectionState>) {
 async fn try_rung1_cookie_refresh(
     app: &AppHandle,
     state: &Arc<Mutex<ConnectionState>>,
-) -> Result<(), String> {
-    let data_dir = auth_data_dir(app)?;
-    if !data_dir.exists() {
-        return Err("no persisted cookie jar".to_string());
-    }
+) -> Result<(), RefreshFailure> {
+    use RefreshFailure::{Rejected, Transient};
 
-    // We need a webview pointed at auth.riotgames.com so its in-process
-    // cookie store loads our persistent cookies. Hidden, no navigation
-    // intercept — we just need the jar populated.
-    let cookie_probe_url: Url = "https://auth.riotgames.com/"
-        .parse()
-        .map_err(|e| format!("probe url parse: {}", e))?;
+    // Source 1: the WebView2 jar. Persistent cookies survive here, but the
+    // ssid usually doesn't (session cookie), so any probe failure or empty
+    // jar falls through to source 2 — the header captured at the last
+    // successful sign-in/refresh and persisted in the keychain blob.
+    let jar_header = read_jar_cookie_header(app).await;
 
-    // Make sure no stale "oauth-cookies" window is lingering from a prior
-    // crashed run before we try to build a new one with the same label.
-    if let Some(w) = app.get_webview_window("oauth-cookies") {
-        let _ = w.close();
-    }
-
-    let win = WebviewWindowBuilder::new(
-        app,
-        "oauth-cookies",
-        WebviewUrl::External(cookie_probe_url.clone()),
-    )
-    .title("Refreshing Riot session")
-    .inner_size(400.0, 300.0)
-    .visible(false)
-    .resizable(false)
-    .data_directory(data_dir)
-    .user_agent(WEB_UA)
-    .build()
-    .map_err(|e| format!("hidden webview build: {}", e))?;
-    let guard = WebviewCloseGuard::new(win);
-
-    // Give the webview a moment to load the cookie jar. The probe page may
-    // 302 around, but we don't care — we just need the runtime cookie store
-    // populated for this URL.
-    tokio::time::sleep(Duration::from_millis(1200)).await;
-
-    let cookies = guard
-        .as_window()
-        .ok_or("guard window gone")?
-        .cookies_for_url(cookie_probe_url)
-        .map_err(|e| format!("cookies_for_url: {}", e))?;
-    drop(guard); // Explicit close; the Drop impl would also fire on early-return.
-
-    if cookies.is_empty() {
-        return Err("empty cookie jar".to_string());
-    }
-
-    // Build a Cookie header from every cookie scoped to auth.riotgames.com.
-    // Riot's /api/v1/authorization expects the standard `ssid` (and friends);
-    // sending the full set is safe.
-    let cookie_header = cookies
-        .iter()
-        .map(|c| format!("{}={}", c.name(), c.value()))
-        .collect::<Vec<_>>()
-        .join("; ");
+    let stored_header = state.lock().ok().and_then(|s| s.auth_cookies.clone());
+    let cookie_header = match jar_header.or(stored_header) {
+        Some(h) if !h.is_empty() => h,
+        _ => return Err(Transient("no cookies in jar or keychain blob".to_string())),
+    };
 
     // POST the standard authorization body and parse the redirect from the
     // 303 Location header. reqwest::blocking is fine inside spawn_blocking.
+    // Also collect Set-Cookie rotations — Riot reissues ssid on this call,
+    // and persisting the stale one would kill the NEXT boot's refresh.
     let cookie_header_clone = cookie_header.clone();
-    let captured = tauri::async_runtime::spawn_blocking(move || {
+    let (captured, set_cookies) = tauri::async_runtime::spawn_blocking(move || {
         let client = reqwest::blocking::Client::builder()
             .user_agent(WEB_UA)
             .redirect(reqwest::redirect::Policy::none())
             .build()
-            .map_err(|e| format!("reqwest build: {}", e))?;
+            .map_err(|e| Transient(format!("reqwest build: {}", e)))?;
         let body = serde_json::json!({
             "client_id": "play-valorant-web-prod",
             "nonce": "1",
@@ -663,42 +715,62 @@ async fn try_rung1_cookie_refresh(
             .header("Content-Type", "application/json")
             .body(body.to_string())
             .send()
-            .map_err(|e| format!("authorization request: {}", e))?;
+            .map_err(|e| Transient(format!("authorization request: {}", e)))?;
+
+        let rotated: Vec<String> = resp
+            .headers()
+            .get_all("set-cookie")
+            .iter()
+            .filter_map(|v| v.to_str().ok().map(String::from))
+            .collect();
 
         // The happy path is a 303 with `Location: https://playvalorant.com/opt_in#access_token=...`.
         // Some flows return 200 with `{"type":"response","response":{"parameters":{"uri":"..."}}}`.
         if let Some(loc) = resp.headers().get("Location") {
             if let Ok(s) = loc.to_str() {
-                return Ok::<String, String>(s.to_string());
+                return Ok::<(String, Vec<String>), RefreshFailure>((s.to_string(), rotated));
             }
         }
         let status = resp.status();
         let txt = resp
             .text()
-            .map_err(|e| format!("authorization read: {}", e))?;
+            .map_err(|e| Transient(format!("authorization read: {}", e)))?;
         if !status.is_success() {
-            return Err(safe_response_summary(
-                "authorization request failed",
-                status,
-                &txt,
-            ));
+            let summary = safe_response_summary("authorization request failed", status, &txt);
+            // 4xx = the server saw our cookies and refused them: dead
+            // session. 5xx = Riot hiccup: retryable, don't wipe anything.
+            return Err(if status.is_server_error() {
+                Transient(summary)
+            } else {
+                Rejected(summary)
+            });
         }
-        let v: Value =
-            serde_json::from_str(&txt).map_err(|e| format!("authorization json: {}", e))?;
+        let v: Value = serde_json::from_str(&txt)
+            .map_err(|e| Transient(format!("authorization json: {}", e)))?;
         if let Some(uri) = v["response"]["parameters"]["uri"].as_str() {
-            return Ok(uri.to_string());
+            return Ok((uri.to_string(), rotated));
         }
-        Err(safe_response_summary(
+        // 200 with an auth/multifactor body instead of a redirect uri:
+        // the server engaged and declined to authorize silently.
+        Err(Rejected(safe_response_summary(
             "authorization response missing Location/uri",
             status,
             &txt,
-        ))
+        )))
     })
     .await
-    .map_err(|e| format!("rung1 task join: {}", e))??;
+    .map_err(|e| Transient(format!("rung1 task join: {}", e)))??;
 
-    let (access_token, _id) = parse_tokens_from_redirect(&captured)
-        .ok_or_else(|| "could not parse access_token from authorization response".to_string())?;
+    // Persist the rotated cookie set IMMEDIATELY — even if finalize below
+    // fails transiently, the old ssid may already be invalidated and the
+    // rotated one is the only way back in next boot.
+    let merged = merge_cookie_header(&cookie_header, &set_cookies);
+    store_auth_cookies(state, Some(merged));
+    persist_state_token_blob(app, state);
+
+    let (access_token, _id) = parse_tokens_from_redirect(&captured).ok_or_else(|| {
+        Rejected("could not parse access_token from authorization response".to_string())
+    })?;
 
     // Finalize: refresh path reuses puuid/region/shard/client_version from
     // ConnectionState — never reads ShooterGame.log. The userinfo call
@@ -708,9 +780,57 @@ async fn try_rung1_cookie_refresh(
         finalize_refresh(&state_for_finalize, &access_token)
     })
     .await
-    .map_err(|e| format!("rung1 finalize join: {}", e))??;
+    .map_err(|e| Transient(format!("rung1 finalize join: {}", e)))?
+    .map_err(Transient)?;
 
     Ok(())
+}
+
+// Probe the persistent WebView2 jar for auth.riotgames.com cookies. Every
+// failure mode returns None (logged) — rung 1 has a keychain fallback, so
+// a jar problem must never abort the whole rung.
+async fn read_jar_cookie_header(app: &AppHandle) -> Option<String> {
+    let data_dir = auth_data_dir(app).ok()?;
+    if !data_dir.exists() {
+        return None;
+    }
+    let cookie_probe_url: Url = "https://auth.riotgames.com/".parse().ok()?;
+
+    // Make sure no stale "oauth-cookies" window is lingering from a prior
+    // crashed run before we try to build a new one with the same label.
+    if let Some(w) = app.get_webview_window("oauth-cookies") {
+        let _ = w.close();
+    }
+
+    let win = match WebviewWindowBuilder::new(
+        app,
+        "oauth-cookies",
+        WebviewUrl::External(cookie_probe_url.clone()),
+    )
+    .title("Refreshing Riot session")
+    .inner_size(400.0, 300.0)
+    .visible(false)
+    .resizable(false)
+    .data_directory(data_dir)
+    .user_agent(WEB_UA)
+    .build()
+    {
+        Ok(w) => w,
+        Err(e) => {
+            riot::logging::log_info(&format!("[OAuth] cookie-probe webview build failed: {}", e));
+            return None;
+        }
+    };
+    let guard = WebviewCloseGuard::new(win);
+
+    // Give the webview a moment to load the cookie jar. The probe page may
+    // 302 around, but we don't care — we just need the runtime cookie store
+    // populated for this URL.
+    tokio::time::sleep(Duration::from_millis(1200)).await;
+
+    let header = guard.as_window().and_then(capture_auth_cookies);
+    drop(guard); // Explicit close; the Drop impl would also fire on early-return.
+    header
 }
 
 async fn try_rung2_silent_webview(
@@ -811,7 +931,11 @@ async fn try_rung2_silent_webview(
                 ));
             }
         };
+    // The silent flow just minted fresh session cookies — capture them for
+    // the keychain blob before the webview (and its session jar) dies.
+    let rung2_cookies = guard.as_window().and_then(capture_auth_cookies);
     drop(guard);
+    store_auth_cookies(state, rung2_cookies);
 
     let (access_token, _id) = parse_tokens_from_redirect(&captured_url)
         .ok_or_else(|| "could not parse access_token from silent redirect".to_string())?;
@@ -847,6 +971,7 @@ pub fn populate_from_blob(state: &Mutex<ConnectionState>, blob: &token_store::To
         s.game_name = Some(blob.game_name.clone());
         s.game_tag = Some(blob.game_tag.clone());
         s.player_card_url = blob.player_card_url.clone();
+        s.auth_cookies = blob.auth_cookies.clone();
         s.token_fetched_at = Some(Instant::now());
         // Deliberately NOT setting last_token_check — let the first
         // health_check / boot-task validate run unsuppressed.
@@ -913,5 +1038,30 @@ mod tests {
         let (a, i) = parse_tokens_from_redirect(url).expect("should parse");
         assert_eq!(a, "ONLY");
         assert!(i.is_none());
+    }
+
+    #[test]
+    fn merge_cookie_header_rotates_and_keeps_untouched() {
+        let existing = "ssid=old; clid=ue1; csid=keepme";
+        let set_cookies = vec![
+            "ssid=new; Path=/; Secure; HttpOnly; SameSite=None".to_string(),
+            "tdid=fresh; Path=/; Secure".to_string(),
+        ];
+        let merged = merge_cookie_header(existing, &set_cookies);
+        assert!(
+            merged.contains("ssid=new"),
+            "rotated ssid must win: {merged}"
+        );
+        assert!(!merged.contains("ssid=old"));
+        assert!(merged.contains("clid=ue1"), "untouched cookies survive");
+        assert!(merged.contains("csid=keepme"));
+        assert!(merged.contains("tdid=fresh"), "new cookies are appended");
+    }
+
+    #[test]
+    fn merge_cookie_header_handles_empty_inputs() {
+        assert_eq!(merge_cookie_header("", &[]), "");
+        assert_eq!(merge_cookie_header("a=1", &[]), "a=1");
+        assert_eq!(merge_cookie_header("", &["b=2; Path=/".to_string()]), "b=2");
     }
 }

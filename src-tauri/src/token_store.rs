@@ -33,6 +33,13 @@ pub struct TokenBlob {
     pub game_tag: String,
     pub player_card_url: Option<String>,
     pub saved_at_ms: u64,
+    // Cookie header for auth.riotgames.com (ssid + friends). WebView2 drops
+    // these session cookies on process exit, so the keychain blob is the
+    // only place they survive a restart; the boot refresh chain replays
+    // them when the on-disk jar is empty. serde(default) keeps pre-field
+    // blobs loading.
+    #[serde(default)]
+    pub auth_cookies: Option<String>,
 }
 
 fn fallback_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -63,22 +70,30 @@ pub fn save(app: &AppHandle, blob: &TokenBlob) -> Result<(), String> {
         }
     }
 
-    // Primary: OS keychain.
-    match keyring::Entry::new(SERVICE, KEY) {
-        Ok(entry) => match entry.set_password(&json) {
-            Ok(()) => {
-                log_info("[TokenStore] saved to keychain");
-                return Ok(());
-            }
+    // Primary: OS keychain — but Windows Credential Manager caps blobs at
+    // 2560 UTF-16 chars, and the blob (two JWTs + auth cookies) routinely
+    // exceeds that. Don't burn a guaranteed-failing write plus an ERROR log
+    // on every save; route oversized blobs straight to the JSON fallback.
+    const KEYCHAIN_CHAR_LIMIT: usize = 2400;
+    if json.chars().count() > KEYCHAIN_CHAR_LIMIT {
+        log_info("[TokenStore] blob exceeds the Windows keychain size cap; using JSON fallback");
+    } else {
+        match keyring::Entry::new(SERVICE, KEY) {
+            Ok(entry) => match entry.set_password(&json) {
+                Ok(()) => {
+                    log_info("[TokenStore] saved to keychain");
+                    return Ok(());
+                }
+                Err(e) => log_error(&format!(
+                    "[TokenStore] keychain set failed, using JSON fallback: {}",
+                    e
+                )),
+            },
             Err(e) => log_error(&format!(
-                "[TokenStore] keychain set failed, using JSON fallback: {}",
+                "[TokenStore] keychain unavailable, using JSON fallback: {}",
                 e
             )),
-        },
-        Err(e) => log_error(&format!(
-            "[TokenStore] keychain unavailable, using JSON fallback: {}",
-            e
-        )),
+        }
     }
 
     // Fallback: atomic-rename JSON write. Same pattern as value_cache.rs.
@@ -177,6 +192,7 @@ pub fn blob_from_state(s: &crate::riot::ConnectionState) -> Option<TokenBlob> {
         game_tag: s.game_tag.clone()?,
         player_card_url: s.player_card_url.clone(),
         saved_at_ms: now_ms(),
+        auth_cookies: s.auth_cookies.clone(),
     })
 }
 
@@ -196,6 +212,7 @@ mod tests {
             game_name: Some("Name".into()),
             game_tag: Some("TAG".into()),
             player_card_url: Some("https://x/card.png".into()),
+            auth_cookies: Some("ssid=abc; clid=ue1".into()),
             ..ConnectionState::default()
         }
     }
@@ -245,5 +262,21 @@ mod tests {
         assert_eq!(back.entitlements, blob.entitlements);
         assert_eq!(back.game_tag, blob.game_tag);
         assert_eq!(back.saved_at_ms, blob.saved_at_ms);
+        assert_eq!(back.auth_cookies.as_deref(), Some("ssid=abc; clid=ue1"));
+    }
+
+    #[test]
+    fn token_blob_without_auth_cookies_field_still_parses() {
+        // Blobs persisted before the cookie-persistence fix lack the field;
+        // serde(default) must keep them loading (None) instead of logging
+        // the user out with a parse failure.
+        let legacy = r#"{
+            "access_token": "at", "entitlements": "ent", "puuid": "p",
+            "region": "na", "shard": "na", "client_version": "v",
+            "game_name": "n", "game_tag": "t",
+            "player_card_url": null, "saved_at_ms": 1
+        }"#;
+        let blob: TokenBlob = serde_json::from_str(legacy).expect("legacy blob must parse");
+        assert!(blob.auth_cookies.is_none());
     }
 }
