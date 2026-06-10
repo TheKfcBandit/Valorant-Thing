@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { motion } from "framer-motion";
 import { noAnim, T0 } from "../utils/animation";
@@ -7,6 +7,8 @@ import { useApiLookup } from "../hooks/useApiLookup";
 import { getAgentLookup, getMapLookup } from "../valApiSkins";
 import { MODE_NAMES } from "../utils/gameMode";
 import { formatError } from "../utils/authError";
+import { drawHeatmap, HEAT_STOPS } from "../utils/heatmap";
+import { Toggle } from "./ui/Toggle";
 import { HeatmapTab } from "../icons";
 
 // Where am I dying the most (#37). v1 surface: pick a map, see every death
@@ -201,39 +203,92 @@ export default function HeatmapPage({ player }) {
 }
 
 function MapHeatmap({ map, deaths, agents }) {
+  const canvasRef = useRef(null);
+  const [imgSize, setImgSize] = useState(null);
+  const [showPoints, setShowPoints] = useState(false);
+
+  // Normalized 0-1 image coordinates. Riot's convention: image-x derives
+  // from game-y, image-y from game-x. Points the transform pushes
+  // off-canvas are dropped (usually missing multipliers for that map rev).
+  const normalized = useMemo(() => {
+    return deaths
+      .map((d, i) => {
+        const nx = d.y * map.xMultiplier + map.xScalarToAdd;
+        const ny = d.x * map.yMultiplier + map.yScalarToAdd;
+        if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return null;
+        return { nx, ny, d, key: `${d.matchId}-${d.roundNum}-${i}` };
+      })
+      .filter(Boolean);
+  }, [deaths, map]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !imgSize) return;
+    canvas.width = imgSize.w;
+    canvas.height = imgSize.h;
+    drawHeatmap(
+      canvas,
+      normalized.map((p) => ({ x: p.nx * imgSize.w, y: p.ny * imgSize.h })),
+      // Radius scales with resolution so density reads the same at any size.
+      { radius: Math.max(14, Math.round(imgSize.w * 0.032)) }
+    );
+  }, [normalized, imgSize]);
+
   return (
-    <div className="relative w-full max-w-2xl mx-auto rounded-xl border border-border bg-base-700 overflow-hidden">
-      <div className="relative">
+    <div className="w-full max-w-2xl mx-auto space-y-2">
+      <div className="relative rounded-xl border border-border bg-base-700 overflow-hidden">
         <img
           src={map.image}
           alt={map.name}
           className="block w-full h-auto select-none"
           draggable={false}
+          onLoad={(e) =>
+            setImgSize({ w: e.target.naturalWidth || 1024, h: e.target.naturalHeight || 1024 })
+          }
         />
-        <div className="absolute inset-0 pointer-events-none">
-          {deaths.map((d, i) => {
-            // Riot's convention: image-x derives from game-y, image-y from game-x.
-            const nx = d.y * map.xMultiplier + map.xScalarToAdd;
-            const ny = d.x * map.yMultiplier + map.yScalarToAdd;
-            // Skip points the transform pushed off-canvas (rare; usually
-            // means missing multipliers for that map version).
-            if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return null;
-            const killerName = agents[d.killerAgent]?.displayName || "Unknown";
-            return (
-              <span
-                key={`${d.matchId}-${d.roundNum}-${i}`}
-                title={`Round ${d.roundNum + 1} · killed by ${killerName}`}
-                className="absolute rounded-full bg-val-red/55 border border-val-red/70 shadow-[0_0_4px_rgba(255,70,85,0.7)]"
-                style={{
-                  left: `calc(${nx * 100}% - ${DOT_PX / 2}px)`,
-                  top: `calc(${ny * 100}% - ${DOT_PX / 2}px)`,
-                  width: DOT_PX,
-                  height: DOT_PX,
-                }}
-              />
-            );
-          })}
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 w-full h-full pointer-events-none"
+          aria-hidden="true"
+        />
+        {showPoints && (
+          <div className="absolute inset-0 pointer-events-none">
+            {normalized.map(({ nx, ny, d, key }) => {
+              const killerName = agents[d.killerAgent]?.displayName || "Unknown";
+              return (
+                <span
+                  key={key}
+                  title={`Round ${d.roundNum + 1} · killed by ${killerName}`}
+                  className="absolute rounded-full bg-white/80 border border-base-900/60 pointer-events-auto"
+                  style={{
+                    left: `calc(${nx * 100}% - ${DOT_PX / 2}px)`,
+                    top: `calc(${ny * 100}% - ${DOT_PX / 2}px)`,
+                    width: DOT_PX,
+                    height: DOT_PX,
+                  }}
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-body text-text-muted">few</span>
+          <div
+            className="h-2 w-36 rounded-full"
+            style={{
+              background: `linear-gradient(90deg, ${HEAT_STOPS.map(
+                (s) => `rgb(${s.color.join(",")}) ${s.t * 100}%`
+              ).join(", ")})`,
+            }}
+          />
+          <span className="text-[10px] font-body text-text-muted">many deaths</span>
         </div>
+        <label className="flex items-center gap-2 text-[10px] font-body text-text-muted">
+          Exact points
+          <Toggle enabled={showPoints} onChange={setShowPoints} />
+        </label>
       </div>
     </div>
   );

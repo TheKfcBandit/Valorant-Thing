@@ -187,6 +187,55 @@ export function MatchRoundsStrip({
           />
         </div>
       )}
+
+      <StripLegend interactive={interactive} showEconomy={Boolean(selfTeam && enemyTeam)} />
+    </div>
+  );
+}
+
+// Decoder ring for the strip. Every symbol above gets one entry here so the
+// chart explains itself; tooltips on the pills still carry the per-round
+// detail (planter, defuser, who got the multi-kill).
+function StripLegend({ interactive, showEconomy }) {
+  const item = "flex items-center gap-1 whitespace-nowrap";
+  const chip = "inline-flex w-4 h-4 rounded border items-center justify-center";
+  return (
+    <div className="pt-1.5 border-t border-border/40 space-y-1 text-[10px] font-body text-text-muted">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 items-center">
+        <span className={item}>
+          <span className={`${chip} bg-green-500/15 border-green-500/40`} />
+          round won
+        </span>
+        <span className={item}>
+          <span className={`${chip} bg-red-500/15 border-red-500/40`} />
+          round lost
+        </span>
+        <span className={item}>
+          <span className="text-yellow-300">★</span>
+          3+ kills by one player
+        </span>
+        <span className={item}>
+          how it ended:&nbsp;
+          <span className="font-display">B</span>=spike exploded ·{" "}
+          <span className="font-display">D</span>=defused · <span className="font-display">E</span>
+          =team eliminated · <span className="font-display">S</span>=surrender
+        </span>
+      </div>
+      {showEconomy && (
+        <div className="flex flex-wrap gap-x-3 gap-y-1 items-center">
+          <span className={item}>
+            buy strips:&nbsp;
+            <span className="text-yellow-300 font-mono">P</span>=pistol ·{" "}
+            <span className="text-red-300 font-mono">$</span>=eco ·{" "}
+            <span className="text-sky-300 font-mono">½</span>=half-buy ·{" "}
+            <span className="text-green-300 font-mono">$$</span>=full-buy
+          </span>
+          {interactive && (
+            <span className={item}>— click any round for the kill-by-kill breakdown</span>
+          )}
+        </div>
+      )}
+      {!showEconomy && interactive && <div>Click any round for the kill-by-kill breakdown.</div>}
     </div>
   );
 }

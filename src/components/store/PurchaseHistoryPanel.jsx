@@ -20,25 +20,39 @@ function fmtCosts({ vp, rp, kc }) {
 // version of the diff heuristic: items first seen while the app was
 // running, priced from the offers catalog at detection time. The wallet
 // chips are the one piece of genuinely live data.
-export function PurchaseHistoryPanel({ levelLookup }) {
+export function PurchaseHistoryPanel({ levelLookup, connected }) {
   const [ledger, setLedger] = useState(null);
   const [wallet, setWallet] = useState(null);
   const [error, setError] = useState(null);
 
-  useAsyncEffect(async (isCancelled) => {
-    try {
-      const res = await invoke("list_purchases");
-      if (!isCancelled()) setLedger(res);
-    } catch (e) {
-      if (!isCancelled()) setError(typeof e === "string" ? e : e?.message || "Failed to load");
-    }
-    try {
-      const raw = await invoke("get_wallet");
-      if (!isCancelled()) setWallet(normalizeWallet(JSON.parse(raw)));
-    } catch {
-      // No live session — balances are a bonus, not a requirement.
-    }
-  }, []);
+  useAsyncEffect(
+    async (isCancelled) => {
+      // With a live session, run the summary first: it carries the ledger
+      // migration + price backfill, so opening this panel is enough to
+      // self-heal — no detour through Home required.
+      if (connected) {
+        try {
+          await invoke("get_spend_summary");
+        } catch {
+          // Offline-token hiccup etc. — the cached ledger below still renders.
+        }
+      }
+      if (isCancelled()) return;
+      try {
+        const res = await invoke("list_purchases");
+        if (!isCancelled()) setLedger(res);
+      } catch (e) {
+        if (!isCancelled()) setError(typeof e === "string" ? e : e?.message || "Failed to load");
+      }
+      try {
+        const raw = await invoke("get_wallet");
+        if (!isCancelled()) setWallet(normalizeWallet(JSON.parse(raw)));
+      } catch {
+        // No live session — balances are a bonus, not a requirement.
+      }
+    },
+    [connected]
+  );
 
   if (error) {
     return (

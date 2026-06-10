@@ -218,7 +218,7 @@ export default function StorePage({ connected }) {
           <h1 className="text-2xl font-display font-bold text-text-primary">Store</h1>
           <StoreViewToggle view={view} onViewChange={setView} />
         </header>
-        <PurchaseHistoryPanel levelLookup={levelLookup} />
+        <PurchaseHistoryPanel levelLookup={levelLookup} connected={connected} />
       </div>
     );
   }
