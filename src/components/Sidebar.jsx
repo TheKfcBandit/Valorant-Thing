@@ -69,7 +69,9 @@ export default function Sidebar({
     <div
       className={`w-52 border-r border-border flex flex-col shrink-0 relative ${simplifiedTheme ? "bg-base-700" : ""}`}
     >
-      <nav className="p-2 pt-3 space-y-0.5">
+      {/* min-h-0 lets the nav shrink and scroll instead of overflowing the
+          column and pushing the connection bar below the window edge. */}
+      <nav className="p-2 pt-3 space-y-0.5 flex-1 min-h-0 overflow-y-auto">
         <SectionLabel>Home</SectionLabel>
         <NavButton
           id="home"
@@ -200,9 +202,7 @@ export default function Sidebar({
         )}
       </nav>
 
-      <div className="flex-1" />
-
-      <div className="p-3 border-t border-border space-y-2">
+      <div className="p-3 border-t border-border space-y-2 shrink-0">
         <AnimatePresence>
           {pregameMatchId && (
             <motion.button

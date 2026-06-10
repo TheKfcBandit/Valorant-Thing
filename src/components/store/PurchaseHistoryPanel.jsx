@@ -151,9 +151,18 @@ export function PurchaseHistoryPanel({ levelLookup }) {
                       </p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-xs font-display font-semibold tabular-nums text-text-primary">
-                        {fmtCosts(p).join(" · ") || "price unknown"}
-                      </p>
+                      {fmtCosts(p).length > 0 ? (
+                        <p className="text-xs font-display font-semibold tabular-nums text-text-primary">
+                          {fmtCosts(p).join(" · ")}
+                        </p>
+                      ) : (
+                        <p
+                          className="text-xs font-body text-text-muted"
+                          title="No store offer for this item — likely a battlepass reward, a radianite level upgrade, or a bundle-only skin"
+                        >
+                          No store price
+                        </p>
+                      )}
                       <p className="text-[10px] font-body text-text-muted tabular-nums">
                         seen {new Date(p.date_ms).toLocaleDateString()}
                       </p>

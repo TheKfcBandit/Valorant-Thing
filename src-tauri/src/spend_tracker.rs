@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
@@ -76,25 +77,11 @@ fn fetch_owned_skin_levels(state: &Mutex<ConnectionState>) -> Result<HashSet<Str
 fn fetch_offer_catalog(
     state: &Mutex<ConnectionState>,
 ) -> Result<HashMap<String, OfferCost>, String> {
-    let (access_token, entitlements, shard, client_version) = {
-        let s = state.lock().map_err(|e| e.to_string())?;
-        if !s.connected {
-            return Err("Not connected".to_string());
-        }
-        (
-            s.access_token.clone().ok_or("No access_token")?,
-            s.entitlements.clone().ok_or("No entitlements")?,
-            s.shard.clone().ok_or("No shard")?,
-            s.client_version.clone().ok_or("No client_version")?,
-        )
-    };
-    let raw = riot::pd_get(
-        &shard,
-        "/store/v1/offers/",
-        &access_token,
-        &entitlements,
-        &client_version,
-    )?;
+    // Refresh-aware wrapper (#14). The old raw pd_get path here 401'd
+    // silently on a stale token while the owned-items diff (already on the
+    // authed wrapper) succeeded — which is exactly how ledger entries got
+    // written with zero cost and the UI showed "price unknown" everywhere.
+    let raw = riot::pd_get_authed(state, "/store/v1/offers/")?;
     let json: Value = serde_json::from_str(&raw).map_err(|e| format!("parse offers: {}", e))?;
     let mut by_reward_id: HashMap<String, OfferCost> = HashMap::new();
     if let Some(offers) = json["Offers"].as_array() {
@@ -123,6 +110,33 @@ fn fetch_offer_catalog(
         }
     }
     Ok(by_reward_id)
+}
+
+// Retro-price ledger entries that were written while the offers catalog was
+// unavailable (the pre-fix catalog fetch 401'd silently on stale tokens, so
+// zero-cost purchases accumulated). Entries that still have no catalog offer
+// after a successful refresh are genuinely not store purchases — battlepass
+// rewards, radianite level upgrades, bundle-only items — and stay at zero.
+fn backfill_unpriced(d: &mut SpendData) -> u32 {
+    let SpendData {
+        purchases,
+        offer_cache,
+        ..
+    } = d;
+    let mut repriced = 0u32;
+    for p in purchases.iter_mut() {
+        if p.vp == 0 && p.rp == 0 && p.kc == 0 {
+            if let Some(oc) = offer_cache.get(&p.skin_level_uuid) {
+                if oc.vp > 0 || oc.rp > 0 || oc.kc > 0 {
+                    p.vp = oc.vp;
+                    p.rp = oc.rp;
+                    p.kc = oc.kc;
+                    repriced += 1;
+                }
+            }
+        }
+    }
+    repriced
 }
 
 fn build_summary(d: &SpendData, now: i64, new_since_last: usize) -> Value {
@@ -176,14 +190,18 @@ pub async fn get_spend_summary(
             .await
             .map_err(|e| format!("Task failed: {}", e))??;
 
-    let (had_prior, new_items) = spend.read(&app, |d| {
+    let (had_prior, new_items, has_unpriced) = spend.read(&app, |d| {
         let had = d.tracking_since_ms.is_some();
         let news: Vec<String> = owned
             .iter()
             .filter(|id| !d.last_owned.contains(*id))
             .cloned()
             .collect();
-        (had, news)
+        let unpriced = d
+            .purchases
+            .iter()
+            .any(|p| p.vp == 0 && p.rp == 0 && p.kc == 0);
+        (had, news, unpriced)
     })?;
 
     // First-ever snapshot: just baseline, no purchases.
@@ -207,36 +225,43 @@ pub async fn get_spend_summary(
         }));
     }
 
-    // Fetch catalog only if there's something new and it's not all cached.
-    if !new_items.is_empty() {
-        let need_catalog = spend.read(&app, |d| {
+    // Fetch the catalog when new items need pricing, or — at most once per
+    // app session — when the ledger holds zero-cost entries that an earlier
+    // failed fetch left behind. Items with no offer at all (battlepass,
+    // upgrades) would otherwise force a refetch of the large offers payload
+    // on every 5-minute Home refresh.
+    let needs_for_new = !new_items.is_empty()
+        && spend.read(&app, |d| {
             new_items.iter().any(|id| !d.offer_cache.contains_key(id))
         })?;
-        if need_catalog {
-            let state_for_cat = std::sync::Arc::clone(&state);
-            let catalog =
-                tauri::async_runtime::spawn_blocking(move || fetch_offer_catalog(&state_for_cat))
-                    .await
-                    .map_err(|e| format!("Task failed: {}", e))?;
-            match catalog {
-                Ok(cat) => {
-                    // No persist here: the purchases write below always
-                    // follows on this path and commits the merged cache.
-                    spend.write(&app, |d| {
-                        for (k, v) in cat {
-                            d.offer_cache.insert(k, v);
-                        }
-                        ((), false)
-                    })?;
-                }
-                Err(e) => log_error(&format!("[Spend] catalog fetch failed: {}", e)),
+    static CATALOG_REFRESHED: AtomicBool = AtomicBool::new(false);
+    let needs_for_backfill = has_unpriced && !CATALOG_REFRESHED.load(Ordering::Relaxed);
+    if needs_for_new || needs_for_backfill {
+        let state_for_cat = std::sync::Arc::clone(&state);
+        let catalog =
+            tauri::async_runtime::spawn_blocking(move || fetch_offer_catalog(&state_for_cat))
+                .await
+                .map_err(|e| format!("Task failed: {}", e))?;
+        match catalog {
+            Ok(cat) => {
+                CATALOG_REFRESHED.store(true, Ordering::Relaxed);
+                // No persist here: the purchases write below always
+                // follows on this path and commits the merged cache.
+                spend.write(&app, |d| {
+                    for (k, v) in cat {
+                        d.offer_cache.insert(k, v);
+                    }
+                    ((), false)
+                })?;
             }
+            Err(e) => log_error(&format!("[Spend] catalog fetch failed: {}", e)),
         }
     }
 
-    // Apply purchases.
+    // Apply purchases, then retro-price any older zero-cost entries the
+    // freshly merged catalog can now resolve.
     let now = now_ms();
-    spend.write(&app, |d| {
+    let repriced = spend.write(&app, |d| {
         for id in &new_items {
             let oc = d.offer_cache.get(id).cloned().unwrap_or_default();
             d.purchases.push(Purchase {
@@ -248,8 +273,15 @@ pub async fn get_spend_summary(
             });
         }
         d.last_owned = owned;
-        ((), true)
+        let repriced = backfill_unpriced(d);
+        (repriced, true)
     })?;
+    if repriced > 0 {
+        log_info(&format!(
+            "[Spend] retro-priced {} ledger entries from the offers catalog",
+            repriced
+        ));
+    }
 
     spend.read(&app, |d| build_summary(d, now, new_items.len()))
 }
@@ -333,6 +365,43 @@ mod tests {
         assert_eq!(summary["thisMonthRp"], 60);
         assert_eq!(summary["newSinceLast"], 1);
         assert_eq!(summary["trackingSinceMs"], 1);
+    }
+
+    #[test]
+    fn backfill_reprices_only_zero_cost_entries_with_catalog_hits() {
+        let purchase = |id: &str, vp: u64| Purchase {
+            skin_level_uuid: id.into(),
+            date_ms: 1,
+            vp,
+            rp: 0,
+            kc: 0,
+        };
+        let mut d = SpendData {
+            tracking_since_ms: Some(1),
+            last_owned: HashSet::new(),
+            purchases: vec![
+                purchase("in-catalog", 0),     // failed fetch at detection time
+                purchase("no-offer", 0),       // battlepass / upgrade — no offer
+                purchase("already-paid", 875), // priced entries must not change
+            ],
+            offer_cache: HashMap::from([
+                (
+                    "in-catalog".to_string(),
+                    OfferCost {
+                        vp: 1775,
+                        rp: 0,
+                        kc: 0,
+                    },
+                ),
+                ("zero-offer".to_string(), OfferCost::default()),
+            ]),
+        };
+        assert_eq!(backfill_unpriced(&mut d), 1);
+        assert_eq!(d.purchases[0].vp, 1775);
+        assert_eq!(d.purchases[1].vp, 0, "no catalog offer stays unpriced");
+        assert_eq!(d.purchases[2].vp, 875, "priced entries untouched");
+        // Idempotent: a second pass finds nothing left to reprice.
+        assert_eq!(backfill_unpriced(&mut d), 0);
     }
 
     #[test]
