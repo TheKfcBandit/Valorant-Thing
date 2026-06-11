@@ -90,9 +90,11 @@ pub fn start_bomb_tracker(app: tauri::AppHandle) -> Result<(), String> {
     std::thread::spawn(move || {
         let mut cooldown_until: Option<Instant> = None;
         let mut cached_monitor: Option<(i32, i32, u32, u32)> = None;
-        let mut monitor_fetched_at = Instant::now() - Duration::from_secs(999);
+        // None = never fetched. Backdating an Instant instead would underflow
+        // (and panic) when the OS booted more recently than the backdate.
+        let mut monitor_fetched_at: Option<Instant> = None;
         let mut fg_result = false;
-        let mut fg_checked_at = Instant::now() - Duration::from_secs(999);
+        let mut fg_checked_at: Option<Instant> = None;
 
         while RUNNING.load(Ordering::Relaxed) {
             if let Some(until) = cooldown_until {
@@ -104,20 +106,22 @@ pub fn start_bomb_tracker(app: tauri::AppHandle) -> Result<(), String> {
             }
 
             let now = Instant::now();
-            if now.duration_since(fg_checked_at).as_millis() as u64 >= FG_CHECK_MS {
+            if fg_checked_at.is_none_or(|t| now.duration_since(t).as_millis() as u64 >= FG_CHECK_MS)
+            {
                 fg_result = crate::riot::is_valorant_foreground();
-                fg_checked_at = now;
+                fg_checked_at = Some(now);
             }
             if !fg_result {
                 std::thread::sleep(Duration::from_millis(FG_CHECK_MS));
                 continue;
             }
 
-            if now.duration_since(monitor_fetched_at).as_millis() as u64 >= MONITOR_CACHE_MS
+            if monitor_fetched_at
+                .is_none_or(|t| now.duration_since(t).as_millis() as u64 >= MONITOR_CACHE_MS)
                 || cached_monitor.is_none()
             {
                 cached_monitor = crate::riot::get_valorant_monitor().ok();
-                monitor_fetched_at = now;
+                monitor_fetched_at = Some(now);
             }
             let (mx, my, mw, mh) = match cached_monitor {
                 Some(v) => v,
