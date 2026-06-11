@@ -39,9 +39,18 @@ pub(super) fn parse_http_status(stderr: &str) -> Option<u16> {
     tail[..end].parse().ok()
 }
 
-// The player-preferences service lives on a single global host — settings
-// follow the Riot account, not the pd/glz shard the player connects to.
-const PLAYERPREF_HOST: &str = "https://playerpreferences.riotgames.com";
+// The player-preferences service moved off the legacy global host
+// (playerpreferences.riotgames.com — its CNAME now dangles with no A
+// record) onto per-region SGP hosts, matching Riot's own clientconfig:
+// ServiceEndpoint = https://player-preferences-{region}.pp.sgp.pvp.net.
+// The region token comes from the caller (riot::playerpref owns the
+// shard → region mapping).
+fn playerpref_url(region: &str, path: &str) -> String {
+    format!(
+        "https://player-preferences-{}.pp.sgp.pvp.net{}",
+        region, path
+    )
+}
 
 #[allow(dead_code)]
 pub(super) fn pd_get_raw(
@@ -106,12 +115,13 @@ pub(super) fn pd_post_raw(
 }
 
 pub(super) fn playerpref_get_raw(
+    region: &str,
     path: &str,
     access_token: &str,
     entitlements: &str,
     client_version: &str,
 ) -> Result<(u16, String), String> {
-    let url = format!("{}{}", PLAYERPREF_HOST, path);
+    let url = playerpref_url(region, path);
     run_pd_node(
         Verb::Get,
         &url,
@@ -124,13 +134,14 @@ pub(super) fn playerpref_get_raw(
 }
 
 pub(super) fn playerpref_put_raw(
+    region: &str,
     path: &str,
     body: &str,
     access_token: &str,
     entitlements: &str,
     client_version: &str,
 ) -> Result<(u16, String), String> {
-    let url = format!("{}{}", PLAYERPREF_HOST, path);
+    let url = playerpref_url(region, path);
     run_pd_node(
         Verb::Put,
         &url,
@@ -193,6 +204,14 @@ fn run_pd_node(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn playerpref_url_builds_sgp_host() {
+        assert_eq!(
+            playerpref_url("usw2", "/playerPref/v3/savePreference"),
+            "https://player-preferences-usw2.pp.sgp.pvp.net/playerPref/v3/savePreference"
+        );
+    }
 
     #[test]
     fn parses_http_status_from_get_stderr() {

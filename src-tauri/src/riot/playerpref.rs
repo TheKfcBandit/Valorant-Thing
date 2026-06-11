@@ -27,11 +27,30 @@ const PREF_TYPE: &str = "Ares.PlayerSettings";
 const GET_PATH: &str = "/playerPref/v3/getPreference/Ares.PlayerSettings";
 const PUT_PATH: &str = "/playerPref/v3/savePreference";
 
+// Shard → SGP region token for the player-preferences host. Only these
+// four tokens have DNS records under pp.sgp.pvp.net (checked June 2026);
+// every Valorant shard rides one of them. na's pd shard also serves
+// latam / br / pbe, hence the catch-all.
+fn sgp_region_for_shard(shard: &str) -> &'static str {
+    match shard {
+        "eu" => "euc1",
+        "ap" => "apse1",
+        "kr" => "apne1",
+        _ => "usw2",
+    }
+}
+
 pub fn get_player_settings(state: &Mutex<ConnectionState>) -> Result<String, String> {
     let attempt = |state: &Mutex<ConnectionState>| -> Result<(u16, String), String> {
-        let (access_token, entitlements, _puuid, _region, _shard, client_version) =
+        let (access_token, entitlements, _puuid, _region, shard, client_version) =
             get_glz_creds(state)?;
-        playerpref_get_raw(GET_PATH, &access_token, &entitlements, &client_version)
+        playerpref_get_raw(
+            sgp_region_for_shard(&shard),
+            GET_PATH,
+            &access_token,
+            &entitlements,
+            &client_version,
+        )
     };
     let body = try_pd_with_refresh(state, GET_PATH, attempt, refresh_tokens)?;
     decode_pref_data(&extract_pref_data(&body)?)
@@ -48,9 +67,10 @@ pub fn put_player_settings(
     })
     .to_string();
     let attempt = |state: &Mutex<ConnectionState>| -> Result<(u16, String), String> {
-        let (access_token, entitlements, _puuid, _region, _shard, client_version) =
+        let (access_token, entitlements, _puuid, _region, shard, client_version) =
             get_glz_creds(state)?;
         playerpref_put_raw(
+            sgp_region_for_shard(&shard),
             PUT_PATH,
             &body,
             &access_token,
@@ -125,6 +145,17 @@ mod tests {
 
     const MINIMAL_SETTINGS: &str =
         r#"{"stringSettings":[{"settingEnum":"EAresStringSettingName::Foo","value":"bar"}]}"#;
+
+    #[test]
+    fn shard_maps_to_sgp_region() {
+        assert_eq!(sgp_region_for_shard("na"), "usw2");
+        assert_eq!(sgp_region_for_shard("latam"), "usw2");
+        assert_eq!(sgp_region_for_shard("br"), "usw2");
+        assert_eq!(sgp_region_for_shard("pbe"), "usw2");
+        assert_eq!(sgp_region_for_shard("eu"), "euc1");
+        assert_eq!(sgp_region_for_shard("ap"), "apse1");
+        assert_eq!(sgp_region_for_shard("kr"), "apne1");
+    }
 
     #[test]
     fn codec_round_trips() {
