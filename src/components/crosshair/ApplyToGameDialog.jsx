@@ -158,6 +158,9 @@ function describeError(e) {
     return "Close VALORANT first — the game overwrites server settings when it exits.";
   }
   if (kind === "auth-refreshing") return "Session is refreshing — try again in a moment.";
+  if (kind === "client-required") {
+    return "Open the Riot Client (you can leave VALORANT closed) and try again — applying a crosshair needs the game client's session, which the offline login can't provide.";
+  }
   if (kind === "unavailable") return "Player settings aren't available for this session.";
   return msg;
 }

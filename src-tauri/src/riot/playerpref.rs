@@ -18,9 +18,9 @@ use flate2::write::DeflateEncoder;
 use flate2::Compression;
 
 use super::auth::get_glz_creds;
-use super::connection::refresh_tokens;
+use super::logging::log_info;
 use super::pd_raw::{playerpref_get_raw, playerpref_put_raw};
-use super::pd_session::try_pd_with_refresh;
+use super::pd_session::finalize;
 use super::types::ConnectionState;
 
 const PREF_TYPE: &str = "Ares.PlayerSettings";
@@ -40,19 +40,21 @@ fn sgp_region_for_shard(shard: &str) -> &'static str {
     }
 }
 
+// Deliberately NOT routed through `try_pd_with_refresh`: this endpoint's
+// auth quirks must never signal NeedsRefresh — a misclassified 401 here
+// cascaded into tearing down a perfectly good OAuth session during live
+// testing. A 401/403 surfaces as a plain HTTP error; the user retries
+// after the background loop's natural refresh.
 pub fn get_player_settings(state: &Mutex<ConnectionState>) -> Result<String, String> {
-    let attempt = |state: &Mutex<ConnectionState>| -> Result<(u16, String), String> {
-        let (access_token, entitlements, _puuid, _region, shard, client_version) =
-            get_glz_creds(state)?;
-        playerpref_get_raw(
-            sgp_region_for_shard(&shard),
-            GET_PATH,
-            &access_token,
-            &entitlements,
-            &client_version,
-        )
-    };
-    let body = try_pd_with_refresh(state, GET_PATH, attempt, refresh_tokens)?;
+    let (access_token, _entitlements, _puuid, _region, shard, _client_version) =
+        get_glz_creds(state)?;
+    let region = sgp_region_for_shard(&shard);
+    let (status, body) = playerpref_get_raw(region, GET_PATH, &access_token)?;
+    log_info(&format!(
+        "[PlayerPref] GET shard={} region={} -> HTTP {}",
+        shard, region, status
+    ));
+    let body = finalize(GET_PATH, status, body)?;
     decode_pref_data(&extract_pref_data(&body)?)
 }
 
@@ -66,19 +68,11 @@ pub fn put_player_settings(
         "data": encode_pref_data(decoded_json)?,
     })
     .to_string();
-    let attempt = |state: &Mutex<ConnectionState>| -> Result<(u16, String), String> {
-        let (access_token, entitlements, _puuid, _region, shard, client_version) =
-            get_glz_creds(state)?;
-        playerpref_put_raw(
-            sgp_region_for_shard(&shard),
-            PUT_PATH,
-            &body,
-            &access_token,
-            &entitlements,
-            &client_version,
-        )
-    };
-    try_pd_with_refresh(state, PUT_PATH, attempt, refresh_tokens)?;
+    let (access_token, _entitlements, _puuid, _region, shard, _client_version) =
+        get_glz_creds(state)?;
+    let (status, resp) =
+        playerpref_put_raw(sgp_region_for_shard(&shard), PUT_PATH, &body, &access_token)?;
+    finalize(PUT_PATH, status, resp)?;
     Ok(())
 }
 

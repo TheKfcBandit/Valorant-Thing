@@ -54,6 +54,11 @@ export function PlayerSettingsSection({ valorantConnected }) {
       });
     } else if (kind === "auth-refreshing") {
       setFeedback({ tone: "warn", text: "Session is refreshing — try again in a moment." });
+    } else if (kind === "client-required") {
+      setFeedback({
+        tone: "warn",
+        text: "Open the Riot Client (VALORANT can stay closed) and try again — this needs the game client's session, which the offline login can't provide.",
+      });
     } else if (kind === "unavailable") {
       setUnavailable(true);
       setFeedback({ tone: "error", text: "Player settings aren't available for this session." });

@@ -20,6 +20,17 @@ export function isFeatureUnavailable(message) {
   return /HTTP 40[34]\b/.test(String(message ?? ""));
 }
 
+// The SGP player-preferences service answers 403 "RBAC: access denied"
+// when the access token lacks its role — which is exactly the case for
+// the webview-OAuth offline token (scope: account openid). The lockfile
+// token from a running Riot Client carries the role. So this 403 is NOT
+// a dead end like a generic one: it clears the moment the user opens the
+// Riot Client and the app reconnects in lockfile mode.
+export function isClientSessionRequired(message) {
+  const msg = String(message ?? "");
+  return /HTTP 403\b/.test(msg) && /RBAC|access denied/i.test(msg);
+}
+
 // Per-launch memo shared by the Settings section and the Crosshair dialog:
 // once Riot answers 403/404 the endpoint won't start working until at least
 // a reconnect, so both surfaces render a disabled state instead of retrying.
@@ -39,7 +50,7 @@ export function notePlayerSettingsSuccess() {
 
 /**
  * Map a failed player-settings command into a UI state.
- * @returns {"game-running" | "auth-refreshing" | "unavailable" | "error"}
+ * @returns {"game-running" | "auth-refreshing" | "client-required" | "unavailable" | "error"}
  */
 export function classifyPlayerSettingsError(message) {
   const msg = String(message ?? "");
@@ -53,6 +64,9 @@ export function classifyPlayerSettingsError(message) {
     return "auth-refreshing";
   }
   consecutiveAuthRefreshing = 0;
+  // Retryable: the offline-OAuth token can't reach this service, but a
+  // lockfile session can. Don't poison the per-launch memo.
+  if (isClientSessionRequired(msg)) return "client-required";
   if (isFeatureUnavailable(msg)) {
     unavailableThisLaunch = true;
     return "unavailable";

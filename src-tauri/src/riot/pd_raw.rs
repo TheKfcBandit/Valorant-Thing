@@ -114,23 +114,19 @@ pub(super) fn pd_post_raw(
     )
 }
 
+// Unlike pd/glz, the SGP player-preferences service authenticates with
+// the bare RSO access token ONLY — sending the X-Riot-Entitlements-JWT /
+// ClientPlatform / ClientVersion trio gets the request rejected with an
+// auth status (verified live; reference implementations send just
+// Authorization + Accept). Hence dedicated minimal-header scripts instead
+// of run_pd_node.
 pub(super) fn playerpref_get_raw(
     region: &str,
     path: &str,
     access_token: &str,
-    entitlements: &str,
-    client_version: &str,
 ) -> Result<(u16, String), String> {
     let url = playerpref_url(region, path);
-    run_pd_node(
-        Verb::Get,
-        &url,
-        path,
-        "",
-        access_token,
-        entitlements,
-        client_version,
-    )
+    run_playerpref_node(Verb::Get, &url, path, "", access_token)
 }
 
 pub(super) fn playerpref_put_raw(
@@ -138,19 +134,34 @@ pub(super) fn playerpref_put_raw(
     path: &str,
     body: &str,
     access_token: &str,
-    entitlements: &str,
-    client_version: &str,
 ) -> Result<(u16, String), String> {
     let url = playerpref_url(region, path);
-    run_pd_node(
-        Verb::Put,
-        &url,
-        path,
-        body,
-        access_token,
-        entitlements,
-        client_version,
-    )
+    run_playerpref_node(Verb::Put, &url, path, body, access_token)
+}
+
+fn run_playerpref_node(
+    verb: Verb,
+    url: &str,
+    path: &str,
+    body: &str,
+    access_token: &str,
+) -> Result<(u16, String), String> {
+    use base64::Engine;
+    let script = match verb {
+        Verb::Get => format!(
+            r#"const https=require('https');const zlib=require('zlib');const u=new URL('{}');const r=https.request({{hostname:u.hostname,path:u.pathname,headers:{{'Authorization':'Bearer {}','Accept':'application/json'}}}},res=>{{const chunks=[];res.on('data',c=>chunks.push(c));res.on('end',()=>{{let buf=Buffer.concat(chunks);const enc=res.headers['content-encoding'];process.stderr.write('HTTP '+res.statusCode+' enc='+(enc||'none')+' raw='+buf.length+' ');if(enc==='gzip'){{try{{buf=zlib.gunzipSync(buf)}}catch(e){{process.stderr.write('gunzip err:'+e.message+' ')}}}}else if(enc==='deflate'){{try{{buf=zlib.inflateSync(buf)}}catch(e){{}}}}const out=buf.toString();process.stderr.write('len='+out.length);process.stdout.write(out)}})}});r.on('error',e=>{{process.stderr.write('err:'+e.message);process.exit(1)}});r.setTimeout(15000,()=>{{r.destroy();process.stderr.write('timeout');process.exit(1)}});r.end()"#,
+            url, access_token
+        ),
+        Verb::Put | Verb::Post => {
+            let method = if verb == Verb::Put { "PUT" } else { "POST" };
+            let b64_body = base64::engine::general_purpose::STANDARD.encode(body.as_bytes());
+            format!(
+                r#"const https=require('https');const zlib=require('zlib');const u=new URL('{}');const b=Buffer.from('{}','base64').toString();const r=https.request({{hostname:u.hostname,path:u.pathname,method:'{}',headers:{{'Authorization':'Bearer {}','Accept':'application/json','Content-Type':'application/json','Content-Length':Buffer.byteLength(b)}}}},res=>{{const chunks=[];res.on('data',c=>chunks.push(c));res.on('end',()=>{{let buf=Buffer.concat(chunks);const enc=res.headers['content-encoding'];process.stderr.write('HTTP '+res.statusCode+' enc='+(enc||'none')+' raw='+buf.length+' ');if(enc==='gzip'){{try{{buf=zlib.gunzipSync(buf)}}catch(e){{process.stderr.write('gunzip err:'+e.message+' ')}}}}else if(enc==='deflate'){{try{{buf=zlib.inflateSync(buf)}}catch(e){{}}}}const out=buf.toString();process.stderr.write('len='+out.length);process.stdout.write(out)}})}});r.on('error',e=>{{process.stderr.write('err:'+e.message);process.exit(1)}});r.setTimeout(15000,()=>{{r.destroy();process.stderr.write('timeout');process.exit(1)}});r.end(b)"#,
+                url, b64_body, method, access_token
+            )
+        }
+    };
+    run_node_script(&script, path)
 }
 
 fn run_pd_node(
@@ -177,9 +188,12 @@ fn run_pd_node(
             )
         }
     };
+    run_node_script(&script, path)
+}
 
+fn run_node_script(script: &str, path: &str) -> Result<(u16, String), String> {
     let mut cmd = Command::new("node");
-    cmd.args(["-e", &script]);
+    cmd.args(["-e", script]);
     #[cfg(target_os = "windows")]
     cmd.creation_flags(0x08000000);
     let output = cmd.output().map_err(|e| format!("node failed: {}", e))?;

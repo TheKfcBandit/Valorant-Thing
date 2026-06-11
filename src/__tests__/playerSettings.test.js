@@ -3,6 +3,8 @@ import {
   SAVED_CROSSHAIR_ENUM,
   MAX_CROSSHAIR_PROFILES,
   isFeatureUnavailable,
+  isClientSessionRequired,
+  classifyPlayerSettingsError,
   readStringSetting,
   writeStringSetting,
   readCrosshairProfiles,
@@ -116,5 +118,20 @@ describe("isFeatureUnavailable", () => {
     [null, false],
   ])("%s → %s", (msg, expected) => {
     expect(isFeatureUnavailable(msg)).toBe(expected);
+  });
+});
+
+describe("isClientSessionRequired (403 RBAC)", () => {
+  test("the SGP RBAC 403 is recognized as retryable, not dead", () => {
+    const rbac = "/playerPref/v3/getPreference/Ares.PlayerSettings: HTTP 403 RBAC: access denied";
+    expect(isClientSessionRequired(rbac)).toBe(true);
+    // and it must NOT poison the per-launch unavailable memo
+    expect(classifyPlayerSettingsError(rbac)).toBe("client-required");
+  });
+
+  test("a plain 403 without RBAC stays generic-unavailable", () => {
+    const plain = "something: HTTP 403 forbidden";
+    expect(isClientSessionRequired(plain)).toBe(false);
+    expect(classifyPlayerSettingsError(plain)).toBe("unavailable");
   });
 });

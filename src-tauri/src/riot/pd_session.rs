@@ -42,7 +42,7 @@ fn is_auth_status(status: u16) -> bool {
     status == 401 || status == 403
 }
 
-fn finalize(path: &str, status: u16, body: String) -> Result<String, String> {
+pub(super) fn finalize(path: &str, status: u16, body: String) -> Result<String, String> {
     if (200..300).contains(&status) {
         // 204 No Content is a legitimate empty-body success for PUTs and
         // settings ACKs — the loadout-save / name-service / future
