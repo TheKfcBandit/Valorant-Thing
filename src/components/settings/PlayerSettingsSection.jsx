@@ -57,7 +57,7 @@ export function PlayerSettingsSection({ valorantConnected }) {
     } else if (kind === "client-required") {
       setFeedback({
         tone: "warn",
-        text: "Open the Riot Client (VALORANT can stay closed) and try again — this needs the game client's session, which the offline login can't provide.",
+        text: "This needs a live game session — the offline login can't reach the settings service. Launch VALORANT and let the app connect at the menu, then close the game and try again.",
       });
     } else if (kind === "unavailable") {
       setUnavailable(true);
