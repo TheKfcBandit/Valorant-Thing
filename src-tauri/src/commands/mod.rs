@@ -9,6 +9,7 @@ pub mod connection;
 pub mod live_match;
 pub mod loadout;
 pub mod party;
+pub mod playerpref;
 pub mod premier;
 pub mod presence;
 pub mod process;

@@ -61,6 +61,18 @@ describe("parseCrosshairCode", () => {
     expect(r.primary.futureField).toBe("42");
     expect(encodeCrosshairCode(r)).toContain("futureField;42");
   });
+
+  test("pre-section pairs land in globals, not primary", () => {
+    const r = parseCrosshairCode("0;s;1;P;c;5");
+    expect(r.globals).toEqual({ s: "1" });
+    expect(r.primary).toEqual({ c: "5" });
+  });
+
+  test("implicit-primary fallback only applies when no marker exists", () => {
+    const r = parseCrosshairCode("0;c;5;0l;3");
+    expect(r.globals).toBeNull();
+    expect(r.primary).toEqual({ c: "5", "0l": "3" });
+  });
 });
 
 describe("encodeCrosshairCode", () => {
@@ -82,6 +94,11 @@ describe("encodeCrosshairCode", () => {
   test("null / empty input encodes to empty string", () => {
     expect(encodeCrosshairCode(null)).toBe("");
     expect(encodeCrosshairCode(undefined)).toBe("");
+  });
+
+  test("globals round-trip is byte-stable", () => {
+    const code = "0;s;1;P;c;5;A;c;7";
+    expect(encodeCrosshairCode(parseCrosshairCode(code))).toBe(code);
   });
 });
 

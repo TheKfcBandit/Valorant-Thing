@@ -4,21 +4,20 @@ import { noAnim, T0 } from "../utils/animation";
 import { encodeCrosshairCode, parseCrosshairCode } from "../utils/crosshair";
 import { Label } from "./ui/Label";
 import { CrosshairPreview } from "./crosshair/CrosshairPreview";
+import { ApplyToGameDialog } from "./crosshair/ApplyToGameDialog";
 import { Crosshair, Check, X } from "../icons";
 
-// Paste / preview / preset library for crosshair share codes (#40).
-// v1 is code-only: import a pasted code, save named presets to
-// localStorage, copy a preset's code back to clipboard for in-game
-// import. Pushing a crosshair into the live game is deferred (couples
-// with the player-settings import/export issue).
+// Paste / preview / preset library for crosshair share codes (#40),
+// plus "Apply to game" (#45): converts a code to a Riot profile JSON
+// (utils/crosshairProfile.js) and writes it into the account's
+// Ares.PlayerSettings blob via the player-settings commands (#39).
 //
 // Storage choice: localStorage matches the existing per-page preference
 // pattern (favorite_skins, instalock-config, mapdodge-config, wishlist_skins,
 // etc.). The value_cache::Cache<T> rule (ARCHITECTURE.md) is for Rust-side disk
-// state — crosshair presets are pure frontend state with no backend
-// consumer. If a future feature needs Rust to read the preset list
-// (e.g. pushing a crosshair into the live game), that's the moment to
-// migrate, not now.
+// state — crosshair presets remain pure frontend state even with #45:
+// Rust never reads the preset list, the frontend converts the chosen
+// code and sends the patched settings JSON over the bridge.
 
 const PRESETS_KEY = "crosshair_presets";
 const VERSION_KEY = "crosshair_presets_version";
@@ -51,6 +50,7 @@ export default function CrosshairPage() {
   const [name, setName] = useState("");
   const [presets, setPresets] = useState(() => loadPresets());
   const [copiedId, setCopiedId] = useState(null);
+  const [applyTarget, setApplyTarget] = useState(null);
   // Skip the first persist after mount: if `loadPresets()` swallowed a
   // JSON.parse error and returned [], a mounting save would overwrite the
   // corrupt-but-recoverable bytes with []. Only persist on actual user
@@ -148,6 +148,20 @@ export default function CrosshairPage() {
             >
               Save preset
             </button>
+            <button
+              type="button"
+              onClick={() =>
+                setApplyTarget({
+                  code: encodeCrosshairCode(parsed),
+                  name: name.trim() || "Imported",
+                })
+              }
+              disabled={!isValid}
+              title="Add this crosshair to your in-game profiles"
+              className="shrink-0 px-3 py-2 rounded-lg border border-border bg-base-600 text-text-primary font-display font-semibold text-xs hover:bg-base-500 disabled:opacity-40 transition-colors"
+            >
+              Apply to game
+            </button>
           </div>
         </div>
       </section>
@@ -169,16 +183,25 @@ export default function CrosshairPage() {
                 onCopy={() => handleCopy(p)}
                 onLoad={() => handleLoadPreset(p)}
                 onDelete={() => handleDelete(p.id)}
+                onApply={() => setApplyTarget({ code: p.code, name: p.name })}
               />
             ))}
           </ul>
         )}
       </section>
+
+      {applyTarget && (
+        <ApplyToGameDialog
+          code={applyTarget.code}
+          name={applyTarget.name}
+          onClose={() => setApplyTarget(null)}
+        />
+      )}
     </motion.div>
   );
 }
 
-function PresetCard({ preset, copied, onCopy, onLoad, onDelete }) {
+function PresetCard({ preset, copied, onCopy, onLoad, onDelete, onApply }) {
   const parsed = useMemo(() => parseCrosshairCode(preset.code), [preset.code]);
   return (
     <li className="rounded-xl border border-border bg-base-700 p-3 flex gap-3">
@@ -214,6 +237,16 @@ function PresetCard({ preset, copied, onCopy, onLoad, onDelete }) {
             ) : (
               "Copy code"
             )}
+          </button>
+          <button
+            type="button"
+            onClick={onApply}
+            title="Add this crosshair to your in-game profiles"
+            className="text-[10px] font-display font-bold uppercase tracking-wider px-2 py-1 rounded border border-border bg-base-600 text-text-secondary hover:bg-base-500 transition-colors"
+          >
+            <span className="inline-flex items-center gap-1">
+              <Crosshair size={10} /> Apply
+            </span>
           </button>
           <button
             type="button"

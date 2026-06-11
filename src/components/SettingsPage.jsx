@@ -10,6 +10,7 @@ import { TimingSection } from "./settings/TimingSection";
 import { NotificationSettings } from "./settings/NotificationSettings";
 import { ThemeSection } from "./settings/ThemeSection";
 import { ConfigSection } from "./settings/ConfigSection";
+import { PlayerSettingsSection } from "./settings/PlayerSettingsSection";
 import { SettingRow } from "./settings/SettingRow";
 import { ShareCodeModal, ImportCodeModal } from "./settings/SettingsModals";
 
@@ -304,6 +305,8 @@ export default function SettingsPage({
         onShareWishlist={shareWishlistCode}
         onOpenImportCode={openImportCode}
       />
+
+      <PlayerSettingsSection valorantConnected={valorantConnected} />
 
       <motion.div
         variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}

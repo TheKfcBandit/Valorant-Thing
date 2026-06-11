@@ -126,7 +126,7 @@ pub fn pd_post_authed(
 ///       retry inline; the bg loop owns the refresh.
 ///     - Lockfile session → call refresh, retry exactly once. Any further
 ///       auth failure surfaces as a real error.
-fn try_pd_with_refresh<F, R>(
+pub(super) fn try_pd_with_refresh<F, R>(
     state: &Mutex<ConnectionState>,
     path: &str,
     mut attempt: F,

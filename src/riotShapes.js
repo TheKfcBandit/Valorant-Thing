@@ -33,6 +33,11 @@
 //     FeaturedBundle, SkinsPanelLayout, BonusStore
 //   /restrictions/v3/penalties                   PascalCase
 //     Penalties[].Type, Expiry, QueueID, RankedRatingPenalty, ID
+//   /playerPref/v3/* (Ares.PlayerSettings blob)   mixed — camelCase arrays
+//     (stringSettings[].settingEnum/value), PascalCase inside the
+//     SavedCrosshairProfileData value (CurrentProfile, Profiles[]).
+//     Read/WRITE boundary lives in utils/playerSettings.js, not here —
+//     it must preserve unknown fields on write, so it can't normalize.
 
 // ---------------------------------------------------------------------
 // /mmr/v1/players/{puuid}/competitiveupdates  (PascalCase)

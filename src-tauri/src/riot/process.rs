@@ -40,7 +40,7 @@ pub fn is_riot_client_running() -> bool {
     }
 }
 
-fn is_valorant_game_running() -> bool {
+pub fn is_valorant_game_running() -> bool {
     let mut cmd = Command::new("tasklist");
     #[cfg(target_os = "windows")]
     cmd.creation_flags(0x08000000);

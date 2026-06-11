@@ -39,6 +39,10 @@ pub(super) fn parse_http_status(stderr: &str) -> Option<u16> {
     tail[..end].parse().ok()
 }
 
+// The player-preferences service lives on a single global host — settings
+// follow the Riot account, not the pd/glz shard the player connects to.
+const PLAYERPREF_HOST: &str = "https://playerpreferences.riotgames.com";
+
 #[allow(dead_code)]
 pub(super) fn pd_get_raw(
     shard: &str,
@@ -47,9 +51,10 @@ pub(super) fn pd_get_raw(
     entitlements: &str,
     client_version: &str,
 ) -> Result<(u16, String), String> {
+    let url = format!("https://pd.{}.a.pvp.net{}", shard, path);
     run_pd_node(
         Verb::Get,
-        shard,
+        &url,
         path,
         "",
         access_token,
@@ -67,9 +72,10 @@ pub(super) fn pd_put_raw(
     entitlements: &str,
     client_version: &str,
 ) -> Result<(u16, String), String> {
+    let url = format!("https://pd.{}.a.pvp.net{}", shard, path);
     run_pd_node(
         Verb::Put,
-        shard,
+        &url,
         path,
         body,
         access_token,
@@ -87,9 +93,47 @@ pub(super) fn pd_post_raw(
     entitlements: &str,
     client_version: &str,
 ) -> Result<(u16, String), String> {
+    let url = format!("https://pd.{}.a.pvp.net{}", shard, path);
     run_pd_node(
         Verb::Post,
-        shard,
+        &url,
+        path,
+        body,
+        access_token,
+        entitlements,
+        client_version,
+    )
+}
+
+pub(super) fn playerpref_get_raw(
+    path: &str,
+    access_token: &str,
+    entitlements: &str,
+    client_version: &str,
+) -> Result<(u16, String), String> {
+    let url = format!("{}{}", PLAYERPREF_HOST, path);
+    run_pd_node(
+        Verb::Get,
+        &url,
+        path,
+        "",
+        access_token,
+        entitlements,
+        client_version,
+    )
+}
+
+pub(super) fn playerpref_put_raw(
+    path: &str,
+    body: &str,
+    access_token: &str,
+    entitlements: &str,
+    client_version: &str,
+) -> Result<(u16, String), String> {
+    let url = format!("{}{}", PLAYERPREF_HOST, path);
+    run_pd_node(
+        Verb::Put,
+        &url,
         path,
         body,
         access_token,
@@ -100,7 +144,7 @@ pub(super) fn pd_post_raw(
 
 fn run_pd_node(
     verb: Verb,
-    shard: &str,
+    url: &str,
     path: &str,
     body: &str,
     access_token: &str,
@@ -108,7 +152,6 @@ fn run_pd_node(
     client_version: &str,
 ) -> Result<(u16, String), String> {
     use base64::Engine;
-    let url = format!("https://pd.{}.a.pvp.net{}", shard, path);
     let script = match verb {
         Verb::Get => format!(
             r#"const https=require('https');const zlib=require('zlib');const u=new URL('{}');const r=https.request({{hostname:u.hostname,path:u.pathname,headers:{{'Authorization':'Bearer {}','X-Riot-Entitlements-JWT':'{}','X-Riot-ClientPlatform':'{}','X-Riot-ClientVersion':'{}'}}}},res=>{{const chunks=[];res.on('data',c=>chunks.push(c));res.on('end',()=>{{let buf=Buffer.concat(chunks);const enc=res.headers['content-encoding'];process.stderr.write('HTTP '+res.statusCode+' enc='+(enc||'none')+' raw='+buf.length+' ');if(enc==='gzip'){{try{{buf=zlib.gunzipSync(buf)}}catch(e){{process.stderr.write('gunzip err:'+e.message+' ')}}}}else if(enc==='deflate'){{try{{buf=zlib.inflateSync(buf)}}catch(e){{}}}}const out=buf.toString();process.stderr.write('len='+out.length);process.stdout.write(out)}})}});r.on('error',e=>{{process.stderr.write('err:'+e.message);process.exit(1)}});r.setTimeout(15000,()=>{{r.destroy();process.stderr.write('timeout');process.exit(1)}});r.end()"#,

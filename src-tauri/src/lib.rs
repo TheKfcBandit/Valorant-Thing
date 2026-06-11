@@ -12,6 +12,7 @@ mod loadout_presets;
 mod match_db;
 mod match_details_cache;
 mod oauth;
+mod player_settings_backup;
 mod premier_cache;
 mod riot;
 mod rr_cache;
@@ -76,6 +77,7 @@ pub fn run() {
         .manage(spend_tracker::new_cache())
         .manage(identity_cache::new_cache())
         .manage(loadout_presets::new_cache())
+        .manage(player_settings_backup::new_cache())
         .manage(premier_cache::new_cache())
         .manage(oauth::OAuthWebviewBusy::new())
         .plugin(tauri_plugin_autostart::init(
@@ -162,6 +164,10 @@ pub fn run() {
             commands::loadout::set_loadout,
             commands::loadout::get_owned_items,
             commands::loadout::check_loadout,
+            commands::playerpref::get_player_settings,
+            commands::playerpref::set_player_settings,
+            commands::playerpref::restore_player_settings_backup,
+            commands::playerpref::get_player_settings_backup_info,
             commands::premier::get_premier_player,
             commands::premier::get_premier_division,
             commands::premier::get_premier_conference,

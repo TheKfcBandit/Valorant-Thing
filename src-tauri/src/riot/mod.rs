@@ -9,6 +9,7 @@ mod match_history;
 mod party;
 mod pd_raw;
 mod pd_session;
+mod playerpref;
 mod premier;
 mod process;
 mod queue;
@@ -38,10 +39,11 @@ pub use party::{
     invite_to_party, join_party_by_code, kick_from_party, request_to_join_party,
     set_custom_settings, set_party_accessibility, start_custom_game_match,
 };
+pub use playerpref::{get_player_settings, put_player_settings};
 pub use premier::{get_premier_conference, get_premier_division, get_premier_player};
 pub use process::{
-    find_valorant_path, get_valorant_monitor, is_valorant_foreground, is_valorant_running,
-    list_monitors, parse_client_version, parse_region_shard,
+    find_valorant_path, get_valorant_monitor, is_valorant_foreground, is_valorant_game_running,
+    is_valorant_running, list_monitors, parse_client_version, parse_region_shard,
 };
 pub use queue::{change_queue, enter_queue, get_penalties, leave_queue};
 pub use stats::get_home_stats;

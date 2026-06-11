@@ -33,8 +33,14 @@ const KEY_TO_SECTION = { primary: "P", ads: "A", sniper: "S" };
  * Parse a crosshair share code into a typed object. Returns null for
  * unparseable input (empty, no version, no sections).
  *
+ * Advanced codes carry profile-wide flags BEFORE the first section
+ * marker (e.g. `0;s;1;P;…` where `s;1` enables per-scope overrides).
+ * Those land in `globals` so they survive a round-trip instead of being
+ * swallowed by the implicit-primary fallback.
+ *
  * @param {string} code
- * @returns {{ version: string, primary: Record<string,string>|null,
+ * @returns {{ version: string, globals: Record<string,string>|null,
+ *             primary: Record<string,string>|null,
  *             ads: Record<string,string>|null,
  *             sniper: Record<string,string>|null } | null}
  */
@@ -45,7 +51,8 @@ export function parseCrosshairCode(code) {
     .filter((s) => s.length > 0);
   if (tokens.length === 0) return null;
 
-  const result = { version: tokens[0], primary: null, ads: null, sniper: null };
+  const hasSectionMarker = tokens.slice(1).some((t) => SECTION_MARKERS.has(t));
+  const result = { version: tokens[0], globals: null, primary: null, ads: null, sniper: null };
   let section = null;
   let i = 1;
   while (i < tokens.length) {
@@ -57,10 +64,15 @@ export function parseCrosshairCode(code) {
       continue;
     }
     if (section == null) {
-      // Stray pair before any section — treat as part of an implicit
-      // primary section so a malformed-but-valuable code still renders.
       section = {};
-      result.primary = section;
+      if (hasSectionMarker) {
+        // Pre-section pairs in a well-formed code are profile-wide flags.
+        result.globals = section;
+      } else {
+        // No section marker anywhere — treat the run as an implicit
+        // primary section so a malformed-but-valuable code still renders.
+        result.primary = section;
+      }
     }
     const key = t;
     const value = tokens[i + 1];
@@ -88,6 +100,11 @@ export function parseCrosshairCode(code) {
 export function encodeCrosshairCode(parsed) {
   if (!parsed) return "";
   const parts = [parsed.version || "0"];
+  if (parsed.globals) {
+    for (const [k, v] of Object.entries(parsed.globals)) {
+      parts.push(k, String(v));
+    }
+  }
   for (const sectionKey of ["primary", "ads", "sniper"]) {
     const section = parsed[sectionKey];
     if (!section) continue;
@@ -107,14 +124,14 @@ export function encodeCrosshairCode(parsed) {
 // in-engine default — which we approximate, since the official defaults
 // aren't documented either.
 
-function numOr(map, key, fallback) {
+export function numOr(map, key, fallback) {
   const v = map?.[key];
   if (v == null) return fallback;
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
 }
 
-function boolOr(map, key, fallback) {
+export function boolOr(map, key, fallback) {
   const v = map?.[key];
   if (v == null) return fallback;
   return v === "1" || v === "true";
